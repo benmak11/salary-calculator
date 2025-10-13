@@ -1,0 +1,15 @@
+plugins {
+    id 'java-library'
+}
+
+sourceSets {
+    main {
+        resources {
+            srcDir 'src/main/resources'
+        }
+    }
+}
+
+tasks.processResources {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}

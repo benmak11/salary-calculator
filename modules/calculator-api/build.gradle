@@ -1,0 +1,8 @@
+plugins {
+    id 'java-library'
+}
+
+dependencies {
+    // Optional: OpenAPI tooling at build-time if you later generate code
+    // implementation 'org.openapitools:jackson-databind-nullable:0.2.6'
+}

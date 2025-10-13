@@ -1,0 +1,16 @@
+rootProject.name = 'salary-calculator'
+
+include(
+        'modules:calculator-api',
+        'modules:calculator-domain',
+        'modules:calculator-application',
+        'modules:calculator-infrastructure',
+        'modules:rulepacks',
+        'modules:calculator-integration-tests'
+)
+include 'calculator-api'
+include 'calculator-domain'
+include 'calculator-application'
+include 'calculator-infrastructure'
+include 'rulepacks'
+include 'calculator-integration-tests'
