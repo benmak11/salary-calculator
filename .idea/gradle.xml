@@ -9,19 +9,12 @@
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
-            <option value="$PROJECT_DIR$/calculator-api" />
-            <option value="$PROJECT_DIR$/calculator-application" />
-            <option value="$PROJECT_DIR$/calculator-domain" />
-            <option value="$PROJECT_DIR$/calculator-infrastructure" />
-            <option value="$PROJECT_DIR$/calculator-integration-tests" />
             <option value="$PROJECT_DIR$/modules" />
-            <option value="$PROJECT_DIR$/modules/calculator-api" />
-            <option value="$PROJECT_DIR$/modules/calculator-application" />
-            <option value="$PROJECT_DIR$/modules/calculator-domain" />
-            <option value="$PROJECT_DIR$/modules/calculator-infrastructure" />
-            <option value="$PROJECT_DIR$/modules/calculator-integration-tests" />
-            <option value="$PROJECT_DIR$/modules/rulepacks" />
-            <option value="$PROJECT_DIR$/rulepacks" />
+            <option value="$PROJECT_DIR$/modules/api" />
+            <option value="$PROJECT_DIR$/modules/calculator" />
+            <option value="$PROJECT_DIR$/modules/common" />
+            <option value="$PROJECT_DIR$/modules/integration-tests" />
+            <option value="$PROJECT_DIR$/modules/rules-registry" />
           </set>
         </option>
       </GradleProjectSettings>
