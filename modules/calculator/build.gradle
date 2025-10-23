@@ -1,0 +1,11 @@
+plugins {
+    id 'java-library'
+}
+
+dependencies {
+    implementation project(':modules:common')
+    implementation project(':modules:rules-registry')
+    implementation 'org.slf4j:slf4j-api:2.0.13'
+    implementation 'org.springframework:spring-context:6.2.7'
+    implementation 'org.springframework:spring-beans:6.2.10'
+}
