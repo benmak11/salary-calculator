@@ -3,13 +3,10 @@ plugins {
 }
 
 dependencies {
-    testImplementation platform('org.springframework.boot:spring-boot-dependencies:3.3.3')
-
     testImplementation project(':modules:common')
     testImplementation project(':modules:api')
-
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'org.springframework.boot:spring-boot-starter-web'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test:3.3.3'
+    testImplementation 'org.springframework.boot:spring-boot-starter-web:3.3.3'
     testImplementation 'com.fasterxml.jackson.core:jackson-databind:2.17.1'
 }
 

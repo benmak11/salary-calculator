@@ -3,7 +3,7 @@ package app.salary.api;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.SpringApplication;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = "app.salary")
 public class SalaryCalculatorApplication {
 
     public static void main(String[] args) {

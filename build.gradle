@@ -1,10 +1,10 @@
 plugins {
-    id 'io.spring.dependency-management' version '1.1.6'
     id 'org.springframework.boot' version '3.3.3' apply false
+    id 'io.spring.dependency-management' version '1.1.5'
     id 'java'
 }
 
-group = 'com.makusha'
+group = 'app.salary'
 version = '1.0.0'
 
 java {
@@ -21,17 +21,13 @@ subprojects {
         mavenCentral()
     }
 
-    configurations.all {
-        resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
-    }
-
     dependencies {
-        testImplementation 'org.junit.jupiter:junit-jupiter:5.11.0'
+        testImplementation 'org.junit.jupiter:junit-jupiter:5.10.3'
         testImplementation 'org.mockito:mockito-core:5.7.0'
         testImplementation 'org.mockito:mockito-junit-jupiter:5.7.0'
     }
 
-    tasks.withType(Test).configureEach {
+    tasks.withType(Test) {
         useJUnitPlatform()
     }
 }
