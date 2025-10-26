@@ -1,0 +1,37 @@
+{
+  "metadata": {
+    "country": "UK",
+    "taxYear": 2025,
+    "version": "UK-2025.4.0"
+  },
+  "incomeTax": {
+    "personalAllowance": 12570,
+    "taperStart": 100000,
+    "taperRate": 0.5,
+    "bands": [
+      { "upTo": 37700, "rate": 0.20 },
+      { "upTo": 125140, "rate": 0.40 },
+      { "rate": 0.45 }
+    ]
+  },
+  "ni": {
+    "primaryThresholdAnnual": 12570,
+    "upperEarningsLimit": 50270,
+    "mainRate": 0.08,
+    "upperRate": 0.02
+  },
+  "studentLoan": {
+    "plan1": {
+      "threshold": 24990,
+      "rate": 0.09
+    },
+    "plan2": {
+      "threshold": 27295,
+      "rate": 0.09
+    },
+    "postgrad": {
+      "threshold": 21000,
+      "rate": 0.06
+    }
+  }
+}

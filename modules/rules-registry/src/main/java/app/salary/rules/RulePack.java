@@ -12,7 +12,7 @@ public class RulePack {
     private NationalInsurance ni;
     private Map<String, StudentLoanRules> studentLoan;
 
-    private static class Metadata {
+    public static class Metadata {
         private String country;
         private Integer taxYear;
         private String version;
