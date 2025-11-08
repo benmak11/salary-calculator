@@ -4,33 +4,42 @@ import app.salary.common.annotation.ExcludeFromCodeCoverage;
 import app.salary.common.constants.Country;
 import app.salary.common.constants.PayCadence;
 import app.salary.common.validation.ValidCountryOptions;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
 @ExcludeFromCodeCoverage
 @ValidCountryOptions
+@Schema(description = "Request to calculate net salary with tax breakdown")
 public class CalculateRequest {
     @NotNull
+    @Schema(description = "Country code", example = "US", required = true)
     private Country country;
 
     @NotNull
     @Min(2025)
+    @Schema(description = "Tax year for calculation", example = "2025", required = true)
     private Integer taxYear;
 
     @NotNull
     @Min(0)
+    @Schema(description = "Annual gross salary", example = "100000", required = true)
     private Double annualSalary;
 
+    @Schema(description = "Pay frequency (defaults to ANNUAL)", example = "ANNUAL")
     private PayCadence cadence = PayCadence.ANNUAL;
 
     @Valid
+    @Schema(description = "Pre-tax deductions (optional)")
     private Pretax pretax;
 
     @Valid
+    @Schema(description = "Post-tax deductions (optional)")
     private Posttax posttax;
 
     @Valid
+    @Schema(description = "Country-specific options")
     private CountryOptions countryOptions;
 
     public Country getCountry() { return country; }

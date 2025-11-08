@@ -1,10 +1,15 @@
 package app.salary.common.dto;
 
 import app.salary.common.annotation.ExcludeFromCodeCoverage;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 @ExcludeFromCodeCoverage
+@Schema(description = "Individual deduction or tax line item")
 public class LineItem {
+    @Schema(description = "Name of the line item (e.g., 'Federal Income Tax', 'Medicare')", example = "Federal Income Tax")
     private String name;
+
+    @Schema(description = "Amount for this line item", example = "13841.0")
     private Double amount;
 
     public LineItem() {}
