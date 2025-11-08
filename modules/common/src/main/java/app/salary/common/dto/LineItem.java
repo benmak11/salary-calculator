@@ -1,5 +1,8 @@
 package app.salary.common.dto;
 
+import app.salary.common.annotation.ExcludeFromCodeCoverage;
+
+@ExcludeFromCodeCoverage
 public class LineItem {
     private String name;
     private Double amount;

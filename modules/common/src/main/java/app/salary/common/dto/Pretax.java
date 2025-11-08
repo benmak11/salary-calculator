@@ -1,8 +1,10 @@
 package app.salary.common.dto;
 
+import app.salary.common.annotation.ExcludeFromCodeCoverage;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
+@ExcludeFromCodeCoverage
 public class Pretax {
     @Min(0) @Max(1)
     private Double percent = 0.0;

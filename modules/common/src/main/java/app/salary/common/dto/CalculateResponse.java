@@ -1,7 +1,10 @@
 package app.salary.common.dto;
 
+import app.salary.common.annotation.ExcludeFromCodeCoverage;
+
 import java.util.List;
 
+@ExcludeFromCodeCoverage
 public class CalculateResponse {
     private Double grossPerCadence;
     private Double netPerCadence;

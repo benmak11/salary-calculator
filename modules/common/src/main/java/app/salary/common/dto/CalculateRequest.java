@@ -1,5 +1,6 @@
 package app.salary.common.dto;
 
+import app.salary.common.annotation.ExcludeFromCodeCoverage;
 import app.salary.common.constants.Country;
 import app.salary.common.constants.PayCadence;
 import app.salary.common.validation.ValidCountryOptions;
@@ -7,6 +8,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
+@ExcludeFromCodeCoverage
 @ValidCountryOptions
 public class CalculateRequest {
     @NotNull
