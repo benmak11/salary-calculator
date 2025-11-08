@@ -19,9 +19,17 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleValidationExceptions(
             MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
+
+        // Capture field-level errors
         ex.getBindingResult().getFieldErrors().forEach(error ->
                 errors.put(error.getField(), error.getDefaultMessage())
         );
+
+        // Capture class-level errors (like our custom @ValidCountryOptions)
+        ex.getBindingResult().getGlobalErrors().forEach(error ->
+                errors.put(error.getObjectName(), error.getDefaultMessage())
+        );
+
         log.warn("Validation failed: {}", errors);
         return ResponseEntity.badRequest().body(errors);
     }

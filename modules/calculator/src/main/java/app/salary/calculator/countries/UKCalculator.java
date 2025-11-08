@@ -17,9 +17,6 @@ public class UKCalculator implements CountryCalculator {
     private DeductionCalculator deductionCalculator;
 
     @Autowired
-    private IncomeCalculator incomeCalculator;
-
-    @Autowired
     private StudentLoanCalculator studentLoanCalculator;
 
     @Override
@@ -33,7 +30,7 @@ public class UKCalculator implements CountryCalculator {
         result.setCurrency("GBP");
         result.setRulePackVersion(rules.getMetadata().getVersion());
 
-        double grossAnnual = incomeCalculator.calculateAnnualGross(input.getIncome(), 37.5);
+        double grossAnnual = input.getAnnualGross();
         result.setGrossAnnual(grossAnnual);
 
         double pensionContribution = deductionCalculator.calculatePensionContribution(

@@ -20,9 +20,6 @@ public class USCalculator implements CountryCalculator {
     @Autowired
     private DeductionCalculator deductionCalculator;
 
-    @Autowired
-    private IncomeCalculator incomeCalculator;
-
     @Override
     public boolean supports(Country country, int taxYear) {
         return country == Country.US && taxYear >= 2025;
@@ -34,7 +31,7 @@ public class USCalculator implements CountryCalculator {
         result.setCurrency("USD");
         result.setRulePackVersion(rules.getMetadata().getVersion());
 
-        double grossAnnual = incomeCalculator.calculateAnnualGross(input.getIncome(), 40.0);
+        double grossAnnual = input.getAnnualGross();
         result.setGrossAnnual(grossAnnual);
 
         double pretaxDeductions = deductionCalculator.calculatePretaxDeductions(
