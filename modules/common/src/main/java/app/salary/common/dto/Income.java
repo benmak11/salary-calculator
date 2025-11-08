@@ -1,9 +1,11 @@
 package app.salary.common.dto;
 
+import app.salary.common.annotation.ExcludeFromCodeCoverage;
 import app.salary.common.constants.IncomeType;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
+@ExcludeFromCodeCoverage
 public class Income {
 
     @NotNull

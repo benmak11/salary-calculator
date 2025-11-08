@@ -33,8 +33,15 @@ public class RulesRegistry {
         log.info("Loading rule pack: {}", fileName);
 
         try (InputStream is = getClass().getResourceAsStream(fileName)) {
-            if (is == null)
-                throw new RuntimeException("Rule pack not found: " + fileName);
+            if (is == null) {
+                String errorMsg = String.format(
+                    "Rule pack not found: %s. Please ensure tax year %d is supported for country %s. " +
+                    "Available rule packs should be placed in src/main/resources/rulepacks/",
+                    fileName, taxYear, country
+                );
+                log.error(errorMsg);
+                throw new RuntimeException(errorMsg);
+            }
             return objectMapper.readValue(is, RulePack.class);
         } catch (IOException io) {
             log.error("Failed to load rule pack: {}", fileName, io);

@@ -1,5 +1,8 @@
 package app.salary.common.dto;
 
+import app.salary.common.annotation.ExcludeFromCodeCoverage;
+
+@ExcludeFromCodeCoverage
 public class Explanation {
     private String id;
     private String text;

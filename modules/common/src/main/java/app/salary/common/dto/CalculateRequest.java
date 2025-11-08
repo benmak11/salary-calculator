@@ -1,25 +1,28 @@
 package app.salary.common.dto;
 
+import app.salary.common.annotation.ExcludeFromCodeCoverage;
 import app.salary.common.constants.Country;
 import app.salary.common.constants.PayCadence;
+import app.salary.common.validation.ValidCountryOptions;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
+@ExcludeFromCodeCoverage
+@ValidCountryOptions
 public class CalculateRequest {
     @NotNull
     private Country country;
 
     @NotNull
-    @Min(2000)
+    @Min(2025)
     private Integer taxYear;
 
     @NotNull
-    @Valid
-    private Income income;
+    @Min(0)
+    private Double annualSalary;
 
-    @NotNull
-    private PayCadence cadence;
+    private PayCadence cadence = PayCadence.ANNUAL;
 
     @Valid
     private Pretax pretax;
@@ -34,8 +37,8 @@ public class CalculateRequest {
     public void setCountry(Country country) { this.country = country; }
     public Integer getTaxYear() { return taxYear; }
     public void setTaxYear(Integer taxYear) { this.taxYear = taxYear; }
-    public Income getIncome() { return income; }
-    public void setIncome(Income income) { this.income = income; }
+    public Double getAnnualSalary() { return annualSalary; }
+    public void setAnnualSalary(Double annualSalary) { this.annualSalary = annualSalary; }
     public PayCadence getCadence() { return cadence; }
     public void setCadence(PayCadence cadence) { this.cadence = cadence; }
     public Pretax getPretax() { return pretax; }

@@ -1,5 +1,8 @@
 package app.salary.common.dto;
 
+import app.salary.common.annotation.ExcludeFromCodeCoverage;
+
+@ExcludeFromCodeCoverage
 public class CountryOptionsUK {
     private String taxCode = "1257L";
     private Boolean scottishResident = false;

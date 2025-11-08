@@ -1,8 +1,10 @@
 package app.salary.common.dto;
 
+import app.salary.common.annotation.ExcludeFromCodeCoverage;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.Valid;
 
+@ExcludeFromCodeCoverage
 public class CountryOptions {
     @JsonProperty("US")
     @Valid

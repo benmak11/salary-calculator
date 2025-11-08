@@ -5,7 +5,7 @@
     "version": "US-2025.10.0"
   },
   "federal": {
-    "standardDeduction": {
+    "standardDeductions": {
       "SINGLE": 14600,
       "MARRIED": 29200
     },
