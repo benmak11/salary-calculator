@@ -14,6 +14,7 @@
             <option value="$PROJECT_DIR$/modules/calculator" />
             <option value="$PROJECT_DIR$/modules/common" />
             <option value="$PROJECT_DIR$/modules/integration-tests" />
+            <option value="$PROJECT_DIR$/modules/rule-pack-service" />
             <option value="$PROJECT_DIR$/modules/rules-registry" />
           </set>
         </option>
