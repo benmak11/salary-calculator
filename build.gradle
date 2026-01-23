@@ -33,7 +33,7 @@ subprojects {
 }
 
 // Integration test task that runs tests in integration-tests module
-task integrationTest {
+tasks.register('integrationTest') {
     dependsOn ':modules:integration-tests:test'
     group = 'verification'
     description = 'Runs integration tests'

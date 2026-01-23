@@ -27,7 +27,7 @@ public class CalculationOrchestrator {
         log.info("Starting calculation {} for country {} tax year {}",
                 calculationId, request.getCountry(), request.getTaxYear());
 
-        // Load rule pack
+        // Load rule pack TODO: Load with new RulePack service for rule pack retrieval
         RulePack rulePack = rulesRegistry.getRulePack(
                 request.getCountry().name(),
                 request.getTaxYear()
