@@ -14,17 +14,17 @@ import jakarta.validation.constraints.NotNull;
 @Schema(description = "Request to calculate net salary with tax breakdown")
 public class CalculateRequest {
     @NotNull
-    @Schema(description = "Country code", example = "US", required = true)
+    @Schema(description = "Country code", example = "US")
     private Country country;
 
     @NotNull
     @Min(2025)
-    @Schema(description = "Tax year for calculation", example = "2025", required = true)
+    @Schema(description = "Tax year for calculation", example = "2025")
     private Integer taxYear;
 
     @NotNull
     @Min(0)
-    @Schema(description = "Annual gross salary", example = "100000", required = true)
+    @Schema(description = "Annual gross salary", example = "100000")
     private Double annualSalary;
 
     @Schema(description = "Pay frequency (defaults to ANNUAL)", example = "ANNUAL")
