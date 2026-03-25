@@ -10,11 +10,11 @@ import jakarta.validation.constraints.NotNull;
 @Schema(description = "US-specific calculation options")
 public class CountryOptionsUS {
     @NotNull
-    @Schema(description = "US state code (e.g., CA, NY, TX)", example = "CA", required = true)
+    @Schema(description = "US state code (e.g., CA, NY, TX)", example = "CA")
     private String state;
 
     @NotNull
-    @Schema(description = "Tax filing status: SINGLE or MARRIED", example = "SINGLE", required = true)
+    @Schema(description = "Tax filing status: SINGLE or MARRIED", example = "SINGLE")
     private FilingStatus filingStatus;
 
     @Min(0)
