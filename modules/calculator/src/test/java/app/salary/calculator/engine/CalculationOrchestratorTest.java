@@ -1,5 +1,6 @@
 package app.salary.calculator.engine;
 
+import app.salary.calculator.client.RulePackClient;
 import app.salary.calculator.registry.CalculatorRegistry;
 import app.salary.common.constants.Country;
 import app.salary.common.constants.PayCadence;
@@ -11,6 +12,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -28,11 +31,15 @@ class CalculationOrchestratorTest {
     @Mock
     private CountryCalculator countryCalculator;
 
+    @Mock
+    private RulePackClient rulePackClient;
+
     private CalculationOrchestrator orchestrator;
 
     @BeforeEach
     void setUp() {
-        orchestrator = new CalculationOrchestrator(rulesRegistry, calculatorRegistry);
+        // rulePackClient is null — orchestrator falls back to rulesRegistry (classpath)
+        orchestrator = new CalculationOrchestrator(rulesRegistry, calculatorRegistry, null);
     }
 
     @Test
@@ -183,6 +190,45 @@ class CalculationOrchestratorTest {
 
         assertFalse(response.getExplanation().isEmpty());
         assertEquals("tax_code", response.getExplanation().get(0).getId());
+    }
+
+    @Test
+    void calculate_whenRulePackClientReturnsRulePack_shouldUseRemoteRulePack() {
+        CalculationOrchestrator remoteOrchestrator =
+                new CalculationOrchestrator(rulesRegistry, calculatorRegistry, rulePackClient);
+        CalculateRequest request = createTestRequest();
+        RulePack remotePack = new RulePack();
+        CalculationResult result = createTestResult();
+
+        when(rulePackClient.fetchLatest("UK", 2025)).thenReturn(Optional.of(remotePack));
+        when(calculatorRegistry.getCalculator(Country.UK, 2025)).thenReturn(countryCalculator);
+        when(countryCalculator.calculate(any(), eq(remotePack))).thenReturn(result);
+
+        CalculateResponse response = remoteOrchestrator.calculate(request);
+
+        assertNotNull(response);
+        verify(rulePackClient).fetchLatest("UK", 2025);
+        verify(rulesRegistry, never()).getRulePack(any(), anyInt());
+    }
+
+    @Test
+    void calculate_whenRulePackClientReturnsEmpty_shouldFallBackToClasspath() {
+        CalculationOrchestrator remoteOrchestrator =
+                new CalculationOrchestrator(rulesRegistry, calculatorRegistry, rulePackClient);
+        CalculateRequest request = createTestRequest();
+        RulePack classPathPack = new RulePack();
+        CalculationResult result = createTestResult();
+
+        when(rulePackClient.fetchLatest("UK", 2025)).thenReturn(Optional.empty());
+        when(rulesRegistry.getRulePack("UK", 2025)).thenReturn(classPathPack);
+        when(calculatorRegistry.getCalculator(Country.UK, 2025)).thenReturn(countryCalculator);
+        when(countryCalculator.calculate(any(), eq(classPathPack))).thenReturn(result);
+
+        CalculateResponse response = remoteOrchestrator.calculate(request);
+
+        assertNotNull(response);
+        verify(rulePackClient).fetchLatest("UK", 2025);
+        verify(rulesRegistry).getRulePack("UK", 2025);
     }
 
     private CalculateRequest createTestRequest() {

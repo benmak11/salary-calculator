@@ -34,11 +34,17 @@ class RulesRegistryTest {
     }
 
     @Test
-    void getRulePack_calledTwice_shouldReturnCachedResult() {
+    void getRulePack_calledTwice_shouldReturnEquivalentRulePacks() {
+        // Caching is handled by Spring's @Cacheable proxy — in a plain unit test
+        // (no Spring context) each call reloads from classpath, so instances differ.
+        // We verify that both calls return the same logical content.
         RulePack first = registry.getRulePack("UK", 2025);
         RulePack second = registry.getRulePack("UK", 2025);
 
-        assertSame(first, second);
+        assertNotNull(first);
+        assertNotNull(second);
+        assertEquals(first.getMetadata().getCountry(), second.getMetadata().getCountry());
+        assertEquals(first.getMetadata().getTaxYear(), second.getMetadata().getTaxYear());
     }
 
     @Test
@@ -60,14 +66,11 @@ class RulesRegistryTest {
     }
 
     @Test
-    void clearCache_shouldClearAllCachedRulePacks() {
-        RulePack first = registry.getRulePack("UK", 2025);
-        registry.clearCache();
-        RulePack second = registry.getRulePack("UK", 2025);
-
-        // After clearing cache, a new instance should be loaded
-        // They should be equal in content but not the same instance
-        assertNotSame(first, second);
+    void clearCache_shouldNotThrowAndRegistryShouldRemainUsable() {
+        registry.getRulePack("UK", 2025);
+        assertDoesNotThrow(() -> registry.clearCache());
+        // Registry should still be usable after a cache eviction
+        assertNotNull(registry.getRulePack("UK", 2025));
     }
 
     @Test

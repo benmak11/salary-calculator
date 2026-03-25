@@ -16,7 +16,9 @@ import org.springframework.http.ResponseEntity;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -55,7 +57,7 @@ class RulePackControllerTest {
     void getLatestRulePack_whenFound_shouldReturnRulePack() {
         RulePackDto dto = createTestDto();
 
-        when(rulePackService.findLatest("US", 2025)).thenReturn(Optional.of(dto));
+        when(rulePackService.findLatest("US", 2025)).thenReturn(dto);
 
         ResponseEntity<RulePackDto> response = controller.getLatestRulePack("US", 2025);
 
@@ -66,7 +68,7 @@ class RulePackControllerTest {
 
     @Test
     void getLatestRulePack_whenNotFound_shouldReturn404() {
-        when(rulePackService.findLatest("XX", 2025)).thenReturn(Optional.empty());
+        when(rulePackService.findLatest("XX", 2025)).thenReturn(null);
 
         ResponseEntity<RulePackDto> response = controller.getLatestRulePack("XX", 2025);
 

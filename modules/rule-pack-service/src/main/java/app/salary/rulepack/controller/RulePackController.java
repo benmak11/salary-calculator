@@ -78,9 +78,8 @@ public class RulePackController {
     ) {
         logger.debug("Getting latest rule pack for {} {}", country, taxYear);
 
-        return rulePackService.findLatest(country, taxYear)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        RulePackDto dto = rulePackService.findLatest(country, taxYear);
+        return dto != null ? ResponseEntity.ok(dto) : ResponseEntity.notFound().build();
     }
 
     /**

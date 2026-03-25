@@ -5,7 +5,7 @@ FROM gradle:8.5-jdk21-alpine AS build
 WORKDIR /app
 
 # Copy gradle files
-COPY settings.gradle.kts build.gradle.kts ./
+COPY settings.gradle build.gradle ./
 COPY gradle ./gradle
 COPY gradlew ./
 
