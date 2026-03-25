@@ -1,5 +1,6 @@
 package app.salary.calculator.engine;
 
+import app.salary.calculator.client.RulePackClient;
 import app.salary.calculator.registry.CalculatorRegistry;
 import app.salary.common.dto.CalculateRequest;
 import app.salary.common.dto.CalculateResponse;
@@ -15,11 +16,14 @@ public class CalculationOrchestrator {
 
     private final RulesRegistry rulesRegistry;
     private final CalculatorRegistry calculatorRegistry;
+    private final RulePackClient rulePackClient;
 
     public CalculationOrchestrator(RulesRegistry rulesRegistry,
-                                   CalculatorRegistry calculatorRegistry) {
+                                   CalculatorRegistry calculatorRegistry,
+                                   RulePackClient rulePackClient) {
         this.rulesRegistry = rulesRegistry;
         this.calculatorRegistry = calculatorRegistry;
+        this.rulePackClient = rulePackClient;
     }
 
     public CalculateResponse calculate(CalculateRequest request) {
@@ -27,11 +31,18 @@ public class CalculationOrchestrator {
         log.info("Starting calculation {} for country {} tax year {}",
                 calculationId, request.getCountry(), request.getTaxYear());
 
-        // Load rule pack TODO: Load with new RulePack service for rule pack retrieval
-        RulePack rulePack = rulesRegistry.getRulePack(
-                request.getCountry().name(),
-                request.getTaxYear()
-        );
+        // Load rule pack: try rule-pack-service first, fall back to embedded classpath JSON
+        RulePack rulePack = null;
+        if (rulePackClient != null) {
+            rulePack = rulePackClient.fetchLatest(request.getCountry().name(), request.getTaxYear()).orElse(null);
+            if (rulePack != null) {
+                log.debug("Loaded rule pack from rule-pack-service for {} {}", request.getCountry(), request.getTaxYear());
+            }
+        }
+        if (rulePack == null) {
+            log.info("Falling back to classpath rule pack for {} {}", request.getCountry(), request.getTaxYear());
+            rulePack = rulesRegistry.getRulePack(request.getCountry().name(), request.getTaxYear());
+        }
 
         // Get calculator from registry
         CountryCalculator calculator = calculatorRegistry.getCalculator(

@@ -4,19 +4,23 @@ import app.salary.rulepack.dto.RulePackDto;
 import app.salary.rulepack.entity.RulePackEntity;
 import app.salary.rulepack.entity.RulePackStatus;
 import app.salary.rulepack.repository.RulePackRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.cloud.spring.pubsub.core.PubSubTemplate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.*;
+import java.util.Date;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -31,22 +35,25 @@ class RulePackServiceTest {
     @Mock
     private RulePackStorageService storageService;
 
+    @Mock
+    private PubSubTemplate pubSubTemplate;
+
+    @Mock
+    private ObjectMapper objectMapper;
+
     private RulePackService service;
 
     @BeforeEach
     void setUp() {
-        service = new RulePackService(repository, storageService);
+        service = new RulePackService(repository, storageService, pubSubTemplate, objectMapper);
     }
 
     @Test
     void findRulePacks_shouldReturnPageOfRulePacks() {
         Pageable pageable = PageRequest.of(0, 10);
         RulePackEntity entity = createTestEntity();
-        Page<RulePackEntity> entityPage = new PageImpl<>(List.of(entity));
 
-        when(repository.findByCountryCodeAndTaxYearAndStatus(
-                eq("US"), eq(2025), eq(RulePackStatus.PUBLISHED), any(Pageable.class)))
-                .thenReturn(entityPage);
+        when(repository.findAll()).thenReturn(Flux.just(entity));
 
         Page<RulePackDto> result = service.findRulePacks("US", 2025, "PUBLISHED", pageable);
 
@@ -59,31 +66,29 @@ class RulePackServiceTest {
     void findLatest_shouldReturnLatestPublishedRulePack() {
         RulePackEntity entity = createTestEntity();
 
-        when(repository.findLatestPublished("US", 2025, RulePackStatus.PUBLISHED))
-                .thenReturn(Optional.of(entity));
+        when(repository.findAll()).thenReturn(Flux.just(entity));
 
-        Optional<RulePackDto> result = service.findLatest("US", 2025);
+        RulePackDto result = service.findLatest("US", 2025);
 
-        assertTrue(result.isPresent());
-        assertEquals("US", result.get().getCountry());
-        assertEquals(2025, result.get().getTaxYear());
+        assertNotNull(result);
+        assertEquals("US", result.getCountry());
+        assertEquals(2025, result.getTaxYear());
     }
 
     @Test
-    void findLatest_whenNotFound_shouldReturnEmpty() {
-        when(repository.findLatestPublished("XX", 2025, RulePackStatus.PUBLISHED))
-                .thenReturn(Optional.empty());
+    void findLatest_whenNotFound_shouldReturnNull() {
+        when(repository.findAll()).thenReturn(Flux.empty());
 
-        Optional<RulePackDto> result = service.findLatest("XX", 2025);
+        RulePackDto result = service.findLatest("XX", 2025);
 
-        assertTrue(result.isEmpty());
+        assertNull(result);
     }
 
     @Test
     void findById_shouldReturnRulePack() {
         RulePackEntity entity = createTestEntity();
 
-        when(repository.findById("test-id")).thenReturn(Optional.of(entity));
+        when(repository.findById("test-id")).thenReturn(Mono.just(entity));
 
         Optional<RulePackDto> result = service.findById("test-id");
 
@@ -93,7 +98,7 @@ class RulePackServiceTest {
 
     @Test
     void findById_whenNotFound_shouldReturnEmpty() {
-        when(repository.findById("nonexistent")).thenReturn(Optional.empty());
+        when(repository.findById("nonexistent")).thenReturn(Mono.empty());
 
         Optional<RulePackDto> result = service.findById("nonexistent");
 
@@ -105,7 +110,7 @@ class RulePackServiceTest {
         RulePackEntity entity = createTestEntity();
         Map<String, Object> content = Map.of("key", "value");
 
-        when(repository.findById("test-id")).thenReturn(Optional.of(entity));
+        when(repository.findById("test-id")).thenReturn(Mono.just(entity));
         when(storageService.download("storage/path")).thenReturn(Optional.of(content));
 
         Optional<Map<String, Object>> result = service.downloadRulePack("test-id");
@@ -116,7 +121,7 @@ class RulePackServiceTest {
 
     @Test
     void downloadRulePack_whenNotFound_shouldReturnEmpty() {
-        when(repository.findById("nonexistent")).thenReturn(Optional.empty());
+        when(repository.findById("nonexistent")).thenReturn(Mono.empty());
 
         Optional<Map<String, Object>> result = service.downloadRulePack("nonexistent");
 
@@ -127,12 +132,11 @@ class RulePackServiceTest {
     void createRulePack_shouldCreateNewRulePack() {
         Map<String, Object> rulePackJson = Map.of("rule", "value");
 
-        when(repository.existsByCountryCodeAndTaxYearAndVersion("US", 2025, "2025.1.0"))
-                .thenReturn(false);
+        when(repository.findAll()).thenReturn(Flux.empty()); // no existing packs
         when(storageService.upload("US", 2025, "2025.1.0", rulePackJson))
                 .thenReturn("storage/path");
         when(repository.save(any(RulePackEntity.class)))
-                .thenAnswer(inv -> inv.getArgument(0));
+                .thenAnswer(inv -> Mono.just(inv.getArgument(0)));
 
         RulePackDto result = service.createRulePack(
                 "US", 2025, "2025.1.0", LocalDate.of(2025, 1, 1), rulePackJson);
@@ -150,9 +154,11 @@ class RulePackServiceTest {
     @Test
     void createRulePack_whenDuplicateExists_shouldThrowException() {
         Map<String, Object> rulePackJson = Map.of("rule", "value");
+        RulePackEntity existing = RulePackEntity.builder()
+                .countryCode("US").taxYear(2025).version("2025.1.0")
+                .status(RulePackStatus.DRAFT).build();
 
-        when(repository.existsByCountryCodeAndTaxYearAndVersion("US", 2025, "2025.1.0"))
-                .thenReturn(true);
+        when(repository.findAll()).thenReturn(Flux.just(existing));
 
         assertThrows(IllegalArgumentException.class, () ->
                 service.createRulePack("US", 2025, "2025.1.0", LocalDate.of(2025, 1, 1), rulePackJson));
@@ -161,13 +167,14 @@ class RulePackServiceTest {
     }
 
     @Test
-    void publishRulePack_shouldUpdateStatusToPublished() {
+    void publishRulePack_shouldUpdateStatusToPublished() throws Exception {
         RulePackEntity entity = createTestEntity();
         entity.setStatus(RulePackStatus.DRAFT);
 
-        when(repository.findById("test-id")).thenReturn(Optional.of(entity));
+        when(repository.findById("test-id")).thenReturn(Mono.just(entity));
         when(repository.save(any(RulePackEntity.class)))
-                .thenAnswer(inv -> inv.getArgument(0));
+                .thenAnswer(inv -> Mono.just(inv.getArgument(0)));
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
 
         RulePackDto result = service.publishRulePack("test-id");
 
@@ -180,7 +187,7 @@ class RulePackServiceTest {
         RulePackEntity entity = createTestEntity();
         entity.setStatus(RulePackStatus.PUBLISHED);
 
-        when(repository.findById("test-id")).thenReturn(Optional.of(entity));
+        when(repository.findById("test-id")).thenReturn(Mono.just(entity));
 
         assertThrows(IllegalStateException.class, () ->
                 service.publishRulePack("test-id"));
@@ -188,19 +195,20 @@ class RulePackServiceTest {
 
     @Test
     void publishRulePack_whenNotFound_shouldThrowException() {
-        when(repository.findById("nonexistent")).thenReturn(Optional.empty());
+        when(repository.findById("nonexistent")).thenReturn(Mono.empty());
 
         assertThrows(RuntimeException.class, () ->
                 service.publishRulePack("nonexistent"));
     }
 
     @Test
-    void deprecateRulePack_shouldUpdateStatusToDeprecated() {
+    void deprecateRulePack_shouldUpdateStatusToDeprecated() throws Exception {
         RulePackEntity entity = createTestEntity();
 
-        when(repository.findById("test-id")).thenReturn(Optional.of(entity));
+        when(repository.findById("test-id")).thenReturn(Mono.just(entity));
         when(repository.save(any(RulePackEntity.class)))
-                .thenAnswer(inv -> inv.getArgument(0));
+                .thenAnswer(inv -> Mono.just(inv.getArgument(0)));
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
 
         RulePackDto result = service.deprecateRulePack("test-id");
 
@@ -211,7 +219,7 @@ class RulePackServiceTest {
 
     @Test
     void deprecateRulePack_whenNotFound_shouldThrowException() {
-        when(repository.findById("nonexistent")).thenReturn(Optional.empty());
+        when(repository.findById("nonexistent")).thenReturn(Mono.empty());
 
         assertThrows(RuntimeException.class, () ->
                 service.deprecateRulePack("nonexistent"));
@@ -224,10 +232,10 @@ class RulePackServiceTest {
                 .taxYear(2025)
                 .version("2025.1.0")
                 .status(RulePackStatus.PUBLISHED)
-                .effectiveDate(LocalDate.of(2025, 1, 1))
+                .effectiveDate(new Date())
                 .checksum("abc123")
                 .storagePath("storage/path")
-                .createdAt(LocalDateTime.now())
+                .createdAt(new Date())
                 .createdBy("system")
                 .build();
     }
