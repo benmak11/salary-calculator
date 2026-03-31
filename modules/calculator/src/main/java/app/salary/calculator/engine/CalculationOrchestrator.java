@@ -67,6 +67,13 @@ public class CalculationOrchestrator {
         response.setGrossPerCadence(result.getGrossAnnual() / periodsPerYear);
         response.setNetPerCadence(result.getNetAnnual() / periodsPerYear);
 
+        double baseSalary = result.getBaseSalaryAnnual() != null
+                ? result.getBaseSalaryAnnual()
+                : result.getGrossAnnual();
+        double bonus = result.getBonusAnnual() != null ? result.getBonusAnnual() : 0.0;
+        response.setBaseSalaryPerCadence(baseSalary / periodsPerYear);
+        response.setBonusPerCadence(bonus / periodsPerYear);
+
         // Adjust line items to cadence
         result.getLineItems().forEach(item -> {
             item.setAmount(item.getAmount() / periodsPerYear);

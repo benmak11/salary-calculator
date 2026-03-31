@@ -8,6 +8,7 @@ public class CalculationInput {
     private Country country;
     private Integer taxYear;
     private Double annualGross;
+    private Double bonusAnnual = 0.0;
     private PayCadence payCadence;
     private Pretax pretax;
     private Posttax posttax;
@@ -18,7 +19,9 @@ public class CalculationInput {
         CalculationInput input = new CalculationInput();
         input.country = request.getCountry();
         input.taxYear = request.getTaxYear();
-        input.annualGross = request.getAnnualSalary();
+        double bonus = request.getBonus() != null ? request.getBonus() : 0.0;
+        input.bonusAnnual = bonus;
+        input.annualGross = request.getAnnualSalary() + bonus;
         input.payCadence = request.getCadence();
         input.pretax = request.getPretax() != null ? request.getPretax() : new Pretax();
         input.posttax = request.getPosttax() != null ? request.getPosttax() : new Posttax();
@@ -37,6 +40,8 @@ public class CalculationInput {
     public void setTaxYear(Integer taxYear) { this.taxYear = taxYear; }
     public Double getAnnualGross() { return annualGross; }
     public void setAnnualGross(Double annualGross) { this.annualGross = annualGross; }
+    public Double getBonusAnnual() { return bonusAnnual; }
+    public void setBonusAnnual(Double bonusAnnual) { this.bonusAnnual = bonusAnnual; }
     public PayCadence getPayCadence() { return payCadence; }
     public void setPayCadence(PayCadence payCadence) { this.payCadence = payCadence; }
     public Pretax getPretax() { return pretax; }

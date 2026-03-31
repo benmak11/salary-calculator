@@ -1,5 +1,6 @@
 package app.salary.api.controller;
 
+import app.salary.api.service.CalculationStore;
 import app.salary.calculator.engine.CalculationOrchestrator;
 import app.salary.calculator.registry.CalculatorRegistry;
 import app.salary.common.constants.Country;
@@ -31,11 +32,14 @@ class CalculateControllerTest {
     @Mock
     private CalculatorRegistry calculatorRegistry;
 
+    @Mock
+    private CalculationStore calculationStore;
+
     private CalculateController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new CalculateController(orchestrator, calculatorRegistry);
+        controller = new CalculateController(orchestrator, calculatorRegistry, calculationStore);
     }
 
     @Test
@@ -50,6 +54,18 @@ class CalculateControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals("c_12345678", response.getBody().getCalculationId());
+        verify(calculationStore).store(expectedResponse);
+    }
+
+    @Test
+    void calculate_shouldStoreResultInCalculationStore() {
+        CalculateRequest request = createTestRequest();
+        CalculateResponse expectedResponse = createTestResponse();
+        when(orchestrator.calculate(any())).thenReturn(expectedResponse);
+
+        controller.calculate(request);
+
+        verify(calculationStore, times(1)).store(expectedResponse);
     }
 
     @Test
@@ -79,7 +95,6 @@ class CalculateControllerTest {
     @Test
     void getSupportedCountries_shouldReturnCountriesList() {
         List<Country> countries = Arrays.asList(Country.UK, Country.US);
-
         when(calculatorRegistry.getSupportedCountries()).thenReturn(countries);
 
         ResponseEntity<Map<String, Object>> response = controller.getSupportedCountries();
@@ -92,9 +107,40 @@ class CalculateControllerTest {
     }
 
     @Test
+    void getUsStates_shouldReturn51Entries() {
+        ResponseEntity<List<Map<String, String>>> response = controller.getUsStates();
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(51, response.getBody().size()); // 50 states + DC
+        assertTrue(response.getBody().stream().anyMatch(s -> "CA".equals(s.get("code"))));
+        assertTrue(response.getBody().stream().anyMatch(s -> "DC".equals(s.get("code"))));
+    }
+
+    @Test
+    void getUsStates_shouldHaveCodeAndNameFields() {
+        ResponseEntity<List<Map<String, String>>> response = controller.getUsStates();
+
+        assertNotNull(response.getBody());
+        Map<String, String> firstEntry = response.getBody().get(0);
+        assertTrue(firstEntry.containsKey("code"));
+        assertTrue(firstEntry.containsKey("name"));
+    }
+
+    @Test
+    void getSupportedTaxYears_withUSCountry_shouldReturnTaxYears() {
+        ResponseEntity<Map<String, Object>> response = controller.getSupportedTaxYears("US");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("US", response.getBody().get("country"));
+        assertTrue(response.getBody().containsKey("supportedTaxYears"));
+        assertTrue(response.getBody().containsKey("defaultTaxYear"));
+    }
+
+    @Test
     void health_shouldReturnHealthStatus() {
         List<Country> countries = Arrays.asList(Country.UK, Country.US);
-
         when(calculatorRegistry.getCalculatorCount()).thenReturn(2);
         when(calculatorRegistry.getSupportedCountries()).thenReturn(countries);
 

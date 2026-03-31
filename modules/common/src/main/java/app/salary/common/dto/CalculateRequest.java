@@ -24,8 +24,12 @@ public class CalculateRequest {
 
     @NotNull
     @Min(0)
-    @Schema(description = "Annual gross salary", example = "100000")
+    @Schema(description = "Annual base salary (excluding bonus)", example = "100000")
     private Double annualSalary;
+
+    @Min(0)
+    @Schema(description = "Annual bonus / supplemental wages taxed at flat 22% federal rate (US only)", example = "10000")
+    private Double bonus = 0.0;
 
     @Schema(description = "Pay frequency (defaults to ANNUAL)", example = "ANNUAL")
     private PayCadence cadence = PayCadence.ANNUAL;
@@ -48,6 +52,8 @@ public class CalculateRequest {
     public void setTaxYear(Integer taxYear) { this.taxYear = taxYear; }
     public Double getAnnualSalary() { return annualSalary; }
     public void setAnnualSalary(Double annualSalary) { this.annualSalary = annualSalary; }
+    public Double getBonus() { return bonus; }
+    public void setBonus(Double bonus) { this.bonus = bonus; }
     public PayCadence getCadence() { return cadence; }
     public void setCadence(PayCadence cadence) { this.cadence = cadence; }
     public Pretax getPretax() { return pretax; }
