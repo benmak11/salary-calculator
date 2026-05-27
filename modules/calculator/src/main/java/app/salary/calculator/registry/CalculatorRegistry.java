@@ -4,19 +4,15 @@ import app.salary.calculator.engine.CountryCalculator;
 import app.salary.common.constants.Country;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
-@Component
 public class CalculatorRegistry {
     private static final Logger log = LoggerFactory.getLogger(CalculatorRegistry.class);
 
     private final List<CountryCalculator> calculators;
 
-    @Autowired
     public CalculatorRegistry(List<CountryCalculator> calculators) {
         this.calculators = calculators;
         log.info("╔══════════════════════════════════════════════╗");

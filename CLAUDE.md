@@ -1,5 +1,57 @@
 # Salary Calculator — Claude Notes
 
+## Spring Boot → Javalin Migration (2026-05-25)
+
+The entire backend was migrated off Spring Boot onto **Javalin 6.x** to slim the runtime
+footprint and remove Spring Cloud GCP from the rule-pack-service. There is no Spring on
+the classpath in any module any longer.
+
+### What changed
+
+| Concern                  | Before                                          | After                                                                |
+| ------------------------ | ----------------------------------------------- | -------------------------------------------------------------------- |
+| HTTP framework           | Spring Boot Web (Tomcat)                        | Javalin 6.3 on Jetty, virtual threads enabled                        |
+| Dependency injection     | `@Component` / `@Autowired` / Spring context    | Plain constructor injection wired in `Main.java`                     |
+| JSON                     | Spring Jackson auto-config                      | Jackson + `JavalinJackson` mapper                                    |
+| Validation               | Spring `@Valid` controller param                | Jakarta Validation runtime (Hibernate Validator) via `RequestValidator` |
+| Exception handling       | `@RestControllerAdvice` / `@ExceptionHandler`    | `app.exception(Class, handler)` in `Main`                            |
+| Caching (api/rules-registry) | Spring Cache + Redis backend                | Caffeine in-process (no Redis dep)                                   |
+| Caching (rule-pack-service)  | Spring `@Cacheable("rulepack")` + Memorystore | `RulePackCache` (Caffeine, 10-min TTL); `invalidateAll()` on publish/deprecate |
+| Firestore client         | `spring-cloud-gcp-starter-data-firestore` reactive | `google-cloud-firestore` blocking client + hand-rolled `RulePackRepository` |
+| Pub/Sub                  | `PubSubTemplate` (spring-cloud-gcp)             | `google-cloud-pubsub` `Publisher` via `RulePackLifecyclePublisher`   |
+| GCS                      | `spring-cloud-gcp-starter-storage`              | `google-cloud-storage` directly                                      |
+| GraphQL                  | `spring-boot-starter-graphql` (annotation-driven) | `graphql-java` directly; SDL loaded from `resources/graphql/schema.graphqls` |
+| HTTP client (api → rule-pack-service) | `RestTemplate`                     | `java.net.http.HttpClient`                                           |
+| OpenAPI                  | `springdoc-openapi-starter-webmvc-ui`           | Removed; DTOs keep `swagger-annotations` for future re-introduction  |
+| Actuator                 | `spring-boot-starter-actuator` + Prometheus     | Hand-rolled `/actuator/health` + `/actuator/prometheus` (Micrometer) |
+| Packaging                | `bootJar`                                       | `shadowJar` via `com.gradleup.shadow`                                |
+
+### Key files
+
+- `modules/api/src/main/java/app/salary/api/Main.java` — wires everything for the customer-facing API on `:8080`.
+- `modules/rule-pack-service/src/main/java/app/salary/rulepack/Main.java` — boots the rule-pack service on `:8081`. GCP clients are best-effort: when `ENABLE_GCP=false` (the docker-compose default) the persistence routes return 503 but the service still boots cleanly.
+- `Dockerfile` + `Dockerfile.rule-pack-service` — multi-stage builds that publish `shadowJar` artifacts.
+- `docker-compose.yml` — brings up both services on the same network; no Redis sidecar needed.
+
+### Known follow-up items
+
+- **Tests were dropped, not ported.** All Spring `MockMvc` controller tests in `modules/api`, all integration tests in `modules/integration-tests`, plus three rule-pack-service tests (`RulePackControllerTest`, `RulePackGraphQLControllerTest`, `RulePackServiceTest`) were removed. They need to be rewritten using `io.javalin:javalin-testtools` (`JavalinTest.test(...)`). See `modules/integration-tests/TODO_REWRITE.md`.
+- **`HttpRulePackClientTest`** was deleted (mocked `RestTemplate`). Replace with a mock `HttpClient` or an in-process Javalin server returning canned rule-pack JSON.
+- **`RULE_PACK_SERVICE_URL` is wired by default in docker-compose** to `http://rule-pack-service:8081`. Because `ENABLE_GCP=false`, the rule-pack-service returns 503 for `/v1/rule-packs/*`, and the api transparently falls back to the embedded classpath rule pack. To exercise the real Firestore path locally, set `ENABLE_GCP=true` and mount Google Application Default Credentials.
+- **CORS** is currently open-to-all on the rule-pack-service (`anyHost()`) — tighten before any production deploy.
+- **Pub/Sub subscriber** in the api module (called out in the earlier follow-ups list below) is still not implemented — events publish from the rule-pack-service but no consumer evicts the api's `RulesRegistry` Caffeine cache.
+
+### How to run locally
+
+```bash
+./gradlew :modules:api:shadowJar :modules:rule-pack-service:shadowJar
+docker compose up --build
+# api          → http://localhost:8080  (try GET /v1/health, POST /v1/calculate)
+# rule-pack    → http://localhost:8081  (try GET /actuator/health)
+```
+
+---
+
 ## GCP Datastore & API Improvements
 
 These improvements were identified on 2026-03-24 and **fully implemented on 2026-03-24**.

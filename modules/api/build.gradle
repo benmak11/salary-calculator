@@ -1,6 +1,7 @@
 plugins {
-    id 'org.springframework.boot'
-    id 'io.spring.dependency-management'
+    id 'java'
+    id 'application'
+    id 'com.gradleup.shadow' version '8.3.5'
 }
 
 dependencies {
@@ -8,16 +9,43 @@ dependencies {
     implementation project(':modules:common')
     implementation project(':modules:rules-registry')
 
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
-    implementation 'org.springframework.boot:spring-boot-starter-cache'
-    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
-    implementation 'io.micrometer:micrometer-registry-prometheus'
+    // Javalin (lightweight web framework, replaces Spring Boot)
+    implementation 'io.javalin:javalin:6.3.0'
+    implementation 'io.javalin:javalin-micrometer:6.3.0'
 
-    runtimeOnly 'ch.qos.logback:logback-classic'
+    // JSON
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.1'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.17.1'
 
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    // Validation (Hibernate Validator provides the Jakarta Validation runtime)
+    implementation 'org.hibernate.validator:hibernate-validator:8.0.1.Final'
+    implementation 'org.glassfish.expressly:expressly:5.0.0'
+
+    // Metrics (Prometheus scrape endpoint)
+    implementation 'io.micrometer:micrometer-registry-prometheus:1.13.4'
+
+    // Logging
+    runtimeOnly 'ch.qos.logback:logback-classic:1.5.13'
+    runtimeOnly 'org.slf4j:jul-to-slf4j:2.0.13'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.3'
+    testImplementation 'org.mockito:mockito-core:5.7.0'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.7.0'
+    testImplementation 'io.javalin:javalin-testtools:6.3.0'
+}
+
+application {
+    mainClass = 'app.salary.api.Main'
+}
+
+shadowJar {
+    archiveBaseName = 'salary-calculator-api'
+    archiveClassifier = 'all'
+    archiveVersion = '1.0.0'
+    mergeServiceFiles()
+    manifest {
+        attributes 'Main-Class': 'app.salary.api.Main'
+    }
 }
 
 test {

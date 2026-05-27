@@ -8,21 +8,21 @@ import app.salary.common.dto.Pretax;
 import app.salary.rules.RulePack;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 import app.salary.calculator.engine.CountryCalculator;
 
 import java.util.List;
 
-@Component
 public class USCalculator implements CountryCalculator {
     private static final Logger log = LoggerFactory.getLogger(USCalculator.class);
 
-    @Autowired
-    private TaxBracketCalculator bracketCalculator;
+    private final TaxBracketCalculator bracketCalculator;
+    private final DeductionCalculator deductionCalculator;
 
-    @Autowired
-    private DeductionCalculator deductionCalculator;
+    public USCalculator(TaxBracketCalculator bracketCalculator,
+                        DeductionCalculator deductionCalculator) {
+        this.bracketCalculator = bracketCalculator;
+        this.deductionCalculator = deductionCalculator;
+    }
 
     @Override
     public boolean supports(Country country, int taxYear) {

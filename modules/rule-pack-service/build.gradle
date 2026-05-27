@@ -1,19 +1,13 @@
-buildscript {
-    ext {
-        googleCloudVersion = '5.8.0'
-        springCloudGcpVersion = '5.8.0'
-    }
-}
-
 plugins {
     id 'java'
-    id 'org.springframework.boot'
-    id 'io.spring.dependency-management'
+    id 'application'
+    id 'com.gradleup.shadow' version '8.3.5'
     id 'jacoco'
 }
 
 group = 'app.salary'
 version = '1.0.0'
+
 sourceCompatibility = '21'
 targetCompatibility = '21'
 
@@ -21,65 +15,70 @@ repositories {
     mavenCentral()
 }
 
-dependencyManagement {
-    imports {
-        mavenBom "com.google.cloud:spring-cloud-gcp-dependencies:${springCloudGcpVersion}"
-        mavenBom "com.google.cloud:libraries-bom:26.43.0"
+dependencies {
+    // Lombok (kept for entity getters/setters/builders)
+    compileOnly 'org.projectlombok:lombok:1.18.30'
+    annotationProcessor 'org.projectlombok:lombok:1.18.30'
+    testCompileOnly 'org.projectlombok:lombok:1.18.30'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.30'
+
+    // Javalin (replaces Spring Boot)
+    implementation 'io.javalin:javalin:6.3.0'
+    implementation 'io.javalin:javalin-micrometer:6.3.0'
+
+    // GraphQL (replaces spring-boot-starter-graphql)
+    implementation 'com.graphql-java:graphql-java:22.3'
+
+    // Google Cloud — direct clients (no Spring Cloud GCP wrappers)
+    implementation platform('com.google.cloud:libraries-bom:26.43.0')
+    implementation 'com.google.cloud:google-cloud-firestore'
+    implementation 'com.google.cloud:google-cloud-storage'
+    implementation 'com.google.cloud:google-cloud-pubsub'
+    implementation 'com.google.cloud:google-cloud-logging-logback'
+
+    // JSON
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.1'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.17.1'
+
+    // Caching (replaces Spring Cache + Redis — sufficient for local Docker)
+    implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
+
+    // Utilities
+    implementation 'commons-codec:commons-codec:1.17.1'
+    implementation 'org.apache.commons:commons-lang3:3.17.0'
+
+    // Metrics
+    implementation 'io.micrometer:micrometer-registry-prometheus:1.13.4'
+
+    // Logging
+    runtimeOnly 'ch.qos.logback:logback-classic:1.5.6'
+    implementation 'org.slf4j:slf4j-api:2.0.13'
+
+    // Testing
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.3'
+    testImplementation 'org.mockito:mockito-core:5.7.0'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.7.0'
+}
+
+application {
+    mainClass = 'app.salary.rulepack.Main'
+}
+
+shadowJar {
+    archiveBaseName = 'rule-pack-service'
+    archiveClassifier = 'all'
+    archiveVersion = '1.0.0'
+    mergeServiceFiles()
+    manifest {
+        attributes 'Main-Class': 'app.salary.rulepack.Main'
     }
 }
 
-dependencies {
-    // lombok
-    implementation 'org.projectlombok:lombok:1.18.30'
-    annotationProcessor 'org.projectlombok:lombok:1.18.30'
-
-    // Spring Boot Core
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-graphql'
-    implementation 'org.springframework.boot:spring-boot-starter-actuator'
-    implementation 'org.springframework.boot:spring-boot-starter-cache'
-    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
-
-    // Google Cloud
-    implementation 'com.google.cloud:google-cloud-storage'
-    implementation 'com.google.cloud:spring-cloud-gcp-starter-storage'
-    implementation 'com.google.cloud:spring-cloud-gcp-starter-data-firestore'
-    implementation 'com.google.cloud:spring-cloud-gcp-starter-pubsub'
-    implementation 'com.google.cloud:google-cloud-logging-logback'
-
-    // JSON Processing
-    implementation 'com.fasterxml.jackson.core:jackson-databind'
-    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
-
-    // Utilities
-    implementation 'commons-codec:commons-codec'
-    implementation 'org.apache.commons:commons-lang3'
-
-    // Micrometer for metrics
-    implementation 'io.micrometer:micrometer-registry-prometheus'
-
-    // Testing
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'com.google.cloud:google-cloud-storage'
-}
-
-tasks.named('test') {
+test {
     useJUnitPlatform()
     finalizedBy jacocoTestReport
 }
 
 jacoco {
     toolVersion = "0.8.10"
-}
-
-tasks.register('rulePackJacocoTestReport', JacocoReport) {
-    dependsOn test
-    reports {
-        xml.required = true
-        html.required = true
-    }
-}
-
-springBoot {
-    buildInfo()
 }

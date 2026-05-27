@@ -300,47 +300,12 @@ cat > modules/rules-registry/src/main/resources/rulepacks/UK-2025.json << 'EOF'
 EOF
 echo -e "${GREEN}✅ UK-2025.json created${NC}"
 
-# Create application.yml
-echo "📝 Creating application.yml..."
-cat > modules/api/src/main/resources/application.yml << 'EOF'
-spring:
-  application:
-    name: salary-calculator
-  jackson:
-    serialization:
-      write-dates-as-timestamps: false
-    default-property-inclusion: non_null
-
-server:
-  port: 8080
-  compression:
-    enabled: true
-
-springdoc:
-  api-docs:
-    path: /v3/api-docs
-  swagger-ui:
-    path: /swagger-ui.html
-    operations-sorter: method
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,metrics,prometheus
-  metrics:
-    export:
-      prometheus:
-        enabled: true
-
-logging:
-  level:
-    app.salary: INFO
-    org.springframework.web: INFO
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
-EOF
-echo -e "${GREEN}✅ application.yml created${NC}"
+# No application.yml to generate. The Javalin migration removed Spring config;
+# the app now reads configuration from environment variables (see Main.java's Env
+# helper). Override defaults at run time, e.g.:
+#   SERVER_PORT=8080
+#   RULE_PACK_SERVICE_URL=http://localhost:8081   (blank = embedded classpath rule pack)
+echo "ℹ️  Skipping application.yml — Javalin reads config from environment variables"
 
 # Build
 echo ""
@@ -361,7 +326,7 @@ echo "╚═══════════════════════�
 echo ""
 echo "Next steps:"
 echo ""
-echo "1. Run: ./gradlew :modules:api:bootRun"
-echo "2. Visit: http://localhost:8080/swagger-ui.html"
-echo "3. Test: curl http://localhost:8080/v1/health"
+echo "1. Run: ./gradlew :modules:api:run"
+echo "2. Test: curl http://localhost:8080/v1/health"
+echo "3. Calculate: curl -X POST http://localhost:8080/v1/calculate -H 'Content-Type: application/json' -d '{\"country\":\"UK\",\"taxYear\":2025,\"annualSalary\":50000}'"
 echo ""

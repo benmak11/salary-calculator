@@ -4,9 +4,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.cloud.storage.*;
 import app.salary.rulepack.exception.StorageException;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,7 +21,6 @@ import static java.util.concurrent.TimeUnit.*;
  * Service for managing rule pack storage in Google Cloud Storage
  * Handles upload, download, deletion, and retrieval of rule pack JSON files
  */
-@Service
 public class RulePackStorageService {
 
     private static final Logger logger = LoggerFactory.getLogger(RulePackStorageService.class);
@@ -33,10 +29,9 @@ public class RulePackStorageService {
     private final String bucketName;
     private final ObjectMapper objectMapper;
 
-    @Autowired
     public RulePackStorageService(
             Storage storage,
-            @Value("${gcp.storage.bucket.rulepacks}") String bucketName,
+            String bucketName,
             ObjectMapper objectMapper
     ) {
         this.storage = storage;

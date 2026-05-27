@@ -1,13 +1,11 @@
 package app.salary.calculator.shared;
 
 import app.salary.rules.RulePack;
-import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-@Component
 public class TaxBracketCalculator {
     public double calculateTax(double income, List<RulePack.TaxBracket> brackets) {
         double tax = 0.0;

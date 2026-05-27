@@ -1,25 +1,39 @@
 package app.salary.rules;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Duration;
 
+/**
+ * Loads rule packs from the classpath and caches them in-process.
+ *
+ * Previously used Spring's {@code @Cacheable} which only worked through a Spring proxy.
+ * After the Javalin migration this uses Caffeine directly — caching now works regardless
+ * of how the registry is instantiated (Spring bean, plain {@code new}, or unit test).
+ */
 public class RulesRegistry {
     private static final Logger log = LoggerFactory.getLogger(RulesRegistry.class);
+
     private final ObjectMapper objectMapper;
+    private final Cache<String, RulePack> cache;
 
     public RulesRegistry() {
         this.objectMapper = new ObjectMapper();
+        this.cache = Caffeine.newBuilder()
+                .maximumSize(100)
+                .expireAfterWrite(Duration.ofHours(1))
+                .build();
     }
 
-    @Cacheable(value = "rulePacks", key = "#country + '-' + #taxYear")
     public RulePack getRulePack(String country, int taxYear) {
-        return loadRulePack(country, taxYear);
+        String key = country + "-" + taxYear;
+        return cache.get(key, k -> loadRulePack(country, taxYear));
     }
 
     private RulePack loadRulePack(String country, int taxYear) {
@@ -43,8 +57,9 @@ public class RulesRegistry {
         }
     }
 
-    @CacheEvict(value = "rulePacks", allEntries = true)
+    /** Clear the rule-pack cache. Invoked from a future Pub/Sub subscriber on RULE_PACK_PUBLISHED events. */
     public void clearCache() {
-        log.info("Evicted all entries from rulePacks cache");
+        cache.invalidateAll();
+        log.info("Evicted all entries from rule pack cache");
     }
 }

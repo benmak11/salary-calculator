@@ -2,124 +2,106 @@ package app.salary.api.controller;
 
 import app.salary.api.dto.*;
 import app.salary.api.service.CalculationStore;
+import app.salary.api.validation.RequestValidator;
 import app.salary.common.dto.CalculateResponse;
 import app.salary.common.dto.LineItem;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import io.javalin.Javalin;
+import io.javalin.http.Context;
+import io.javalin.http.HttpStatus;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-@RestController
-@RequestMapping("/v1/benefits")
-@Tag(name = "Benefits", description = "Employee benefits and contribution endpoints")
 public class BenefitsController {
 
     private final CalculationStore calculationStore;
+    private final RequestValidator validator;
 
-    public BenefitsController(CalculationStore calculationStore) {
+    public BenefitsController(CalculationStore calculationStore, RequestValidator validator) {
         this.calculationStore = calculationStore;
+        this.validator = validator;
     }
 
-    // ── GET /v1/benefits/plans ─────────────────────────────────────────────────
+    public void register(Javalin app) {
+        app.get( "/v1/benefits/plans",                              this::getBenefitPlans);
+        app.get( "/v1/benefits/employer-match",                     this::getEmployerMatch);
+        app.get( "/v1/benefits/impact-analysis/{calculationId}",    this::getImpactAnalysis);
+        app.get( "/v1/benefits/retirement/contributions",           this::getRetirementContributions);
+        app.put( "/v1/benefits/retirement/contribution",            this::updateRetirementContribution);
+        app.get( "/v1/benefits/enrollment/window",                  this::getEnrollmentWindow);
+    }
 
-    @GetMapping("/plans")
-    @Operation(summary = "Return the employee's current enrolled benefit plans")
-    public ResponseEntity<BenefitPlansResponse> getBenefitPlans() {
-        // TODO: Replace with employer-specific data fetched from a benefits provider
-        //       or HR system. Plan data currently hardcoded to representative defaults.
+    private void getBenefitPlans(Context ctx) {
+        // TODO: Replace with employer-specific data fetched from a benefits provider.
         List<BenefitPlan> healthPlans = List.of(
-            new BenefitPlan("MEDICAL", "PPO Platinum Plus", "Anthem",   "Family",      182.00, "PRE_TAX"),
-            new BenefitPlan("DENTAL",  "Delta Premier",     "Delta Dental", "Family",   42.50, "PRE_TAX"),
-            new BenefitPlan("VISION",  "VSP Vision Care",   "VSP",       "Employee + 1", 24.00, "PRE_TAX")
+                new BenefitPlan("MEDICAL", "PPO Platinum Plus", "Anthem",       "Family",        182.00, "PRE_TAX"),
+                new BenefitPlan("DENTAL",  "Delta Premier",     "Delta Dental", "Family",         42.50, "PRE_TAX"),
+                new BenefitPlan("VISION",  "VSP Vision Care",   "VSP",          "Employee + 1",   24.00, "PRE_TAX")
         );
-        return ResponseEntity.ok(new BenefitPlansResponse(2024, "ACTIVE", healthPlans));
+        ctx.json(new BenefitPlansResponse(2024, "ACTIVE", healthPlans));
     }
 
-    // ── GET /v1/benefits/employer-match ────────────────────────────────────────
-
-    @GetMapping("/employer-match")
-    @Operation(summary = "Return employer 401(k) match details")
-    public ResponseEntity<EmployerMatchResponse> getEmployerMatch() {
+    private void getEmployerMatch(Context ctx) {
         // TODO: Source from employer payroll configuration.
-        return ResponseEntity.ok(new EmployerMatchResponse(
-            4200.00, 100.0, 6.0,
-            "Matched at 100% of your first 6% contribution."
+        ctx.json(new EmployerMatchResponse(
+                4200.00, 100.0, 6.0,
+                "Matched at 100% of your first 6% contribution."
         ));
     }
 
-    // ── GET /v1/benefits/impact-analysis/{calculationId} ──────────────────────
-
-    @GetMapping("/impact-analysis/{calculationId}")
-    @Operation(summary = "Return the gross pay impact breakdown for a completed calculation")
-    public ResponseEntity<ImpactAnalysisResponse> getImpactAnalysis(
-            @PathVariable String calculationId) {
-
+    private void getImpactAnalysis(Context ctx) {
+        String calculationId = ctx.pathParam("calculationId");
         Optional<CalculateResponse> stored = calculationStore.find(calculationId);
         if (stored.isEmpty()) {
-            return ResponseEntity.notFound().build();
+            ctx.status(HttpStatus.NOT_FOUND);
+            return;
         }
 
         CalculateResponse calc = stored.get();
-        double grossAnnual = calc.getGrossPerCadence();   // annual if cadence=ANNUAL; scale otherwise
         double netAnnual   = calc.getNetPerCadence();
 
-        // Derive totals from line items
-        double totalTaxes      = sumLineItems(calc.getLineItems(), "Income Tax", "Medicare",
-                                              "Social Security", "FICA");
-        double totalBenefits   = sumLineItems(calc.getLineItems(), "Medical", "Dental",
-                                              "Vision", "401(k)", "HSA");
-        double takeHome        = netAnnual;
+        double totalTaxes    = sumLineItems(calc.getLineItems(), "Income Tax", "Medicare",
+                "Social Security", "FICA");
+        double totalBenefits = sumLineItems(calc.getLineItems(), "Medical", "Dental",
+                "Vision", "401(k)", "HSA");
+        double takeHome      = netAnnual;
 
         double total = takeHome + totalTaxes + totalBenefits;
         List<ImpactAnalysisEntry> breakdown = new ArrayList<>();
         if (total > 0) {
-            breakdown.add(new ImpactAnalysisEntry("Take Home",  round(takeHome / total * 100)));
-            breakdown.add(new ImpactAnalysisEntry("Taxes",      round(totalTaxes / total * 100)));
-            breakdown.add(new ImpactAnalysisEntry("Benefits",   round(totalBenefits / total * 100)));
+            breakdown.add(new ImpactAnalysisEntry("Take Home", round(takeHome / total * 100)));
+            breakdown.add(new ImpactAnalysisEntry("Taxes",     round(totalTaxes / total * 100)));
+            breakdown.add(new ImpactAnalysisEntry("Benefits",  round(totalBenefits / total * 100)));
         }
 
-        return ResponseEntity.ok(new ImpactAnalysisResponse(calculationId, breakdown));
+        ctx.json(new ImpactAnalysisResponse(calculationId, breakdown));
     }
 
-    // ── GET /v1/benefits/retirement/contributions ──────────────────────────────
-
-    @GetMapping("/retirement/contributions")
-    @Operation(summary = "Return current employee retirement deferral rates")
-    public ResponseEntity<RetirementContributionsResponse> getRetirementContributions() {
+    private void getRetirementContributions(Context ctx) {
         // TODO: Source from payroll system.
         RetirementTierResponse traditional = new RetirementTierResponse(8.0, 25.0);
         RetirementTierResponse roth        = new RetirementTierResponse(4.0, 25.0);
-        return ResponseEntity.ok(new RetirementContributionsResponse(traditional, roth, 12.0));
+        ctx.json(new RetirementContributionsResponse(traditional, roth, 12.0));
     }
 
-    // ── PUT /v1/benefits/retirement/contribution ───────────────────────────────
+    private void updateRetirementContribution(Context ctx) {
+        RetirementContributionRequest request = ctx.bodyAsClass(RetirementContributionRequest.class);
+        validator.validate(request);
 
-    @PutMapping("/retirement/contribution")
-    @Operation(summary = "Update an employee retirement contribution rate")
-    public ResponseEntity<Void> updateRetirementContribution(
-            @Valid @RequestBody RetirementContributionRequest request) {
         // TODO: Persist to payroll system and trigger next-payroll recalculation.
-        //       Validate type is TRADITIONAL_401K or ROTH_401K.
         if (!"TRADITIONAL_401K".equals(request.getType()) && !"ROTH_401K".equals(request.getType())) {
-            return ResponseEntity.badRequest().build();
+            ctx.status(HttpStatus.BAD_REQUEST);
+            return;
         }
-        return ResponseEntity.noContent().build();
+        ctx.status(HttpStatus.NO_CONTENT);
     }
 
-    // ── GET /v1/benefits/enrollment/window ────────────────────────────────────
-
-    @GetMapping("/enrollment/window")
-    @Operation(summary = "Return the current open enrollment window status")
-    public ResponseEntity<EnrollmentWindowResponse> getEnrollmentWindow() {
+    private void getEnrollmentWindow(Context ctx) {
         // TODO: Source from HR system. Currently returns a hardcoded open window.
-        return ResponseEntity.ok(new EnrollmentWindowResponse(
-            "OPEN", 14,
-            "2024-11-01", "2024-11-30", "2024-12-01"
+        ctx.json(new EnrollmentWindowResponse(
+                "OPEN", 14,
+                "2024-11-01", "2024-11-30", "2024-12-01"
         ));
     }
 

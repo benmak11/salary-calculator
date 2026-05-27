@@ -4,20 +4,20 @@ import app.salary.calculator.engine.*;
 import app.salary.calculator.shared.*;
 import app.salary.common.constants.Country;
 import app.salary.rules.RulePack;
-import org.springframework.beans.factory.annotation.Autowired;
 import app.salary.calculator.engine.CountryCalculator;
-import org.springframework.stereotype.Component;
 
-@Component
 public class UKCalculator implements CountryCalculator {
-    @Autowired
-    private TaxBracketCalculator bracketCalculator;
+    private final TaxBracketCalculator bracketCalculator;
+    private final DeductionCalculator deductionCalculator;
+    private final StudentLoanCalculator studentLoanCalculator;
 
-    @Autowired
-    private DeductionCalculator deductionCalculator;
-
-    @Autowired
-    private StudentLoanCalculator studentLoanCalculator;
+    public UKCalculator(TaxBracketCalculator bracketCalculator,
+                        DeductionCalculator deductionCalculator,
+                        StudentLoanCalculator studentLoanCalculator) {
+        this.bracketCalculator = bracketCalculator;
+        this.deductionCalculator = deductionCalculator;
+        this.studentLoanCalculator = studentLoanCalculator;
+    }
 
     @Override
     public boolean supports(Country country, int taxYear) {

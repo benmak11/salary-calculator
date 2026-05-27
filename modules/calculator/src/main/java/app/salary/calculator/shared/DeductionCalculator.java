@@ -3,9 +3,7 @@ package app.salary.calculator.shared;
 import app.salary.common.dto.NamedDeduction;
 import app.salary.common.dto.Posttax;
 import app.salary.common.dto.Pretax;
-import org.springframework.stereotype.Component;
 
-@Component
 public class DeductionCalculator {
 
     /**

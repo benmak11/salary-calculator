@@ -1,80 +1,64 @@
 package app.salary.api.controller;
 
 import app.salary.api.dto.*;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import com.fasterxml.jackson.core.type.TypeReference;
+import io.javalin.Javalin;
+import io.javalin.http.Context;
+import io.javalin.http.HttpStatus;
 
 import java.util.Map;
 
-@RestController
-@RequestMapping("/v1/users")
-@Tag(name = "Users", description = "User profile and preference endpoints")
 public class UsersController {
 
-    // ── GET /v1/users/me ────────────────────────────────────────────────────────
+    private static final TypeReference<Map<String, Boolean>> BOOLEAN_MAP =
+            new TypeReference<>() {};
 
-    @GetMapping("/me")
-    @Operation(summary = "Return the authenticated user's profile")
-    public ResponseEntity<UserProfileResponse> getProfile() {
-        // TODO: Extract user ID from JWT and load from user-service or Firestore.
-        //       Currently returns a hardcoded stub profile.
-        return ResponseEntity.ok(
-            new UserProfileResponse("usr_placeholder", "Julian Vance",
-                "julian.v@incomatic.com", null)
-        );
+    public void register(Javalin app) {
+        app.get(   "/v1/users/me",                       this::getProfile);
+        app.patch( "/v1/users/me",                       this::updateProfile);
+        app.get(   "/v1/users/me/security",              this::getSecurity);
+        app.put(   "/v1/users/me/security/biometrics",   this::updateBiometrics);
+        app.get(   "/v1/users/me/preferences",           this::getPreferences);
+        app.put(   "/v1/users/me/preferences",           this::updatePreferences);
     }
 
-    // ── PATCH /v1/users/me ──────────────────────────────────────────────────────
+    private void getProfile(Context ctx) {
+        // TODO: Extract user ID from JWT and load from user-service or Firestore.
+        ctx.json(new UserProfileResponse("usr_placeholder", "Julian Vance",
+                "julian.v@incomatic.com", null));
+    }
 
-    @PatchMapping("/me")
-    @Operation(summary = "Partially update the authenticated user's profile")
-    public ResponseEntity<UserProfileResponse> updateProfile(
-            @RequestBody UserProfileUpdateRequest request) {
+    private void updateProfile(Context ctx) {
+        UserProfileUpdateRequest request = ctx.bodyAsClass(UserProfileUpdateRequest.class);
         // TODO: Persist updated fields to user-service / Firestore.
         String displayName = request.getDisplayName() != null ? request.getDisplayName() : "Julian Vance";
         String email       = request.getEmail()       != null ? request.getEmail()       : "julian.v@incomatic.com";
-        return ResponseEntity.ok(
-            new UserProfileResponse("usr_placeholder", displayName, email, null)
-        );
+        ctx.json(new UserProfileResponse("usr_placeholder", displayName, email, null));
     }
 
-    // ── GET /v1/users/me/security ────────────────────────────────────────────────
-
-    @GetMapping("/me/security")
-    @Operation(summary = "Return the authenticated user's security settings")
-    public ResponseEntity<UserSecurityResponse> getSecurity() {
+    private void getSecurity(Context ctx) {
         // TODO: Load from user-service / Firestore.
-        return ResponseEntity.ok(new UserSecurityResponse(false, true));
+        ctx.json(new UserSecurityResponse(false, true));
     }
 
-    // ── PUT /v1/users/me/security/biometrics ─────────────────────────────────────
-
-    @PutMapping("/me/security/biometrics")
-    @Operation(summary = "Sync biometric login preference to the backend")
-    public ResponseEntity<Void> updateBiometrics(
-            @RequestBody Map<String, Boolean> body) {
-        // TODO: Persist to user-service / Firestore.
-        return ResponseEntity.noContent().build();
+    private void updateBiometrics(Context ctx) {
+        Map<String, Boolean> body = ctx.bodyAsClass(BOOLEAN_MAP.getType());
+        // TODO: Persist to user-service / Firestore (body = {biometricEnabled: true|false})
+        if (body == null || !body.containsKey("biometricEnabled")) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("error", "biometricEnabled is required"));
+            return;
+        }
+        ctx.status(HttpStatus.NO_CONTENT);
     }
 
-    // ── GET /v1/users/me/preferences ─────────────────────────────────────────────
-
-    @GetMapping("/me/preferences")
-    @Operation(summary = "Return the authenticated user's application preferences")
-    public ResponseEntity<UserPreferencesResponse> getPreferences() {
+    private void getPreferences(Context ctx) {
         // TODO: Load from user-service / Firestore.
-        return ResponseEntity.ok(new UserPreferencesResponse());
+        ctx.json(new UserPreferencesResponse());
     }
 
-    // ── PUT /v1/users/me/preferences ─────────────────────────────────────────────
-
-    @PutMapping("/me/preferences")
-    @Operation(summary = "Update the authenticated user's application preferences")
-    public ResponseEntity<UserPreferencesResponse> updatePreferences(
-            @RequestBody UserPreferencesResponse request) {
+    private void updatePreferences(Context ctx) {
+        UserPreferencesResponse request = ctx.bodyAsClass(UserPreferencesResponse.class);
         // TODO: Persist to user-service / Firestore.
-        return ResponseEntity.ok(request);
+        ctx.json(request);
     }
 }

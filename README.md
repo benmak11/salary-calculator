@@ -1,6 +1,6 @@
 # Salary Calculator Microservice
 
-A production-ready Spring Boot microservice for calculating net pay (take-home salary) with detailed tax breakdowns for multiple countries.
+A production-ready Javalin microservice for calculating net pay (take-home salary) with detailed tax breakdowns for multiple countries.
 
 ## 🌟 Features
 
@@ -8,7 +8,7 @@ A production-ready Spring Boot microservice for calculating net pay (take-home s
 - 💰 **Multiple pay cadences** (annual, monthly, biweekly, weekly)
 - 📊 **Detailed tax breakdown** by bands
 - 📝 **Human-readable explanations** for each calculation
-- 🔄 **Auto-discovery** of country calculators
+- 🔄 **Pluggable** country calculators (registered in `Main.java`)
 - 🚀 **Fast development** - add new country in 15 minutes
 - 📦 **Shared utilities** for code reuse
 - 🐳 **Docker ready**
@@ -19,8 +19,8 @@ A production-ready Spring Boot microservice for calculating net pay (take-home s
 ### Unified Calculator Module
 - All country calculators in one module
 - Shared utilities for common logic
-- Auto-discovery via Spring
-- No manual registration needed
+- Plain constructor injection (no DI framework)
+- Calculators registered explicitly in `Main.java` and resolved at runtime by `CalculatorRegistry`
 
 ### Supported Countries
 - 🇺🇸 **United States** (Federal + State taxes, FICA, Medicare)
@@ -40,16 +40,33 @@ chmod +x setup.sh
 
 ### Option 2: Manual Setup
 ```bash
-# Build
+# Build everything (compiles all modules, runs remaining unit tests)
 ./gradlew clean build
 
-# Run
-./gradlew :modules:api:bootRun
+# Run the API on :8080 — via the Gradle `application` plugin's `run` task
+# (replaces Spring Boot's `bootRun`)
+./gradlew :modules:api:run
+
+# Optionally run the rule-pack-service on :8081 in another terminal.
+# ENABLE_GCP=false boots it without Firestore/GCS/Pub-Sub, so the API
+# transparently falls back to its embedded classpath rule pack.
+ENABLE_GCP=false ./gradlew :modules:rule-pack-service:run
+```
+
+Or run the packaged fat JARs (built with `shadowJar`, replaces `bootJar`):
+```bash
+./gradlew :modules:api:shadowJar :modules:rule-pack-service:shadowJar
+java -jar modules/api/build/libs/salary-calculator-api-1.0.0-all.jar
 ```
 
 ### Option 3: Docker
 ```bash
-docker-compose up -d
+# Multi-stage builds compile the shadowJars inside the images, then start the
+# API (:8080) and rule-pack-service (:8081) on a shared network.
+docker compose up --build
+
+# Optional Prometheus + Grafana monitoring stack:
+docker compose --profile monitoring up --build
 ```
 
 ## 📡 API Endpoints
@@ -70,7 +87,9 @@ GET /v1/countries
 ```
 
 ### API Documentation
-Interactive Swagger UI available at: `http://localhost:8080/swagger-ui.html`
+The interactive Swagger UI was removed during the Javalin migration. DTOs still carry
+`swagger-annotations`, so an OpenAPI spec can be re-introduced later. Until then, use the
+endpoint list above and the usage examples below.
 
 ## 📖 API Usage Examples
 
@@ -460,18 +479,17 @@ See [TESTING.md](TESTING.md) for comprehensive testing documentation.
 ### Adding a New Country
 
 1. Create calculator in `modules/calculator/src/main/java/app/salary/calculator/countries/`
-2. Implement `CountryCalculator` interface
-3. Add `@Component` annotation
-4. Create rule pack JSON in `modules/rules-registry/src/main/resources/rulepacks/`
-5. Spring will auto-discover and register it!
+2. Implement `CountryCalculator` interface (take any shared calculators via the constructor)
+3. Create rule pack JSON in `modules/rules-registry/src/main/resources/rulepacks/`
+4. Register it: add `new YourCalculator(...)` to the `calculators` list wired into `CalculatorRegistry` in `modules/api/src/main/java/app/salary/api/Main.java`
 
 See existing calculators (USCalculator, UKCalculator) for examples.
 
 ## 📊 Monitoring
 
-- Health endpoint: `GET /v1/health`
+- Health endpoint: `GET /v1/health` (also `GET /actuator/health`)
 - Prometheus metrics: `GET /actuator/prometheus`
-- API docs: `http://localhost:8080/swagger-ui.html`
+- Optional Prometheus + Grafana stack: `docker compose --profile monitoring up`
 
 ## 🤝 Contributing
 
