@@ -22,14 +22,20 @@ public class CalculateRequest {
     @Schema(description = "Tax year for calculation", example = "2025")
     private Integer taxYear;
 
-    @NotNull
     @Min(0)
-    @Schema(description = "Annual base salary (excluding bonus)", example = "100000")
+    @Schema(description = "Annual base salary (excluding bonus). Legacy: provide this OR `earnings`. Engine prefers `earnings` when both are set.", example = "100000")
     private Double annualSalary;
 
     @Min(0)
-    @Schema(description = "Annual bonus / supplemental wages taxed at flat 22% federal rate (US only)", example = "10000")
+    @Schema(description = "Annual bonus / supplemental wages taxed at flat 22% federal rate (US only). Mirrored by earnings.bonus when set.", example = "10000")
     private Double bonus = 0.0;
+
+    @Valid
+    @Schema(description = "Structured earnings (salary OR hourly + bonus/commission). Optional in Phase 1 (engine ignores it); will become the primary input in Phase 2.")
+    private Earnings earnings;
+
+    @Schema(description = "Pay date for this paycheck (ISO-8601 yyyy-MM-dd). Accepted but currently informational only.", example = "2026-05-28")
+    private String payDate;
 
     @Schema(description = "Pay frequency (defaults to ANNUAL)", example = "ANNUAL")
     private PayCadence cadence = PayCadence.ANNUAL;
@@ -54,6 +60,10 @@ public class CalculateRequest {
     public void setAnnualSalary(Double annualSalary) { this.annualSalary = annualSalary; }
     public Double getBonus() { return bonus; }
     public void setBonus(Double bonus) { this.bonus = bonus; }
+    public Earnings getEarnings() { return earnings; }
+    public void setEarnings(Earnings earnings) { this.earnings = earnings; }
+    public String getPayDate() { return payDate; }
+    public void setPayDate(String payDate) { this.payDate = payDate; }
     public PayCadence getCadence() { return cadence; }
     public void setCadence(PayCadence cadence) { this.cadence = cadence; }
     public Pretax getPretax() { return pretax; }

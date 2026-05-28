@@ -3,8 +3,10 @@ package app.salary.calculator.countries;
 import app.salary.calculator.engine.*;
 import app.salary.calculator.shared.*;
 import app.salary.common.constants.Country;
+import app.salary.common.dto.LineItemCategory;
 import app.salary.common.dto.NamedDeduction;
 import app.salary.common.dto.Pretax;
+import app.salary.common.dto.W4;
 import app.salary.rules.RulePack;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,114 +38,190 @@ public class USCalculator implements CountryCalculator {
         result.setRulePackVersion(rules.getMetadata().getVersion());
 
         double grossAnnual = input.getAnnualGross();
-        double bonusAnnual = input.getBonusAnnual() != null ? input.getBonusAnnual() : 0.0;
-        double baseSalary  = grossAnnual - bonusAnnual;
+        double supplementalAnnual = input.getSupplementalAnnual();
+        double regularWages = input.getRegularWagesAnnual();
         result.setGrossAnnual(grossAnnual);
-        result.setBaseSalaryAnnual(baseSalary);
-        result.setBonusAnnual(bonusAnnual);
+        result.setBaseSalaryAnnual(grossAnnual - supplementalAnnual);
+        result.setBonusAnnual(supplementalAnnual);
 
+        W4 w4 = w4OrDefault(input);
         Pretax pretax = input.getPretax();
 
-        // ── Named benefit line items ──────────────────────────────────────────
+        // ── Earnings line items (positive, displayed by iOS right-rail) ───────
+        if (input.getSalaryAnnual() != null && input.getSalaryAnnual() > 0) {
+            result.addLineItem("Salary", input.getSalaryAnnual(), LineItemCategory.EARNINGS);
+        }
+        if (input.getOvertimeAnnual() != null && input.getOvertimeAnnual() > 0) {
+            result.addLineItem("Overtime", input.getOvertimeAnnual(), LineItemCategory.EARNINGS);
+        }
+        if (input.getDoubleTimeAnnual() != null && input.getDoubleTimeAnnual() > 0) {
+            result.addLineItem("Double Time", input.getDoubleTimeAnnual(), LineItemCategory.EARNINGS);
+        }
+        if (input.getBonusAnnual() != null && input.getBonusAnnual() > 0) {
+            result.addLineItem("Bonus", input.getBonusAnnual(), LineItemCategory.EARNINGS);
+        }
+        if (input.getCommissionAnnual() != null && input.getCommissionAnnual() > 0) {
+            result.addLineItem("Commission", input.getCommissionAnnual(), LineItemCategory.EARNINGS);
+        }
+
+        // ── Named pre-tax benefit line items ──────────────────────────────────
         if (pretax.getMedical() != null && pretax.getMedical() > 0) {
-            result.addLineItem("Medical Premium", pretax.getMedical());
+            result.addLineItem("Medical Premium", pretax.getMedical(), LineItemCategory.PRE_TAX_BENEFIT);
         }
         if (pretax.getDental() != null && pretax.getDental() > 0) {
-            result.addLineItem("Dental Premium", pretax.getDental());
+            result.addLineItem("Dental Premium", pretax.getDental(), LineItemCategory.PRE_TAX_BENEFIT);
         }
         if (pretax.getVision() != null && pretax.getVision() > 0) {
-            result.addLineItem("Vision Premium", pretax.getVision());
+            result.addLineItem("Vision Premium", pretax.getVision(), LineItemCategory.PRE_TAX_BENEFIT);
+        }
+        if (pretax.getHealthcareFsa() != null && pretax.getHealthcareFsa() > 0) {
+            result.addLineItem("Healthcare FSA", pretax.getHealthcareFsa(), LineItemCategory.PRE_TAX_BENEFIT);
+        }
+        if (pretax.getDependentCareFsa() != null && pretax.getDependentCareFsa() > 0) {
+            result.addLineItem("Dependent Care FSA", pretax.getDependentCareFsa(), LineItemCategory.PRE_TAX_BENEFIT);
+        }
+        if (pretax.getHsa() != null && pretax.getHsa() > 0) {
+            result.addLineItem("HSA Contribution", pretax.getHsa(), LineItemCategory.PRE_TAX_BENEFIT);
         }
 
-        // ── 401(k) / pension ─────────────────────────────────────────────────
+        // ── 401(k) / pension (Traditional — pre-tax retirement) ──────────────
         double pension401k = deductionCalculator.calculatePensionContribution(pretax, grossAnnual);
         if (pension401k > 0) {
-            result.addLineItem("Employee 401(k)", pension401k);
-        }
-
-        // ── HSA ───────────────────────────────────────────────────────────────
-        if (pretax.getHsa() != null && pretax.getHsa() > 0) {
-            result.addLineItem("HSA Contribution", pretax.getHsa());
+            result.addLineItem("401(k)", pension401k, LineItemCategory.RETIREMENT);
         }
 
         // ── Generic pre-tax (percent + fixed catch-all) ───────────────────────
         double genericPretax = deductionCalculator.calculateGenericPretaxDeductions(pretax, grossAnnual);
-        if (genericPretax > 0) {
-            result.addLineItem("Pre-tax Deductions", genericPretax);
+        // genericPretax already counts hsa; back it out so we don't double-show it
+        double hsa = pretax.getHsa() != null ? pretax.getHsa() : 0.0;
+        double genericMinusHsa = genericPretax - hsa;
+        if (genericMinusHsa > 0) {
+            result.addLineItem("Pre-tax Deductions", genericMinusHsa, LineItemCategory.PRE_TAX_BENEFIT);
         }
 
-        // ── Named custom deductions ───────────────────────────────────────────
+        // ── Named custom pre-tax deductions ───────────────────────────────────
         if (pretax.getCustomDeductions() != null) {
             for (NamedDeduction nd : pretax.getCustomDeductions()) {
                 if (nd.getAmount() != null && nd.getAmount() > 0) {
-                    result.addLineItem(nd.getName(), nd.getAmount());
+                    result.addLineItem(nd.getName(), nd.getAmount(), LineItemCategory.PRE_TAX_BENEFIT);
                 }
             }
         }
 
         double totalPretaxDeductions = deductionCalculator.calculatePretaxDeductions(pretax, grossAnnual);
-        double taxableIncome = grossAnnual - totalPretaxDeductions;
 
-        // ── Federal income tax (base salary portion uses brackets) ────────────
-        double federalTax = calculateFederalTax(input, taxableIncome - bonusAnnual, rules);
-
-        // ── Supplemental / bonus withholding at flat 22% ─────────────────────
+        // ── Federal income tax ────────────────────────────────────────────────
+        double federalTax = 0.0;
         double bonusFederalTax = 0.0;
-        if (bonusAnnual > 0) {
-            bonusFederalTax = bonusAnnual * rules.getFederal().getSupplementalWithholdingRate();
-            federalTax += bonusFederalTax;
-            result.addExplanation("bonus_withholding",
-                    "Bonus of $" + String.format("%.0f", bonusAnnual) +
-                    " withheld at flat " +
-                    String.format("%.0f", rules.getFederal().getSupplementalWithholdingRate() * 100) +
-                    "% supplemental federal rate");
+        if (!Boolean.TRUE.equals(w4.getExemptFederal())) {
+            federalTax = calculateFederalRegular(input, regularWages, totalPretaxDeductions, w4, rules);
+            // W-4 step 3: dependents credit reduces withholding
+            double dependents = w4.getDependentsAmount() != null ? w4.getDependentsAmount() : 0.0;
+            federalTax = Math.max(0, federalTax - dependents);
+            // W-4 step 4(c): additional withholding per pay period
+            double additional = w4.getAdditionalWithholding() != null ? w4.getAdditionalWithholding() : 0.0;
+            if (additional > 0) {
+                federalTax += additional * input.getPayCadence().getPeriodsPerYear();
+            }
+            // Supplemental withholding on bonus + commission
+            if (supplementalAnnual > 0) {
+                bonusFederalTax = supplementalAnnual * rules.getFederal().getSupplementalWithholdingRate();
+                federalTax += bonusFederalTax;
+                result.addExplanation("supplemental_withholding",
+                        "Supplemental wages of $" + String.format("%.0f", supplementalAnnual) +
+                        " withheld at flat " +
+                        String.format("%.0f", rules.getFederal().getSupplementalWithholdingRate() * 100) +
+                        "% federal rate");
+            }
+            result.addExplanation("fed_tax_brackets",
+                    "Applied 2025 federal tax brackets based on " +
+                            input.getUsOptions().getFilingStatus());
+        } else {
+            result.addExplanation("fed_tax_exempt", "Filer exempt from federal income tax withholding");
         }
-        result.addLineItem("Federal Income Tax", federalTax);
-        result.addExplanation("fed_tax_brackets",
-                "Applied 2025 federal tax brackets based on " +
-                        input.getUsOptions().getFilingStatus());
+        if (federalTax > 0) {
+            result.addLineItem("Federal Income Tax", federalTax, LineItemCategory.TAX_FEDERAL);
+        }
 
         // ── State income tax ──────────────────────────────────────────────────
-        double stateTax = calculateStateTax(input, taxableIncome, rules);
+        double stateTaxableIncome = grossAnnual - totalPretaxDeductions;
+        double stateTax = calculateStateTax(input, stateTaxableIncome, rules);
         if (stateTax > 0) {
-            result.addLineItem("State Income Tax", stateTax);
+            String stateCode = input.getUsOptions().getState();
+            result.addLineItem(stateCode + " State Income Tax", stateTax, LineItemCategory.TAX_STATE);
             result.addExplanation("state_tax",
-                    "Applied " + input.getUsOptions().getState() + " state tax rates");
+                    "Applied " + stateCode + " state tax rates");
         }
 
         // ── FICA ──────────────────────────────────────────────────────────────
-        double socialSecurity = calculateSocialSecurity(grossAnnual, rules);
-        result.addLineItem("FICA (Social Security)", socialSecurity);
-
-        double medicare = calculateMedicare(grossAnnual, rules);
-        result.addLineItem("Medicare", medicare);
-
-        if (grossAnnual > rules.getFica().getAdditionalMedicareThreshold()) {
-            result.addExplanation("additional_medicare",
-                    "Additional Medicare tax applied for income over $" +
-                            String.format("%.0f", rules.getFica().getAdditionalMedicareThreshold()));
+        double socialSecurity = 0.0;
+        if (!Boolean.TRUE.equals(w4.getExemptSocialSecurity())) {
+            socialSecurity = calculateSocialSecurity(grossAnnual, rules);
+            result.addLineItem("Social Security", socialSecurity, LineItemCategory.TAX_FICA);
+        } else {
+            result.addExplanation("ss_exempt", "Filer exempt from Social Security tax");
         }
 
-        // ── Post-tax deductions ───────────────────────────────────────────────
-        double posttaxDeductions = deductionCalculator.calculatePosttaxDeductions(input.getPosttax());
-        if (posttaxDeductions > 0) {
-            result.addLineItem("Post-tax Deductions", posttaxDeductions);
+        double medicare = 0.0;
+        if (!Boolean.TRUE.equals(w4.getExemptMedicare())) {
+            medicare = calculateMedicare(grossAnnual, rules);
+            result.addLineItem("Medicare", medicare, LineItemCategory.TAX_FICA);
+            if (grossAnnual > rules.getFica().getAdditionalMedicareThreshold()) {
+                result.addExplanation("additional_medicare",
+                        "Additional Medicare tax applied for income over $" +
+                                String.format("%.0f", rules.getFica().getAdditionalMedicareThreshold()));
+            }
+        } else {
+            result.addExplanation("medicare_exempt", "Filer exempt from Medicare tax");
         }
 
-        double netAnnual = grossAnnual - totalPretaxDeductions - federalTax - stateTax
-                - socialSecurity - medicare - posttaxDeductions;
+        // ── Post-tax deductions (fixed catch-all) ─────────────────────────────
+        double posttaxFixed = deductionCalculator.calculatePosttaxDeductions(input.getPosttax());
+        if (posttaxFixed > 0) {
+            result.addLineItem("Post-tax Deductions", posttaxFixed, LineItemCategory.POST_TAX);
+        }
+
+        // ── Roth 401(k) — post-tax retirement, regular wages only ─────────────
+        double roth401k = deductionCalculator.calculateRoth401k(input.getPosttax(), regularWages);
+        if (roth401k > 0) {
+            result.addLineItem("Roth 401(k)", roth401k, LineItemCategory.RETIREMENT);
+        }
+
+        double netAnnual = grossAnnual
+                - totalPretaxDeductions
+                - federalTax
+                - stateTax
+                - socialSecurity
+                - medicare
+                - posttaxFixed
+                - roth401k;
         result.setNetAnnual(netAnnual);
 
         return result;
     }
 
-    private double calculateFederalTax(CalculationInput input, double taxableBaseSalary, RulePack rules) {
+    private W4 w4OrDefault(CalculationInput input) {
+        if (input.getUsOptions() != null && input.getUsOptions().getW4() != null) {
+            return input.getUsOptions().getW4();
+        }
+        return new W4();
+    }
+
+    private double calculateFederalRegular(CalculationInput input,
+                                           double regularWages,
+                                           double totalPretaxDeductions,
+                                           W4 w4,
+                                           RulePack rules) {
         String filingStatus = input.getUsOptions().getFilingStatus().name();
         Double standardDeductionObj = rules.getFederal().getStandardDeductions().get(filingStatus);
         double standardDeduction = standardDeductionObj != null ? standardDeductionObj : 14600.0;
-        double adjustedIncome = Math.max(0, taxableBaseSalary - standardDeduction);
+        double itemized = w4.getItemizedDeductions() != null ? w4.getItemizedDeductions() : 0.0;
+        double effectiveDeduction = Math.max(itemized, standardDeduction);
+        double otherIncome = w4.getOtherIncome() != null ? w4.getOtherIncome() : 0.0;
+        double taxable = Math.max(0,
+                regularWages - totalPretaxDeductions + otherIncome - effectiveDeduction);
         List<RulePack.TaxBracket> brackets = rules.getFederal().getBracketsForFilingStatus(filingStatus);
-        return bracketCalculator.calculateTax(adjustedIncome, brackets);
+        return bracketCalculator.calculateTax(taxable, brackets);
     }
 
     private double calculateStateTax(CalculationInput input, double taxableIncome, RulePack rules) {

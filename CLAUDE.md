@@ -1,5 +1,54 @@
 # Salary Calculator — Claude Notes
 
+## ADP-Parity Migration (2026-05-28)
+
+Bringing the backend + incomatic iOS UI in line with ADP's public salary paycheck calculator
+(`adp.com/.../salary-paycheck-calculator.aspx`). ADP exposes a four-tab input model
+(Earnings / Federal Taxes / State or Territory Taxes / Benefits) plus a right-rail donut chart
+and itemized summary. Full plan lives at `~/.claude/plans/eager-mapping-quiche.md`; this section
+mirrors the phase table so we can track progress without that file.
+
+### Scope decisions (locked-in)
+
+- **Pay modes**: Salary + Hourly + Bonus (bonus stays a supplemental flat-22% earning line, already
+  supported by the backend; iOS just needs to surface the input).
+- **W-4 additions**: dependents amount, other income, itemized deductions, additional withholding,
+  plus three exemption flags (federal / SS / Medicare). The "multiple jobs" toggle is captured in
+  the UI but not yet actuated.
+- **State coverage**: top-10 US states only — CA, NY, TX, FL, IL, PA, OH, GA, NC, MI. Existing
+  CA + TX + MD stay; the other 7 get added. *(Subsequently expanded post-Phase-5 — see Phase 7.)*
+- **Visualization**: replace the iOS 3-bar mini chart on the Insights tab with one donut chart
+  (Take Home / Taxes / Benefits) + an ADP-style itemized right-rail summary keyed off a new
+  `LineItem.category` field.
+
+### Phased rollout
+
+| Phase | Scope | Status |
+|-------|-------|--------|
+| **0** | Capture this section in `CLAUDE.md` | Done |
+| **1** | Backend DTOs + enums: `Earnings`, `Salary`, `Hourly`, `W4`, `LineItemCategory`; extend `Pretax` (FSA), `Posttax` (Roth 401k), `LineItem` (category), `CountryOptions.US` (W4), `PayCadence` (+4 cadences). Engine still ignores the new fields. | Done |
+| **2** | `CalculationOrchestrator` normalizes earnings → annual. `USCalculator` consumes W-4, FSA, Roth 401(k), exemption flags, hourly earnings; tags every emitted `LineItem` with a category. | Done |
+| **3** | Rule pack: bump `US-2025.json` → `US-2025.11.0`, add MFJ federal brackets, add NY/FL/IL/PA/OH/GA/NC/MI state entries. | Done |
+| **4** | iOS `CalculatorTab` 4-segment restructure (Earnings / Federal / State / Benefits); new request body shape; drives state list from `GET /v1/countries/US/states`; drops the HoH→SINGLE fallback. | Done |
+| **5** | iOS `EarningsBreakdownView` donut + right-rail itemized summary; new `DonutChart` view; line-item parsing switches from name-pattern matching to `LineItem.category`. | Done |
+| **6** | Unit tests refreshed for Phases 1–3. `CalculationInput.getRegularWagesAnnual()` got a back-compat fallback (`annualGross − supplementalAnnual`) so legacy tests that set `annualGross` directly without the salary/OT breakdown still work. 6 existing `USCalculatorTest` failures fixed (line-item renames: `bonus_withholding`→`supplemental_withholding`, `FICA (Social Security)`→`Social Security`, `Employee 401(k)`→`401(k)`). 43 new tests added across `DeductionCalculatorTest` (+8 — FSA, DCA, Roth helper), `CalculationInputTest` (+8 — earnings normalization, hourly, throws-when-empty, back-compat fallback), `USCalculatorTest` (+18 — earnings line items, FSA/DCA/HSA categories, Roth math on regular wages only, all 4 W-4 fields + exemption flags, state-code-prefixed line item name, every-item-has-a-category invariant), and `RulesRegistryTest` (+9 — version 11.0, 2025 std deductions, MFJ/HoH brackets, refreshed SS wage base, top-10 states present, no-SIT empty brackets, flat-rate single bracket, NY 9-bracket progressive, MD local rate). **203 tests pass, 0 failures.** | Done |
+| **7** | Rule pack expanded beyond Phase 3's top-10 scope. User added ~28 additional state entries (AL, AK, AZ, AR, CO, CT, DE, HI, ID, IN, IA, KS, KY, LA, ME, MA, MN, MS, MO, MT, NE, NV, NH, NJ, NM, ND, OK + others) to `US-2025.json`. Also fixed a `"UpTo"` → `"upTo"` typo at line 54 (Alabama's first bracket) — Jackson is strict on field names so the typo had blocked all 14 US-loading tests from parsing the rule pack; the silent runtime bug would have made AL's 2% rate apply to all income instead of just the first $500. | Done |
+
+### Out of scope (this migration)
+
+Hourly tipped wages; multi-state withholding split; full 50-state coverage; YTD earnings carry-in
+for SS-cap tracking; address geocoding; Pay Date as a SS-cap pivot (we accept the field but ignore
+it); modern W-4 multiple-jobs adjustment table; county-tax beyond MD `local`; UK calculator changes;
+Pub/Sub subscriber; `GET /v1/insights/{calculationId}`; PDF report endpoint; auth endpoints;
+persistent calculation history.
+
+### How we'll track progress
+
+Each phase lands as its own commit / review pass. After completing a phase, flip its Status column
+above to `Done` so this file stays the source of truth for what's shipped vs pending.
+
+---
+
 ## Spring Boot → Javalin Migration (2026-05-25)
 
 The entire backend was migrated off Spring Boot onto **Javalin 6.x** to slim the runtime

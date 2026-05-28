@@ -6,10 +6,14 @@ import app.salary.calculator.shared.DeductionCalculator;
 import app.salary.calculator.shared.TaxBracketCalculator;
 import app.salary.common.constants.Country;
 import app.salary.common.constants.FilingStatus;
+import app.salary.common.constants.PayCadence;
 import app.salary.common.dto.CountryOptionsUS;
+import app.salary.common.dto.LineItem;
+import app.salary.common.dto.LineItemCategory;
 import app.salary.common.dto.NamedDeduction;
 import app.salary.common.dto.Posttax;
 import app.salary.common.dto.Pretax;
+import app.salary.common.dto.W4;
 import app.salary.rules.RulePack;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -267,12 +271,12 @@ class USCalculatorTest {
         assertTrue(federalItem, "Expected Federal Income Tax to include bonus withholding");
 
         boolean hasExplanation = result.getExplanations().stream()
-            .anyMatch(e -> "bonus_withholding".equals(e.getId()));
-        assertTrue(hasExplanation, "Expected bonus_withholding explanation");
+            .anyMatch(e -> "supplemental_withholding".equals(e.getId()));
+        assertTrue(hasExplanation, "Expected supplemental_withholding explanation");
     }
 
     @Test
-    void calculate_withZeroBonus_shouldNotEmitBonusWithholdingExplanation() {
+    void calculate_withZeroBonus_shouldNotEmitSupplementalWithholdingExplanation() {
         when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(0.0);
         when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(0.0);
         when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
@@ -281,9 +285,9 @@ class USCalculatorTest {
 
         CalculationResult result = calculator.calculate(input, rulePack);
 
-        boolean noBonusExplanation = result.getExplanations().stream()
-            .noneMatch(e -> "bonus_withholding".equals(e.getId()));
-        assertTrue(noBonusExplanation);
+        boolean noSupplementalExplanation = result.getExplanations().stream()
+            .noneMatch(e -> "supplemental_withholding".equals(e.getId()));
+        assertTrue(noSupplementalExplanation);
     }
 
     // ── individual benefit line items ─────────────────────────────────────────────
@@ -327,7 +331,7 @@ class USCalculatorTest {
         CalculationResult result = calculator.calculate(input, rulePack);
 
         assertTrue(result.getLineItems().stream()
-            .anyMatch(i -> "Employee 401(k)".equals(i.getName()) && i.getAmount() == 6000.0));
+            .anyMatch(i -> "401(k)".equals(i.getName()) && i.getAmount() == 6000.0));
     }
 
     @Test
@@ -386,7 +390,7 @@ class USCalculatorTest {
         CalculationResult result = calculator.calculate(input, rulePack);
 
         assertTrue(result.getLineItems().stream()
-            .anyMatch(item -> "FICA (Social Security)".equals(item.getName())
+            .anyMatch(item -> "Social Security".equals(item.getName())
                            && item.getAmount() == 168600.0 * 0.062));
     }
 
@@ -407,5 +411,427 @@ class USCalculatorTest {
     @Test
     void getCountryCode_shouldReturnUS() {
         assertEquals("US", calculator.getCountryCode());
+    }
+
+    // ── Earnings line items (Phase 2) ─────────────────────────────────────────────
+
+    @Test
+    void calculate_withSalaryBreakdown_shouldEmitSalaryLineItem() {
+        input.setSalaryAnnual(100000.0);
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
+        when(bracketCalculator.calculateTax(anyDouble(), anyList())).thenReturn(10000.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(0.0);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        LineItem salary = findLineItem(result, "Salary");
+        assertNotNull(salary, "Expected Salary earnings line item");
+        assertEquals(100000.0, salary.getAmount(), 0.01);
+        assertEquals(LineItemCategory.EARNINGS, salary.getCategory());
+    }
+
+    @Test
+    void calculate_withBonusAndCommission_shouldEmitSeparateEarningsLineItems() {
+        input.setAnnualGross(115000.0);
+        input.setSalaryAnnual(100000.0);
+        input.setBonusAnnual(10000.0);
+        input.setCommissionAnnual(5000.0);
+
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
+        when(bracketCalculator.calculateTax(anyDouble(), anyList())).thenReturn(10000.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(0.0);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        LineItem bonus = findLineItem(result, "Bonus");
+        LineItem commission = findLineItem(result, "Commission");
+        assertNotNull(bonus);
+        assertNotNull(commission);
+        assertEquals(10000.0, bonus.getAmount(), 0.01);
+        assertEquals(5000.0, commission.getAmount(), 0.01);
+        assertEquals(LineItemCategory.EARNINGS, bonus.getCategory());
+        assertEquals(LineItemCategory.EARNINGS, commission.getCategory());
+    }
+
+    @Test
+    void calculate_withHourlyOvertime_shouldEmitOvertimeAndDoubleTimeLineItems() {
+        input.setAnnualGross(60000.0);
+        input.setSalaryAnnual(40000.0);   // regular hours pay
+        input.setOvertimeAnnual(15000.0);
+        input.setDoubleTimeAnnual(5000.0);
+
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
+        when(bracketCalculator.calculateTax(anyDouble(), anyList())).thenReturn(5000.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(0.0);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        assertNotNull(findLineItem(result, "Overtime"));
+        assertNotNull(findLineItem(result, "Double Time"));
+        assertEquals(LineItemCategory.EARNINGS, findLineItem(result, "Overtime").getCategory());
+    }
+
+    // ── FSA + DCA + HSA (Phase 2) ─────────────────────────────────────────────────
+
+    @Test
+    void calculate_withHealthcareFsa_shouldEmitAsPretaxBenefit() {
+        Pretax pretax = new Pretax();
+        pretax.setHealthcareFsa(2600.0);
+        input.setPretax(pretax);
+
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(2600.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
+        when(bracketCalculator.calculateTax(anyDouble(), anyList())).thenReturn(10000.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(0.0);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        LineItem fsa = findLineItem(result, "Healthcare FSA");
+        assertNotNull(fsa);
+        assertEquals(2600.0, fsa.getAmount(), 0.01);
+        assertEquals(LineItemCategory.PRE_TAX_BENEFIT, fsa.getCategory());
+    }
+
+    @Test
+    void calculate_withDependentCareFsa_shouldEmitAsPretaxBenefit() {
+        Pretax pretax = new Pretax();
+        pretax.setDependentCareFsa(5000.0);
+        input.setPretax(pretax);
+
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(5000.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
+        when(bracketCalculator.calculateTax(anyDouble(), anyList())).thenReturn(10000.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(0.0);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        LineItem dca = findLineItem(result, "Dependent Care FSA");
+        assertNotNull(dca);
+        assertEquals(5000.0, dca.getAmount(), 0.01);
+        assertEquals(LineItemCategory.PRE_TAX_BENEFIT, dca.getCategory());
+    }
+
+    @Test
+    void calculate_withHsa_shouldEmitAsPretaxBenefit() {
+        Pretax pretax = new Pretax();
+        pretax.setHsa(3850.0);
+        input.setPretax(pretax);
+
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(3850.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(3850.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
+        when(bracketCalculator.calculateTax(anyDouble(), anyList())).thenReturn(10000.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(0.0);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        LineItem hsa = findLineItem(result, "HSA Contribution");
+        assertNotNull(hsa);
+        assertEquals(LineItemCategory.PRE_TAX_BENEFIT, hsa.getCategory());
+    }
+
+    // ── Roth 401(k) (Phase 2) ─────────────────────────────────────────────────────
+
+    @Test
+    void calculate_withRoth401k_shouldEmitRetirementLineItemAndReduceNet() {
+        input.setSalaryAnnual(100000.0);
+        Posttax posttax = new Posttax();
+        posttax.setRoth401kPercent(0.04); // 4%
+        input.setPosttax(posttax);
+
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculateRoth401k(any(), anyDouble())).thenReturn(4000.0);
+        when(bracketCalculator.calculateTax(anyDouble(), anyList())).thenReturn(10000.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(0.0);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        LineItem roth = findLineItem(result, "Roth 401(k)");
+        assertNotNull(roth);
+        assertEquals(4000.0, roth.getAmount(), 0.01);
+        assertEquals(LineItemCategory.RETIREMENT, roth.getCategory());
+
+        // Roth reduces net: gross - taxes - fica - roth
+        // 100000 - 0 (pretax) - 10000 (fed) - 10000 (state) - 6200 (ss) - 1450 (medicare) - 0 (posttax fixed) - 4000 (roth)
+        assertEquals(68350.0, result.getNetAnnual(), 0.01);
+    }
+
+    @Test
+    void calculate_withRoth401k_shouldComputeOnRegularWagesOnly() {
+        input.setAnnualGross(115000.0);
+        input.setSalaryAnnual(100000.0);
+        input.setBonusAnnual(15000.0);
+        Posttax posttax = new Posttax();
+        posttax.setRoth401kPercent(0.05);
+        input.setPosttax(posttax);
+
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
+        when(bracketCalculator.calculateTax(anyDouble(), anyList())).thenReturn(10000.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(0.0);
+
+        calculator.calculate(input, rulePack);
+
+        // Roth is computed on regular wages = 100k (not 115k gross)
+        verify(deductionCalculator).calculateRoth401k(eq(posttax), eq(100000.0));
+    }
+
+    // ── W-4 fields (Phase 2) ──────────────────────────────────────────────────────
+
+    @Test
+    void calculate_withDependentsAmount_shouldReduceFederalTax() {
+        W4 w4 = new W4();
+        w4.setDependentsAmount(2000.0);
+        input.getUsOptions().setW4(w4);
+
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
+        when(bracketCalculator.calculateTax(anyDouble(), anyList())).thenReturn(15000.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(0.0);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        LineItem fed = findLineItem(result, "Federal Income Tax");
+        assertNotNull(fed);
+        // 15000 from brackets - 2000 dependents credit = 13000
+        assertEquals(13000.0, fed.getAmount(), 0.01);
+    }
+
+    @Test
+    void calculate_withDependentsLargerThanFederalTax_shouldFloorAtZero() {
+        W4 w4 = new W4();
+        w4.setDependentsAmount(20000.0); // more than bracket tax
+        input.getUsOptions().setW4(w4);
+
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
+        when(bracketCalculator.calculateTax(anyDouble(), anyList())).thenReturn(15000.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(0.0);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        // Federal cannot go negative — should be omitted (line item only emitted when > 0)
+        assertNull(findLineItem(result, "Federal Income Tax"));
+    }
+
+    @Test
+    void calculate_withOtherIncome_shouldIncreaseTaxableForBrackets() {
+        W4 w4 = new W4();
+        w4.setOtherIncome(5000.0);
+        input.getUsOptions().setW4(w4);
+
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
+        when(bracketCalculator.calculateTax(anyDouble(), anyList())).thenReturn(10000.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(0.0);
+
+        calculator.calculate(input, rulePack);
+
+        // Bracket call: regularWages(100000) - pretax(0) + otherIncome(5000) - std(14600) = 90400
+        verify(bracketCalculator).calculateTax(eq(90400.0), anyList());
+    }
+
+    @Test
+    void calculate_withItemizedDeductionsLargerThanStandard_shouldUseItemized() {
+        W4 w4 = new W4();
+        w4.setItemizedDeductions(20000.0); // larger than $14,600 SINGLE std
+        input.getUsOptions().setW4(w4);
+
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
+        when(bracketCalculator.calculateTax(anyDouble(), anyList())).thenReturn(10000.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(0.0);
+
+        calculator.calculate(input, rulePack);
+
+        // Itemized overrides standard: 100000 - 0 + 0 - 20000 = 80000
+        verify(bracketCalculator).calculateTax(eq(80000.0), anyList());
+    }
+
+    @Test
+    void calculate_withItemizedSmallerThanStandard_shouldUseStandard() {
+        W4 w4 = new W4();
+        w4.setItemizedDeductions(5000.0); // smaller than $14,600
+        input.getUsOptions().setW4(w4);
+
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
+        when(bracketCalculator.calculateTax(anyDouble(), anyList())).thenReturn(10000.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(0.0);
+
+        calculator.calculate(input, rulePack);
+
+        // Standard wins: 100000 - 0 + 0 - 14600 = 85400
+        verify(bracketCalculator).calculateTax(eq(85400.0), anyList());
+    }
+
+    @Test
+    void calculate_withAdditionalWithholding_shouldAddPerPeriodTimesPeriods() {
+        input.setPayCadence(PayCadence.BIWEEKLY);
+        W4 w4 = new W4();
+        w4.setAdditionalWithholding(25.0); // $25 per pay period
+        input.getUsOptions().setW4(w4);
+
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
+        when(bracketCalculator.calculateTax(anyDouble(), anyList())).thenReturn(10000.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(0.0);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        LineItem fed = findLineItem(result, "Federal Income Tax");
+        assertNotNull(fed);
+        // 10000 + 25 × 26 = 10650
+        assertEquals(10650.0, fed.getAmount(), 0.01);
+    }
+
+    // ── W-4 exemption flags (Phase 2) ─────────────────────────────────────────────
+
+    @Test
+    void calculate_withExemptFederal_shouldOmitFederalLineItem() {
+        W4 w4 = new W4();
+        w4.setExemptFederal(true);
+        input.getUsOptions().setW4(w4);
+
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
+        when(bracketCalculator.calculateTax(anyDouble(), anyList())).thenReturn(10000.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(0.0);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        assertNull(findLineItem(result, "Federal Income Tax"));
+        assertTrue(result.getExplanations().stream()
+            .anyMatch(e -> "fed_tax_exempt".equals(e.getId())));
+    }
+
+    @Test
+    void calculate_withExemptSocialSecurity_shouldOmitSSLineItem() {
+        W4 w4 = new W4();
+        w4.setExemptSocialSecurity(true);
+        input.getUsOptions().setW4(w4);
+
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
+        when(bracketCalculator.calculateTax(anyDouble(), anyList())).thenReturn(10000.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(0.0);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        assertNull(findLineItem(result, "Social Security"));
+        assertNotNull(findLineItem(result, "Medicare")); // Medicare still applies
+    }
+
+    @Test
+    void calculate_withExemptMedicare_shouldOmitMedicareLineItem() {
+        W4 w4 = new W4();
+        w4.setExemptMedicare(true);
+        input.getUsOptions().setW4(w4);
+
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
+        when(bracketCalculator.calculateTax(anyDouble(), anyList())).thenReturn(10000.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(0.0);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        assertNull(findLineItem(result, "Medicare"));
+        assertNotNull(findLineItem(result, "Social Security")); // SS still applies
+    }
+
+    @Test
+    void calculate_withAllExemptions_shouldOmitAllTaxLineItems() {
+        W4 w4 = new W4();
+        w4.setExemptFederal(true);
+        w4.setExemptSocialSecurity(true);
+        w4.setExemptMedicare(true);
+        input.getUsOptions().setW4(w4);
+
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(0.0);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        assertNull(findLineItem(result, "Federal Income Tax"));
+        assertNull(findLineItem(result, "Social Security"));
+        assertNull(findLineItem(result, "Medicare"));
+        // Net = gross when everything is exempt
+        assertEquals(100000.0, result.getNetAnnual(), 0.01);
+    }
+
+    // ── State line item naming + categories ──────────────────────────────────────
+
+    @Test
+    void calculate_stateLineItem_shouldBePrefixedWithStateCode() {
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
+        when(bracketCalculator.calculateTax(anyDouble(), anyList())).thenReturn(5000.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(0.0);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        LineItem state = findLineItem(result, "CA State Income Tax");
+        assertNotNull(state);
+        assertEquals(LineItemCategory.TAX_STATE, state.getCategory());
+    }
+
+    // ── Categories on every emitted line item ────────────────────────────────────
+
+    @Test
+    void calculate_allEmittedLineItems_shouldHaveCategory() {
+        Pretax pretax = new Pretax();
+        pretax.setMedical(2000.0);
+        pretax.setHsa(3000.0);
+        pretax.setPensionPercent(0.05);
+        input.setPretax(pretax);
+        input.setSalaryAnnual(100000.0);
+        Posttax posttax = new Posttax();
+        posttax.setRoth401kPercent(0.02);
+        input.setPosttax(posttax);
+
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(10000.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(3000.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(5000.0);
+        when(deductionCalculator.calculateRoth401k(any(), anyDouble())).thenReturn(2000.0);
+        when(bracketCalculator.calculateTax(anyDouble(), anyList())).thenReturn(10000.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(100.0);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        for (LineItem item : result.getLineItems()) {
+            assertNotNull(item.getCategory(),
+                "Line item '" + item.getName() + "' should be tagged with a category");
+        }
+    }
+
+    // ── Helper ────────────────────────────────────────────────────────────────────
+
+    private LineItem findLineItem(CalculationResult result, String name) {
+        return result.getLineItems().stream()
+            .filter(i -> name.equals(i.getName()))
+            .findFirst().orElse(null);
     }
 }

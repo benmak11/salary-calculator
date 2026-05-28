@@ -3,6 +3,7 @@ package app.salary.calculator.countries;
 import app.salary.calculator.engine.*;
 import app.salary.calculator.shared.*;
 import app.salary.common.constants.Country;
+import app.salary.common.dto.LineItemCategory;
 import app.salary.rules.RulePack;
 import app.salary.calculator.engine.CountryCalculator;
 
@@ -53,28 +54,28 @@ public class UKCalculator implements CountryCalculator {
         double posttaxDeductions = deductionCalculator.calculatePosttaxDeductions(input.getPosttax());
 
         // Build detailed line items
-        result.addLineItem("Gross Salary", grossAnnual);
+        result.addLineItem("Gross Salary", grossAnnual, LineItemCategory.EARNINGS);
         result.addLineItem("Tax-Free Allowance", -personalAllowance);
         result.addLineItem("Taxable Income", taxableAfterAllowance);
 
         var bands = incomeTaxBreakdown.getBands();
         if (bands.containsKey(0)) {
             var band = bands.get(0);
-            result.addLineItem("Income Tax (Basic Rate 20%)", band.getTax());
+            result.addLineItem("Income Tax (Basic Rate 20%)", band.getTax(), LineItemCategory.TAX_FEDERAL);
             result.addExplanation("basic_rate_tax",
                     String.format("Basic rate (20%%) on £%.2f", band.getIncome()));
         }
 
         if (bands.containsKey(1)) {
             var band = bands.get(1);
-            result.addLineItem("Income Tax (Higher Rate 40%)", band.getTax());
+            result.addLineItem("Income Tax (Higher Rate 40%)", band.getTax(), LineItemCategory.TAX_FEDERAL);
             result.addExplanation("higher_rate_tax",
                     String.format("Higher rate (40%%) on £%.2f", band.getIncome()));
         }
 
         if (bands.containsKey(2)) {
             var band = bands.get(2);
-            result.addLineItem("Income Tax (Additional Rate 45%)", band.getTax());
+            result.addLineItem("Income Tax (Additional Rate 45%)", band.getTax(), LineItemCategory.TAX_FEDERAL);
             result.addExplanation("additional_rate_tax",
                     String.format("Additional rate (45%%) on £%.2f", band.getIncome()));
         }
@@ -82,7 +83,7 @@ public class UKCalculator implements CountryCalculator {
         result.addLineItem("Total Income Tax", incomeTaxBreakdown.getTotalTax());
 
         if (niBreakdown.mainRateNI > 0) {
-            result.addLineItem("National Insurance (Main Rate 8%)", niBreakdown.mainRateNI);
+            result.addLineItem("National Insurance (Main Rate 8%)", niBreakdown.mainRateNI, LineItemCategory.TAX_FICA);
             result.addExplanation("ni_main_rate",
                     String.format("8%% rate on £%.2f (between £%.0f and £%.0f)",
                             niBreakdown.mainRateIncome,
@@ -91,7 +92,7 @@ public class UKCalculator implements CountryCalculator {
         }
 
         if (niBreakdown.upperRateNI > 0) {
-            result.addLineItem("National Insurance (Upper Rate 2%)", niBreakdown.upperRateNI);
+            result.addLineItem("National Insurance (Upper Rate 2%)", niBreakdown.upperRateNI, LineItemCategory.TAX_FICA);
             result.addExplanation("ni_upper_rate",
                     String.format("2%% rate on £%.2f (above £%.0f)",
                             niBreakdown.upperRateIncome,
@@ -101,7 +102,7 @@ public class UKCalculator implements CountryCalculator {
         result.addLineItem("Total National Insurance", niBreakdown.totalNI);
 
         if (pensionContribution > 0) {
-            result.addLineItem("Employee Pension Contribution", pensionContribution);
+            result.addLineItem("Employee Pension Contribution", pensionContribution, LineItemCategory.RETIREMENT);
             double pensionPercent = input.getPretax().getPensionPercent() * 100;
             result.addExplanation("pension_contribution",
                     String.format("Employee contribution: %.1f%% of gross salary (£%.2f). " +
@@ -112,17 +113,17 @@ public class UKCalculator implements CountryCalculator {
         if (studentLoan > 0) {
             String planName = input.getPosttax().getStudentLoanPlan() != null
                     ? input.getPosttax().getStudentLoanPlan().name() : "Plan 2";
-            result.addLineItem("Student Loan (" + planName + ")", studentLoan);
+            result.addLineItem("Student Loan (" + planName + ")", studentLoan, LineItemCategory.POST_TAX);
         }
 
         if (posttaxDeductions > 0) {
-            result.addLineItem("Other Post-tax Deductions", posttaxDeductions);
+            result.addLineItem("Other Post-tax Deductions", posttaxDeductions, LineItemCategory.POST_TAX);
         }
 
         double netAnnual = grossAnnual - incomeTaxBreakdown.getTotalTax() - niBreakdown.totalNI
                 - pensionContribution - studentLoan - posttaxDeductions;
         result.setNetAnnual(netAnnual);
-        result.addLineItem("Net Take-Home Pay", netAnnual);
+        result.addLineItem("Net Take-Home Pay", netAnnual, LineItemCategory.NET);
 
         if (taxableIncome > rules.getIncomeTax().getTaperStart()) {
             result.addExplanation("personal_allowance_taper",
