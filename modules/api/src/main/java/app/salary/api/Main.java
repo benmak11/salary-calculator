@@ -3,11 +3,9 @@ package app.salary.api;
 import app.salary.api.client.HttpRulePackClient;
 import app.salary.api.controller.AppController;
 import app.salary.api.controller.AuthController;
-import app.salary.api.controller.BenefitsController;
 import app.salary.api.controller.CalculateController;
 import app.salary.api.controller.InsightsController;
 import app.salary.api.controller.ReportsController;
-import app.salary.api.controller.UsersController;
 import app.salary.api.service.CalculationStore;
 import app.salary.api.validation.RequestValidator;
 import app.salary.api.validation.ValidationException;
@@ -113,9 +111,7 @@ public class Main {
         new CalculateController(orchestrator, calculatorRegistry, calculationStore, requestValidator).register(app);
         new AppController().register(app);
         new AuthController(requestValidator).register(app);
-        new BenefitsController(calculationStore, requestValidator).register(app);
         new InsightsController(calculationStore).register(app);
-        new UsersController().register(app);
         new ReportsController(calculationStore).register(app);
 
         // ── Observability endpoints ──────────────────────────────────────────
