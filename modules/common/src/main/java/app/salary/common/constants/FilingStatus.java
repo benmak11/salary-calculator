@@ -2,5 +2,6 @@ package app.salary.common.constants;
 
 public enum FilingStatus {
     SINGLE,
-    MARRIED
+    MARRIED,
+    HEAD_OF_HOUSEHOLD
 }

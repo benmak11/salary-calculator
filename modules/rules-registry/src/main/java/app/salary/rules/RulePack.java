@@ -27,12 +27,35 @@ public class RulePack {
 
     public static class Federal {
         private Map<String, Double> standardDeductions;
+        /** Default brackets (SINGLE / MARRIED). Use bracketsByFilingStatus when available. */
         private List<TaxBracket> brackets;
+        /** Per-filing-status bracket overrides (e.g. HEAD_OF_HOUSEHOLD). Falls back to brackets if absent. */
+        private Map<String, List<TaxBracket>> bracketsByFilingStatus;
+        /** Flat federal withholding rate applied to supplemental / bonus wages (default 0.22). */
+        private Double supplementalWithholdingRate = 0.22;
 
         public Map<String, Double> getStandardDeductions() { return standardDeductions; }
-        public void setStandardDeductions(Map<String, Double> standardDeductions) { this.standardDeductions = standardDeductions;}
+        public void setStandardDeductions(Map<String, Double> standardDeductions) { this.standardDeductions = standardDeductions; }
         public List<TaxBracket> getBrackets() { return brackets; }
         public void setBrackets(List<TaxBracket> brackets) { this.brackets = brackets; }
+        public Map<String, List<TaxBracket>> getBracketsByFilingStatus() { return bracketsByFilingStatus; }
+        public void setBracketsByFilingStatus(Map<String, List<TaxBracket>> bracketsByFilingStatus) {
+            this.bracketsByFilingStatus = bracketsByFilingStatus;
+        }
+        public Double getSupplementalWithholdingRate() {
+            return supplementalWithholdingRate != null ? supplementalWithholdingRate : 0.22;
+        }
+        public void setSupplementalWithholdingRate(Double supplementalWithholdingRate) {
+            this.supplementalWithholdingRate = supplementalWithholdingRate;
+        }
+
+        /** Returns the appropriate federal brackets for the given filing status. */
+        public List<TaxBracket> getBracketsForFilingStatus(String filingStatus) {
+            if (bracketsByFilingStatus != null && bracketsByFilingStatus.containsKey(filingStatus)) {
+                return bracketsByFilingStatus.get(filingStatus);
+            }
+            return brackets;
+        }
     }
 
     public static class TaxBracket {

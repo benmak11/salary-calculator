@@ -8,6 +8,8 @@ import java.util.List;
 
 public class CalculationResult {
     private Double grossAnnual;
+    private Double baseSalaryAnnual;
+    private Double bonusAnnual = 0.0;
     private Double netAnnual;
     private String currency;
     private List<LineItem> lineItems = new ArrayList<>();
@@ -16,6 +18,10 @@ public class CalculationResult {
 
     public Double getGrossAnnual() { return grossAnnual; }
     public void setGrossAnnual(Double grossAnnual) { this.grossAnnual = grossAnnual; }
+    public Double getBaseSalaryAnnual() { return baseSalaryAnnual; }
+    public void setBaseSalaryAnnual(Double baseSalaryAnnual) { this.baseSalaryAnnual = baseSalaryAnnual; }
+    public Double getBonusAnnual() { return bonusAnnual; }
+    public void setBonusAnnual(Double bonusAnnual) { this.bonusAnnual = bonusAnnual; }
     public Double getNetAnnual() { return netAnnual; }
     public void setNetAnnual(Double netAnnual) { this.netAnnual = netAnnual; }
     public String getCurrency() { return currency; }

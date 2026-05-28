@@ -8,8 +8,14 @@ import java.util.List;
 @ExcludeFromCodeCoverage
 @Schema(description = "Salary calculation result with detailed tax breakdown")
 public class CalculateResponse {
-    @Schema(description = "Gross pay per payment period", example = "100000.0")
+    @Schema(description = "Gross pay per payment period (base + bonus)", example = "100000.0")
     private Double grossPerCadence;
+
+    @Schema(description = "Base salary component per payment period", example = "92307.69")
+    private Double baseSalaryPerCadence;
+
+    @Schema(description = "Bonus component per payment period", example = "7692.31")
+    private Double bonusPerCadence;
 
     @Schema(description = "Net take-home pay per payment period", example = "72556.15")
     private Double netPerCadence;
@@ -31,6 +37,10 @@ public class CalculateResponse {
 
     public Double getGrossPerCadence() { return grossPerCadence; }
     public void setGrossPerCadence(Double grossPerCadence) { this.grossPerCadence = grossPerCadence; }
+    public Double getBaseSalaryPerCadence() { return baseSalaryPerCadence; }
+    public void setBaseSalaryPerCadence(Double baseSalaryPerCadence) { this.baseSalaryPerCadence = baseSalaryPerCadence; }
+    public Double getBonusPerCadence() { return bonusPerCadence; }
+    public void setBonusPerCadence(Double bonusPerCadence) { this.bonusPerCadence = bonusPerCadence; }
     public Double getNetPerCadence() { return netPerCadence; }
     public void setNetPerCadence(Double netPerCadence) { this.netPerCadence = netPerCadence; }
     public String getCurrency() { return currency; }
