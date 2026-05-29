@@ -23,14 +23,14 @@ dependencies {
     testAnnotationProcessor 'org.projectlombok:lombok:1.18.30'
 
     // Javalin (replaces Spring Boot)
-    implementation 'io.javalin:javalin:6.3.0'
+    implementation 'io.javalin:javalin:7.2.0'
     implementation 'io.javalin:javalin-micrometer:6.3.0'
 
     // GraphQL (replaces spring-boot-starter-graphql)
     implementation 'com.graphql-java:graphql-java:22.3'
 
     // Google Cloud — direct clients (no Spring Cloud GCP wrappers)
-    implementation platform('com.google.cloud:libraries-bom:26.43.0')
+    implementation platform('com.google.cloud:libraries-bom:26.83.0')
     implementation 'com.google.cloud:google-cloud-firestore'
     implementation 'com.google.cloud:google-cloud-storage'
     implementation 'com.google.cloud:google-cloud-pubsub'
@@ -45,13 +45,13 @@ dependencies {
 
     // Utilities
     implementation 'commons-codec:commons-codec:1.17.1'
-    implementation 'org.apache.commons:commons-lang3:3.17.0'
+    implementation 'org.apache.commons:commons-lang3:3.18.0'
 
     // Metrics
     implementation 'io.micrometer:micrometer-registry-prometheus:1.13.4'
 
     // Logging
-    runtimeOnly 'ch.qos.logback:logback-classic:1.5.6'
+    runtimeOnly 'ch.qos.logback:logback-classic:1.5.13'
     implementation 'org.slf4j:slf4j-api:2.0.13'
 
     // Testing
