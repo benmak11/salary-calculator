@@ -7,7 +7,7 @@ import app.salary.calculator.registry.CalculatorRegistry;
 import app.salary.common.constants.Country;
 import app.salary.common.dto.CalculateRequest;
 import app.salary.common.dto.CalculateResponse;
-import io.javalin.Javalin;
+import io.javalin.config.RoutesConfig;
 import io.javalin.http.Context;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,12 +34,12 @@ public class CalculateController {
         this.validator = validator;
     }
 
-    public void register(Javalin app) {
-        app.post("/v1/calculate", this::calculate);
-        app.get("/v1/countries", this::getSupportedCountries);
-        app.get("/v1/countries/US/states", this::getUsStates);
-        app.get("/v1/tax-years", this::getSupportedTaxYears);
-        app.get("/v1/health", this::health);
+    public void register(RoutesConfig routes) {
+        routes.post("/v1/calculate", this::calculate);
+        routes.get("/v1/countries", this::getSupportedCountries);
+        routes.get("/v1/countries/US/states", this::getUsStates);
+        routes.get("/v1/tax-years", this::getSupportedTaxYears);
+        routes.get("/v1/health", this::health);
     }
 
     private void calculate(Context ctx) {
@@ -100,7 +100,7 @@ public class CalculateController {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("country", country.toUpperCase());
         response.put("supportedTaxYears", taxYears);
-        response.put("defaultTaxYear", taxYears.get(taxYears.size() - 1));
+        response.put("defaultTaxYear", taxYears.getFirst());
         ctx.json(response);
     }
 

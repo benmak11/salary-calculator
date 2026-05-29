@@ -73,50 +73,7 @@ public class Main {
                 ? new RulePackService(repository, storageService, lifecyclePublisher, cache)
                 : null;
 
-        // ── Javalin ──────────────────────────────────────────────────────────
-        Javalin app = Javalin.create(config -> {
-            config.jsonMapper(new JavalinJackson(objectMapper, false));
-            config.showJavalinBanner = false;
-            config.useVirtualThreads = true;
-            config.bundledPlugins.enableCors(cors -> cors.addRule(it -> it.anyHost()));
-            config.registerPlugin(new MicrometerPlugin(micrometerCfg -> {
-                micrometerCfg.registry = meterRegistry;
-            }));
-        });
-
-        app.exception(IllegalArgumentException.class, (e, ctx) -> {
-            log.warn("Illegal argument: {}", e.getMessage());
-            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("error", String.valueOf(e.getMessage())));
-        });
-        app.exception(Exception.class, (e, ctx) -> {
-            log.error("Unexpected error", e);
-            ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).json(Map.of("error", "Internal server error"));
-        });
-
-        if (rulePackService != null) {
-            new RulePackController(rulePackService).register(app);
-            new RulePackGraphQLController(rulePackService, objectMapper).register(app);
-        } else {
-            // Stub the persistence-backed routes with 503 — the rest of the service
-            // (health, metrics) still boots cleanly so docker-compose stays happy.
-            io.javalin.http.Handler unavailable = ctx -> ctx.status(HttpStatus.SERVICE_UNAVAILABLE)
-                    .json(Map.of("error", "GCP backends are disabled (ENABLE_GCP=false)"));
-            app.get(  "/v1/rule-packs",                unavailable);
-            app.get(  "/v1/rule-packs/latest",         unavailable);
-            app.get(  "/v1/rule-packs/{id}",           unavailable);
-            app.get(  "/v1/rule-packs/{id}/download",  unavailable);
-            app.post( "/v1/rule-packs",                unavailable);
-            app.post( "/v1/rule-packs/{id}/publish",   unavailable);
-            app.post( "/v1/rule-packs/{id}/deprecate", unavailable);
-            app.post( "/graphql",                      unavailable);
-        }
-
-        app.get("/actuator/health", ctx -> ctx.json(Map.of(
-                "status", "UP",
-                "gcp", enableGcp
-        )));
-        app.get("/actuator/prometheus", ctx ->
-                ctx.contentType("text/plain; version=0.0.4").result(meterRegistry.scrape()));
+        Javalin app = createApp(objectMapper, meterRegistry, rulePackService, enableGcp);
 
         app.start(port);
         log.info("Rule Pack Service listening on :{} (GCP enabled: {})", port, enableGcp);
@@ -126,6 +83,61 @@ public class Main {
             try { app.stop(); } catch (Exception e) { log.warn("Error stopping Javalin", e); }
             lifecyclePublisher.shutdown();
         }, "rule-pack-shutdown"));
+    }
+
+    /**
+     * Builds the Javalin app. Extracted so tests can boot the same app shape via
+     * {@code JavalinTest.test(...)} with a stubbed {@link RulePackService}.
+     *
+     * Javalin 7: routes and exception handlers must be registered inside the config block
+     * via {@code config.routes.xxx}; the Javalin instance no longer exposes
+     * {@code get/post/exception} after construction.
+     */
+    static Javalin createApp(ObjectMapper objectMapper,
+                             PrometheusMeterRegistry meterRegistry,
+                             RulePackService rulePackService,
+                             boolean enableGcp) {
+        return Javalin.create(config -> {
+            config.jsonMapper(new JavalinJackson(objectMapper, false));
+            config.startup.showJavalinBanner = false;
+            config.concurrency.useVirtualThreads = true;
+            config.bundledPlugins.enableCors(cors -> cors.addRule(it -> it.anyHost()));
+            config.registerPlugin(new MicrometerPlugin(micrometerCfg -> {
+                micrometerCfg.registry = meterRegistry;
+            }));
+
+            config.routes.exception(IllegalArgumentException.class, (e, ctx) -> {
+                log.warn("Illegal argument: {}", e.getMessage());
+                ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("error", String.valueOf(e.getMessage())));
+            });
+            config.routes.exception(Exception.class, (e, ctx) -> {
+                log.error("Unexpected error", e);
+                ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).json(Map.of("error", "Internal server error"));
+            });
+
+            if (rulePackService != null) {
+                new RulePackController(rulePackService).register(config.routes);
+                new RulePackGraphQLController(rulePackService, objectMapper).register(config.routes);
+            } else {
+                io.javalin.http.Handler unavailable = ctx -> ctx.status(HttpStatus.SERVICE_UNAVAILABLE)
+                        .json(Map.of("error", "GCP backends are disabled (ENABLE_GCP=false)"));
+                config.routes.get(  "/v1/rule-packs",                unavailable);
+                config.routes.get(  "/v1/rule-packs/latest",         unavailable);
+                config.routes.get(  "/v1/rule-packs/{id}",           unavailable);
+                config.routes.get(  "/v1/rule-packs/{id}/download",  unavailable);
+                config.routes.post( "/v1/rule-packs",                unavailable);
+                config.routes.post( "/v1/rule-packs/{id}/publish",   unavailable);
+                config.routes.post( "/v1/rule-packs/{id}/deprecate", unavailable);
+                config.routes.post( "/graphql",                      unavailable);
+            }
+
+            config.routes.get("/actuator/health", ctx -> ctx.json(Map.of(
+                    "status", "UP",
+                    "gcp", enableGcp
+            )));
+            config.routes.get("/actuator/prometheus", ctx ->
+                    ctx.contentType("text/plain; version=0.0.4").result(meterRegistry.scrape()));
+        });
     }
 
     // ── client builders ──────────────────────────────────────────────────────

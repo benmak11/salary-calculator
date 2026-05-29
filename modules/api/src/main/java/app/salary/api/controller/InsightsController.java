@@ -3,7 +3,7 @@ package app.salary.api.controller;
 import app.salary.api.dto.InsightResponse;
 import app.salary.api.service.CalculationStore;
 import app.salary.common.dto.CalculateResponse;
-import io.javalin.Javalin;
+import io.javalin.config.RoutesConfig;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 
@@ -24,8 +24,8 @@ public class InsightsController {
         this.calculationStore = calculationStore;
     }
 
-    public void register(Javalin app) {
-        app.get("/v1/insights/{calculationId}", this::getInsight);
+    public void register(RoutesConfig routes) {
+        routes.get("/v1/insights/{calculationId}", this::getInsight);
     }
 
     private void getInsight(Context ctx) {

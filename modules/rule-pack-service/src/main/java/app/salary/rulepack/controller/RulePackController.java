@@ -4,7 +4,7 @@ import app.salary.rulepack.dto.RulePackDto;
 import app.salary.rulepack.dto.RulePackListResponse;
 import app.salary.rulepack.service.RulePackService;
 import com.fasterxml.jackson.core.type.TypeReference;
-import io.javalin.Javalin;
+import io.javalin.config.RoutesConfig;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import org.slf4j.Logger;
@@ -28,19 +28,19 @@ public class RulePackController {
         this.rulePackService = rulePackService;
     }
 
-    public void register(Javalin app) {
-        app.get(    "/v1/rule-packs",                  this::list);
-        app.get(    "/v1/rule-packs/latest",           this::getLatest);
-        app.get(    "/v1/rule-packs/{id}",             this::getById);
-        app.get(    "/v1/rule-packs/{id}/download",    this::download);
-        app.post(   "/v1/rule-packs",                  this::create);
-        app.post(   "/v1/rule-packs/{id}/publish",     this::publish);
-        app.post(   "/v1/rule-packs/{id}/deprecate",   this::deprecate);
+    public void register(RoutesConfig routes) {
+        routes.get(    "/v1/rule-packs",                  this::list);
+        routes.get(    "/v1/rule-packs/latest",           this::getLatest);
+        routes.get(    "/v1/rule-packs/{id}",             this::getById);
+        routes.get(    "/v1/rule-packs/{id}/download",    this::download);
+        routes.post(   "/v1/rule-packs",                  this::create);
+        routes.post(   "/v1/rule-packs/{id}/publish",     this::publish);
+        routes.post(   "/v1/rule-packs/{id}/deprecate",   this::deprecate);
     }
 
     private void list(Context ctx) {
         String country = ctx.queryParam("country");
-        Integer taxYear = ctx.queryParamAsClass("taxYear", Integer.class).allowNullable().get();
+        Integer taxYear = ctx.queryParamAsClass("taxYear", Integer.class).getOrNull();
         String status = ctx.queryParamAsClass("status", String.class).getOrDefault("PUBLISHED");
         int page = ctx.queryParamAsClass("page", Integer.class).getOrDefault(0);
         int size = ctx.queryParamAsClass("size", Integer.class).getOrDefault(10);

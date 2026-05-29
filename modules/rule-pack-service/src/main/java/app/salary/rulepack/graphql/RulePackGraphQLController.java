@@ -14,7 +14,7 @@ import graphql.schema.idl.RuntimeWiring;
 import graphql.schema.idl.SchemaGenerator;
 import graphql.schema.idl.SchemaParser;
 import graphql.schema.idl.TypeDefinitionRegistry;
-import io.javalin.Javalin;
+import io.javalin.config.RoutesConfig;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import org.slf4j.Logger;
@@ -54,8 +54,8 @@ public class RulePackGraphQLController {
         this.graphQL = buildGraphQL();
     }
 
-    public void register(Javalin app) {
-        app.post("/graphql", this::handle);
+    public void register(RoutesConfig routes) {
+        routes.post("/graphql", this::handle);
     }
 
     @SuppressWarnings("unchecked")
@@ -107,7 +107,7 @@ public class RulePackGraphQLController {
     private DataFetcher<Map<String, Object>> latestRulePack() {
         return env -> {
             String country = env.getArgument("country");
-            int taxYear = env.getArgument("taxYear");
+            Integer taxYear = env.getArgument("taxYear");
             logger.debug("GraphQL latestRulePack: {} {}", country, taxYear);
             RulePackDto dto = rulePackService.findLatest(country, taxYear);
             return dto != null ? toGraphQL(dto) : null;
@@ -143,11 +143,12 @@ public class RulePackGraphQLController {
     private DataFetcher<Map<String, Object>> createRulePack() {
         return env -> {
             String country = env.getArgument("country");
-            int taxYear = env.getArgument("taxYear");
+            Integer taxYear = env.getArgument("taxYear");
             String version = env.getArgument("version");
             String effectiveDate = env.getArgument("effectiveDate");
 
             logger.info("GraphQL createRulePack: {}-{}-{}", country, taxYear, version);
+            assert effectiveDate != null;
             RulePackDto dto = rulePackService.createRulePack(
                     country, taxYear, version,
                     LocalDate.parse(effectiveDate),

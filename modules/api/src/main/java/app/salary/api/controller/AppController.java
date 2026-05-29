@@ -1,6 +1,6 @@
 package app.salary.api.controller;
 
-import io.javalin.Javalin;
+import io.javalin.config.RoutesConfig;
 import io.javalin.http.Context;
 
 import java.util.LinkedHashMap;
@@ -8,9 +8,9 @@ import java.util.Map;
 
 public class AppController {
 
-    public void register(Javalin app) {
-        app.get("/v1/app/legal", this::getLegal);
-        app.get("/v1/app/version", this::getVersion);
+    public void register(RoutesConfig routes) {
+        routes.get("/v1/app/legal", this::getLegal);
+        routes.get("/v1/app/version", this::getVersion);
     }
 
     private void getLegal(Context ctx) {

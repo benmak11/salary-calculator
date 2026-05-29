@@ -81,43 +81,8 @@ public class Main {
                 rulesRegistry, calculatorRegistry, rulePackClient);
         CalculationStore calculationStore = new CalculationStore();
 
-        // ── Javalin app ──────────────────────────────────────────────────────
-        Javalin app = Javalin.create(config -> {
-            config.jsonMapper(new JavalinJackson(objectMapper, false));
-            config.showJavalinBanner = false;
-            config.useVirtualThreads = true;
-            config.registerPlugin(new MicrometerPlugin(micrometerCfg -> {
-                micrometerCfg.registry = meterRegistry;
-            }));
-        });
-
-        // ── Exception handlers (replace Spring's @ExceptionHandler) ──────────
-        app.exception(ValidationException.class, (e, ctx) -> {
-            log.warn("Validation failed: {}", e.getErrors());
-            ctx.status(HttpStatus.BAD_REQUEST).json(e.getErrors());
-        });
-        app.exception(IllegalArgumentException.class, (e, ctx) -> {
-            log.warn("Illegal argument: {}", e.getMessage());
-            ctx.status(HttpStatus.UNPROCESSABLE_CONTENT)
-                    .json(Map.of("error", String.valueOf(e.getMessage())));
-        });
-        app.exception(Exception.class, (e, ctx) -> {
-            log.error("Unexpected error", e);
-            ctx.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .json(Map.of("error", "Internal server error"));
-        });
-
-        // ── Routes ───────────────────────────────────────────────────────────
-        new CalculateController(orchestrator, calculatorRegistry, calculationStore, requestValidator).register(app);
-        new AppController().register(app);
-        new AuthController(requestValidator).register(app);
-        new InsightsController(calculationStore).register(app);
-        new ReportsController(calculationStore).register(app);
-
-        // ── Observability endpoints ──────────────────────────────────────────
-        app.get("/actuator/health", ctx -> ctx.json(Map.of("status", "UP")));
-        app.get("/actuator/prometheus", ctx ->
-                ctx.contentType("text/plain; version=0.0.4").result(meterRegistry.scrape()));
+        Javalin app = createApp(objectMapper, meterRegistry, orchestrator,
+                calculatorRegistry, calculationStore, requestValidator);
 
         // ── Boot ─────────────────────────────────────────────────────────────
         app.start(port);
@@ -127,6 +92,56 @@ public class Main {
             log.info("Shutting down Salary Calculator API");
             app.stop();
         }, "salary-calculator-shutdown"));
+    }
+
+    /**
+     * Builds the Javalin app with all routes, exception handlers, and observability endpoints
+     * wired in. Extracted so tests can boot the same app shape via {@code JavalinTest.test(...)}.
+     *
+     * Javalin 7: routes and exception handlers must be registered inside the config block
+     * via {@code config.routes.xxx}; the Javalin instance no longer exposes
+     * {@code get/post/exception} after construction.
+     */
+    static Javalin createApp(ObjectMapper objectMapper,
+                             PrometheusMeterRegistry meterRegistry,
+                             CalculationOrchestrator orchestrator,
+                             CalculatorRegistry calculatorRegistry,
+                             CalculationStore calculationStore,
+                             RequestValidator requestValidator) {
+        return Javalin.create(config -> {
+            config.jsonMapper(new JavalinJackson(objectMapper, false));
+            config.startup.showJavalinBanner = false;
+            config.concurrency.useVirtualThreads = true;
+            config.registerPlugin(new MicrometerPlugin(micrometerCfg -> {
+                micrometerCfg.registry = meterRegistry;
+            }));
+
+            config.routes.exception(ValidationException.class, (e, ctx) -> {
+                log.warn("Validation failed: {}", e.getErrors());
+                ctx.status(HttpStatus.BAD_REQUEST).json(e.getErrors());
+            });
+            config.routes.exception(IllegalArgumentException.class, (e, ctx) -> {
+                log.warn("Illegal argument: {}", e.getMessage());
+                ctx.status(HttpStatus.UNPROCESSABLE_CONTENT)
+                        .json(Map.of("error", String.valueOf(e.getMessage())));
+            });
+            config.routes.exception(Exception.class, (e, ctx) -> {
+                log.error("Unexpected error", e);
+                ctx.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .json(Map.of("error", "Internal server error"));
+            });
+
+            new CalculateController(orchestrator, calculatorRegistry, calculationStore, requestValidator)
+                    .register(config.routes);
+            new AppController().register(config.routes);
+            new AuthController(requestValidator).register(config.routes);
+            new InsightsController(calculationStore).register(config.routes);
+            new ReportsController(calculationStore).register(config.routes);
+
+            config.routes.get("/actuator/health", ctx -> ctx.json(Map.of("status", "UP")));
+            config.routes.get("/actuator/prometheus", ctx ->
+                    ctx.contentType("text/plain; version=0.0.4").result(meterRegistry.scrape()));
+        });
     }
 
     private static ObjectMapper buildObjectMapper() {

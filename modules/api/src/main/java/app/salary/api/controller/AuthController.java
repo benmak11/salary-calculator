@@ -4,7 +4,7 @@ import app.salary.api.dto.AuthLoginRequest;
 import app.salary.api.dto.AuthResponse;
 import app.salary.api.validation.RequestValidator;
 import com.fasterxml.jackson.core.type.TypeReference;
-import io.javalin.Javalin;
+import io.javalin.config.RoutesConfig;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 
@@ -22,13 +22,13 @@ public class AuthController {
         this.validator = validator;
     }
 
-    public void register(Javalin app) {
-        app.post("/v1/auth/login",       this::login);
-        app.post("/v1/auth/logout",      this::logout);
-        app.post("/v1/auth/refresh",     this::refresh);
-        app.post("/v1/auth/2fa/setup",   this::setup2fa);
-        app.post("/v1/auth/2fa/verify",  this::verify2fa);
-        app.post("/v1/auth/2fa/disable", this::disable2fa);
+    public void register(RoutesConfig routes) {
+        routes.post("/v1/auth/login",       this::login);
+        routes.post("/v1/auth/logout",      this::logout);
+        routes.post("/v1/auth/refresh",     this::refresh);
+        routes.post("/v1/auth/2fa/setup",   this::setup2fa);
+        routes.post("/v1/auth/2fa/verify",  this::verify2fa);
+        routes.post("/v1/auth/2fa/disable", this::disable2fa);
     }
 
     private void login(Context ctx) {

@@ -31,7 +31,7 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.3'
     testImplementation 'org.mockito:mockito-core:5.7.0'
     testImplementation 'org.mockito:mockito-junit-jupiter:5.7.0'
-    testImplementation 'io.javalin:javalin-testtools:6.3.0'
+    testImplementation 'io.javalin:javalin-testtools:7.2.0'
 }
 
 application {

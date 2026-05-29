@@ -11,7 +11,7 @@ import java.util.Set;
 
 /**
  * Thin wrapper around the Jakarta Validation runtime.
- *
+ * <p>
  * Spring's {@code @Valid} on a controller parameter is replaced by an explicit
  * {@code validator.validate(request)} call in each handler. Field-level errors are
  * mapped to a {@code Map<String, String>} response matching the Spring behavior so

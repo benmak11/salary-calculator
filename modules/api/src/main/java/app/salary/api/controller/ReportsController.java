@@ -2,7 +2,7 @@ package app.salary.api.controller;
 
 import app.salary.api.service.CalculationStore;
 import app.salary.common.dto.CalculateResponse;
-import io.javalin.Javalin;
+import io.javalin.config.RoutesConfig;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import jakarta.validation.constraints.NotBlank;
@@ -18,8 +18,8 @@ public class ReportsController {
         this.calculationStore = calculationStore;
     }
 
-    public void register(Javalin app) {
-        app.post("/v1/reports/pdf", this::generatePdf);
+    public void register(RoutesConfig routes) {
+        routes.post("/v1/reports/pdf", this::generatePdf);
     }
 
     /**
