@@ -24,6 +24,9 @@ dependencies {
     // Metrics (Prometheus scrape endpoint)
     implementation 'io.micrometer:micrometer-registry-prometheus:1.13.4'
 
+    // Google ID tokens for service-to-service auth on Cloud Run
+    implementation 'com.google.auth:google-auth-library-oauth2-http:1.30.0'
+
     // Logging
     runtimeOnly 'ch.qos.logback:logback-classic:1.5.13'
     runtimeOnly 'org.slf4j:jul-to-slf4j:2.0.13'

@@ -1,5 +1,6 @@
 package app.salary.api;
 
+import app.salary.api.client.GoogleIdTokenSupplier;
 import app.salary.api.client.HttpRulePackClient;
 import app.salary.api.controller.CalculateController;
 import app.salary.api.validation.RequestValidator;
@@ -35,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 /**
  * Entry point for the Salary Calculator API.
@@ -53,6 +55,7 @@ public class Main {
     public static void main(String[] args) {
         int port = Env.intValue("SERVER_PORT", 8080);
         String rulePackServiceUrl = Env.stringValue("RULE_PACK_SERVICE_URL", "");
+        String rulePackAudience = Env.stringValue("RULE_PACK_AUDIENCE", "");
 
         // ── Shared infra ─────────────────────────────────────────────────────
         ObjectMapper objectMapper = buildObjectMapper();
@@ -77,7 +80,11 @@ public class Main {
         HttpClient httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(5))
                 .build();
-        RulePackClient rulePackClient = new HttpRulePackClient(httpClient, objectMapper, rulePackServiceUrl);
+        Supplier<String> idTokenSupplier = rulePackAudience.isBlank()
+                ? null
+                : new GoogleIdTokenSupplier(rulePackAudience);
+        RulePackClient rulePackClient = new HttpRulePackClient(
+                httpClient, objectMapper, rulePackServiceUrl, idTokenSupplier);
 
         CalculationOrchestrator orchestrator = new CalculationOrchestrator(
                 rulesRegistry, calculatorRegistry, rulePackClient);
