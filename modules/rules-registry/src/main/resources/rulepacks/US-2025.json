@@ -6,9 +6,9 @@
   },
   "federal": {
     "standardDeductions": {
-      "SINGLE": 15000,
-      "MARRIED": 30000,
-      "HEAD_OF_HOUSEHOLD": 22500
+      "SINGLE": 15750,
+      "MARRIED": 31500,
+      "HEAD_OF_HOUSEHOLD": 23625
     },
     "brackets": [
       { "upTo": 11925, "rate": 0.10 },

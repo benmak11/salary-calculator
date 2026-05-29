@@ -123,9 +123,9 @@ class RulesRegistryTest {
     void getRulePack_us2025_shouldHave2025StandardDeductions() {
         RulePack rulePack = registry.getRulePack("US", 2025);
         // 2025 IRS values (Rev. Proc. 2024-40)
-        assertEquals(15000.0, rulePack.getFederal().getStandardDeductions().get("SINGLE"));
-        assertEquals(30000.0, rulePack.getFederal().getStandardDeductions().get("MARRIED"));
-        assertEquals(22500.0, rulePack.getFederal().getStandardDeductions().get("HEAD_OF_HOUSEHOLD"));
+        assertEquals(15750.0, rulePack.getFederal().getStandardDeductions().get("SINGLE"));
+        assertEquals(31500.0, rulePack.getFederal().getStandardDeductions().get("MARRIED"));
+        assertEquals(23625.0, rulePack.getFederal().getStandardDeductions().get("HEAD_OF_HOUSEHOLD"));
     }
 
     @Test
