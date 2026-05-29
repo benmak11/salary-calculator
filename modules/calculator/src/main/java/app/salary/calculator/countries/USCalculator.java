@@ -10,7 +10,6 @@ import app.salary.common.dto.W4;
 import app.salary.rules.RulePack;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import app.salary.calculator.engine.CountryCalculator;
 
 import java.util.List;
 
@@ -112,7 +111,7 @@ public class USCalculator implements CountryCalculator {
 
         // ── Federal income tax ────────────────────────────────────────────────
         double federalTax = 0.0;
-        double bonusFederalTax = 0.0;
+        double bonusFederalTax;
         if (!Boolean.TRUE.equals(w4.getExemptFederal())) {
             federalTax = calculateFederalRegular(input, regularWages, totalPretaxDeductions, w4, rules);
             // W-4 step 3: dependents credit reduces withholding

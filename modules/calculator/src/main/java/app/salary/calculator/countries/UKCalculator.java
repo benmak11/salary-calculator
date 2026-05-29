@@ -5,7 +5,6 @@ import app.salary.calculator.shared.*;
 import app.salary.common.constants.Country;
 import app.salary.common.dto.LineItemCategory;
 import app.salary.rules.RulePack;
-import app.salary.calculator.engine.CountryCalculator;
 
 public class UKCalculator implements CountryCalculator {
     private final TaxBracketCalculator bracketCalculator;

@@ -1,12 +1,7 @@
 package app.salary.api;
 
 import app.salary.api.client.HttpRulePackClient;
-import app.salary.api.controller.AppController;
-import app.salary.api.controller.AuthController;
 import app.salary.api.controller.CalculateController;
-import app.salary.api.controller.InsightsController;
-import app.salary.api.controller.ReportsController;
-import app.salary.api.service.CalculationStore;
 import app.salary.api.validation.RequestValidator;
 import app.salary.api.validation.ValidationException;
 import app.salary.calculator.client.RulePackClient;
@@ -32,12 +27,14 @@ import io.micrometer.prometheusmetrics.PrometheusConfig;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Entry point for the Salary Calculator API.
@@ -47,6 +44,11 @@ import java.util.Map;
  */
 public class Main {
     private static final Logger log = LoggerFactory.getLogger(Main.class);
+    private static final Logger access = LoggerFactory.getLogger("app.salary.api.access");
+
+    private static final String REQUEST_ID_HEADER = "X-Request-Id";
+    private static final String MDC_REQUEST_ID    = "request_id";
+    private static final String ATTR_START_NANOS  = "_start_nanos";
 
     public static void main(String[] args) {
         int port = Env.intValue("SERVER_PORT", 8080);
@@ -79,45 +81,9 @@ public class Main {
 
         CalculationOrchestrator orchestrator = new CalculationOrchestrator(
                 rulesRegistry, calculatorRegistry, rulePackClient);
-        CalculationStore calculationStore = new CalculationStore();
 
-        // ── Javalin app ──────────────────────────────────────────────────────
-        Javalin app = Javalin.create(config -> {
-            config.jsonMapper(new JavalinJackson(objectMapper, false));
-            config.showJavalinBanner = false;
-            config.useVirtualThreads = true;
-            config.registerPlugin(new MicrometerPlugin(micrometerCfg -> {
-                micrometerCfg.registry = meterRegistry;
-            }));
-        });
-
-        // ── Exception handlers (replace Spring's @ExceptionHandler) ──────────
-        app.exception(ValidationException.class, (e, ctx) -> {
-            log.warn("Validation failed: {}", e.getErrors());
-            ctx.status(HttpStatus.BAD_REQUEST).json(e.getErrors());
-        });
-        app.exception(IllegalArgumentException.class, (e, ctx) -> {
-            log.warn("Illegal argument: {}", e.getMessage());
-            ctx.status(HttpStatus.UNPROCESSABLE_CONTENT)
-                    .json(Map.of("error", String.valueOf(e.getMessage())));
-        });
-        app.exception(Exception.class, (e, ctx) -> {
-            log.error("Unexpected error", e);
-            ctx.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .json(Map.of("error", "Internal server error"));
-        });
-
-        // ── Routes ───────────────────────────────────────────────────────────
-        new CalculateController(orchestrator, calculatorRegistry, calculationStore, requestValidator).register(app);
-        new AppController().register(app);
-        new AuthController(requestValidator).register(app);
-        new InsightsController(calculationStore).register(app);
-        new ReportsController(calculationStore).register(app);
-
-        // ── Observability endpoints ──────────────────────────────────────────
-        app.get("/actuator/health", ctx -> ctx.json(Map.of("status", "UP")));
-        app.get("/actuator/prometheus", ctx ->
-                ctx.contentType("text/plain; version=0.0.4").result(meterRegistry.scrape()));
+        Javalin app = createApp(objectMapper, meterRegistry, orchestrator,
+                calculatorRegistry, requestValidator);
 
         // ── Boot ─────────────────────────────────────────────────────────────
         app.start(port);
@@ -127,6 +93,80 @@ public class Main {
             log.info("Shutting down Salary Calculator API");
             app.stop();
         }, "salary-calculator-shutdown"));
+    }
+
+    /**
+     * Builds the Javalin app with all routes, exception handlers, and observability endpoints
+     * wired in. Extracted so tests can boot the same app shape via {@code JavalinTest.test(...)}.
+     *
+     * Javalin 7: routes and exception handlers must be registered inside the config block
+     * via {@code config.routes.xxx}; the Javalin instance no longer exposes
+     * {@code get/post/exception} after construction.
+     */
+    static Javalin createApp(ObjectMapper objectMapper,
+                             PrometheusMeterRegistry meterRegistry,
+                             CalculationOrchestrator orchestrator,
+                             CalculatorRegistry calculatorRegistry,
+                             RequestValidator requestValidator) {
+        return Javalin.create(config -> {
+            config.jsonMapper(new JavalinJackson(objectMapper, false));
+            config.startup.showJavalinBanner = false;
+            config.concurrency.useVirtualThreads = true;
+            config.registerPlugin(new MicrometerPlugin(micrometerCfg -> {
+                micrometerCfg.registry = meterRegistry;
+            }));
+
+            config.routes.before(ctx -> {
+                String requestId = ctx.header(REQUEST_ID_HEADER);
+                if (requestId == null || requestId.isBlank()) {
+                    requestId = UUID.randomUUID().toString();
+                }
+                MDC.put(MDC_REQUEST_ID, requestId);
+                MDC.put("method", ctx.method().name());
+                MDC.put("path", ctx.path());
+                ctx.attribute(ATTR_START_NANOS, System.nanoTime());
+                ctx.attribute(MDC_REQUEST_ID, requestId);
+                ctx.header(REQUEST_ID_HEADER, requestId);
+            });
+
+            config.routes.after(ctx -> {
+                try {
+                    Long startNanos = ctx.attribute(ATTR_START_NANOS);
+                    long durationMs = startNanos != null
+                            ? (System.nanoTime() - startNanos) / 1_000_000L
+                            : -1L;
+                    int status = ctx.status().getCode();
+                    MDC.put("status",      String.valueOf(status));
+                    MDC.put("duration_ms", String.valueOf(durationMs));
+                    access.info("{} {} -> {} ({}ms)",
+                            ctx.method(), ctx.path(), status, durationMs);
+                } finally {
+                    MDC.clear();
+                }
+            });
+
+            config.routes.exception(ValidationException.class, (e, ctx) -> {
+                log.warn("Validation failed: {}", e.getErrors());
+                ctx.status(HttpStatus.BAD_REQUEST).json(e.getErrors());
+            });
+            config.routes.exception(IllegalArgumentException.class, (e, ctx) -> {
+                log.warn("Illegal argument: {}", e.getMessage());
+                ctx.status(HttpStatus.UNPROCESSABLE_CONTENT)
+                        .json(Map.of("error", String.valueOf(e.getMessage())));
+            });
+            config.routes.exception(Exception.class, (e, ctx) -> {
+                log.error("Unexpected error", e);
+                ctx.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .json(Map.of("error", "Internal server error"));
+            });
+
+            new CalculateController(orchestrator, calculatorRegistry, requestValidator)
+                    .register(config.routes);
+
+            config.routes.get("/actuator/health", ctx -> ctx.json(Map.of("status", "UP")));
+            config.routes.get("/actuator/prometheus", ctx ->
+                    ctx.contentType("text/plain; version=0.0.4").result(meterRegistry.scrape()));
+        });
     }
 
     private static ObjectMapper buildObjectMapper() {
