@@ -17,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * Talks to {@code rule-pack-service} over HTTP. Previously used Spring's
@@ -36,11 +37,20 @@ public class HttpRulePackClient implements RulePackClient {
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final String baseUrl;
+    private final Supplier<String> idTokenSupplier;
 
     public HttpRulePackClient(HttpClient httpClient, ObjectMapper objectMapper, String baseUrl) {
+        this(httpClient, objectMapper, baseUrl, null);
+    }
+
+    public HttpRulePackClient(HttpClient httpClient,
+                              ObjectMapper objectMapper,
+                              String baseUrl,
+                              Supplier<String> idTokenSupplier) {
         this.httpClient = httpClient;
         this.objectMapper = objectMapper;
         this.baseUrl = baseUrl;
+        this.idTokenSupplier = idTokenSupplier;
     }
 
     @Override
@@ -87,6 +97,9 @@ public class HttpRulePackClient implements RulePackClient {
         String requestId = MDC.get("request_id");
         if (requestId != null && !requestId.isBlank()) {
             builder.header("X-Request-Id", requestId);
+        }
+        if (idTokenSupplier != null) {
+            builder.header("Authorization", "Bearer " + idTokenSupplier.get());
         }
         HttpRequest req = builder.GET().build();
         HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
