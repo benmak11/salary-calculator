@@ -1,6 +1,5 @@
 package app.salary.api.controller;
 
-import app.salary.api.service.CalculationStore;
 import app.salary.api.validation.RequestValidator;
 import app.salary.api.validation.ValidationException;
 import app.salary.calculator.engine.CalculationOrchestrator;
@@ -35,13 +34,11 @@ class CalculateControllerTest {
 
     private CalculationOrchestrator orchestrator;
     private CalculatorRegistry calculatorRegistry;
-    private CalculationStore calculationStore;
 
     @BeforeEach
     void setUp() {
         orchestrator = mock(CalculationOrchestrator.class);
         calculatorRegistry = mock(CalculatorRegistry.class);
-        calculationStore = new CalculationStore();
     }
 
     private Javalin app() {
@@ -53,24 +50,8 @@ class CalculateControllerTest {
             config.routes.exception(IllegalArgumentException.class, (e, ctx) ->
                     ctx.status(HttpStatus.UNPROCESSABLE_CONTENT)
                             .json(Map.of("error", String.valueOf(e.getMessage()))));
-            new CalculateController(orchestrator, calculatorRegistry, calculationStore,
+            new CalculateController(orchestrator, calculatorRegistry,
                     new RequestValidator()).register(config.routes);
-        });
-    }
-
-    @Test
-    void health_reportsCounts() {
-        when(calculatorRegistry.getCalculatorCount()).thenReturn(2);
-        when(calculatorRegistry.getSupportedCountries()).thenReturn(List.of(Country.US, Country.UK));
-
-        JavalinTest.test(app(), (server, client) -> {
-            var response = client.get("/v1/health");
-            assertEquals(200, response.code());
-
-            JsonNode body = MAPPER.readTree(response.body().string());
-            assertEquals("UP", body.get("status").asText());
-            assertEquals(2,    body.get("calculators").asInt());
-            assertEquals(2,    body.get("supportedCountries").asInt());
         });
     }
 
@@ -128,7 +109,7 @@ class CalculateControllerTest {
     }
 
     @Test
-    void calculate_invokesOrchestratorAndStoresResult() {
+    void calculate_invokesOrchestratorAndReturnsResponse() {
         CalculateResponse stub = new CalculateResponse();
         stub.setCalculationId("c_abc123");
         stub.setGrossPerCadence(100_000.0);
@@ -152,7 +133,6 @@ class CalculateControllerTest {
             assertEquals(100_000.0,  body.get("grossPerCadence").asDouble());
 
             verify(orchestrator, times(1)).calculate(any(CalculateRequest.class));
-            assertNotNull(calculationStore.find("c_abc123").orElse(null));
         });
     }
 

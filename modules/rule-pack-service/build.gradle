@@ -26,9 +26,6 @@ dependencies {
     implementation 'io.javalin:javalin:7.2.0'
     implementation 'io.javalin:javalin-micrometer:7.2.0'
 
-    // GraphQL (replaces spring-boot-starter-graphql)
-    implementation 'com.graphql-java:graphql-java:22.3'
-
     // Google Cloud — direct clients (no Spring Cloud GCP wrappers)
     implementation platform('com.google.cloud:libraries-bom:26.83.0')
     implementation 'com.google.cloud:google-cloud-firestore'
@@ -53,6 +50,8 @@ dependencies {
     // Logging
     runtimeOnly 'ch.qos.logback:logback-classic:1.5.13'
     implementation 'org.slf4j:slf4j-api:2.0.13'
+    runtimeOnly 'net.logstash.logback:logstash-logback-encoder:8.0'
+    runtimeOnly 'org.codehaus.janino:janino:3.1.12'
 
     // Testing
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.3'

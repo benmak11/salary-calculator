@@ -1,6 +1,5 @@
 package app.salary.api.controller;
 
-import app.salary.api.service.CalculationStore;
 import app.salary.api.validation.RequestValidator;
 import app.salary.calculator.engine.CalculationOrchestrator;
 import app.salary.calculator.registry.CalculatorRegistry;
@@ -11,6 +10,7 @@ import io.javalin.config.RoutesConfig;
 import io.javalin.http.Context;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,16 +21,13 @@ public class CalculateController {
 
     private final CalculationOrchestrator orchestrator;
     private final CalculatorRegistry calculatorRegistry;
-    private final CalculationStore calculationStore;
     private final RequestValidator validator;
 
     public CalculateController(CalculationOrchestrator orchestrator,
                                CalculatorRegistry calculatorRegistry,
-                               CalculationStore calculationStore,
                                RequestValidator validator) {
         this.orchestrator = orchestrator;
         this.calculatorRegistry = calculatorRegistry;
-        this.calculationStore = calculationStore;
         this.validator = validator;
     }
 
@@ -39,18 +36,29 @@ public class CalculateController {
         routes.get("/v1/countries", this::getSupportedCountries);
         routes.get("/v1/countries/US/states", this::getUsStates);
         routes.get("/v1/tax-years", this::getSupportedTaxYears);
-        routes.get("/v1/health", this::health);
     }
 
     private void calculate(Context ctx) {
         CalculateRequest request = ctx.bodyAsClass(CalculateRequest.class);
         validator.validate(request);
 
-        log.info("Received calculation request for country: {}, taxYear: {}",
-                request.getCountry(), request.getTaxYear());
+        if (request.getCountry() != null) MDC.put("country", String.valueOf(request.getCountry()));
+        if (request.getCountryOptions() != null
+                && request.getCountryOptions().getUs() != null
+                && request.getCountryOptions().getUs().getState() != null) {
+            MDC.put("state", request.getCountryOptions().getUs().getState());
+        }
+
+        boolean hasBonus  = request.getBonus() != null && request.getBonus() > 0;
+        boolean hasHourly = request.getEarnings() != null && request.getEarnings().getHourly() != null;
+        log.info("calculate: country={} taxYear={} cadence={} hasBonus={} hasHourly={}",
+                request.getCountry(), request.getTaxYear(), request.getCadence(), hasBonus, hasHourly);
 
         CalculateResponse response = orchestrator.calculate(request);
-        calculationStore.store(response);
+
+        int lineItemCount = response.getLineItems() != null ? response.getLineItems().size() : 0;
+        log.info("calculate done: lineItems={}", lineItemCount);
+
         ctx.json(response);
     }
 
@@ -102,14 +110,6 @@ public class CalculateController {
         response.put("supportedTaxYears", taxYears);
         response.put("defaultTaxYear", taxYears.getFirst());
         ctx.json(response);
-    }
-
-    private void health(Context ctx) {
-        ctx.json(Map.of(
-                "status", "UP",
-                "calculators", calculatorRegistry.getCalculatorCount(),
-                "supportedCountries", calculatorRegistry.getSupportedCountries().size()
-        ));
     }
 
     private Map<String, String> stateEntry(String code, String name) {

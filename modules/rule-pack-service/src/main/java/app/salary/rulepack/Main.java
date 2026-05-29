@@ -3,7 +3,6 @@ package app.salary.rulepack;
 import app.salary.rulepack.cache.RulePackCache;
 import app.salary.rulepack.controller.RulePackController;
 import app.salary.rulepack.event.RulePackLifecyclePublisher;
-import app.salary.rulepack.graphql.RulePackGraphQLController;
 import app.salary.rulepack.repository.RulePackRepository;
 import app.salary.rulepack.service.RulePackService;
 import app.salary.rulepack.service.RulePackStorageService;
@@ -25,8 +24,10 @@ import io.micrometer.prometheusmetrics.PrometheusConfig;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Entry point for the Rule Pack Service.
@@ -39,6 +40,11 @@ import java.util.Map;
  */
 public class Main {
     private static final Logger log = LoggerFactory.getLogger(Main.class);
+    private static final Logger access = LoggerFactory.getLogger("app.salary.rulepack.access");
+
+    private static final String REQUEST_ID_HEADER = "X-Request-Id";
+    private static final String MDC_REQUEST_ID    = "request_id";
+    private static final String ATTR_START_NANOS  = "_start_nanos";
 
     public static void main(String[] args) {
         int port           = Env.intValue(   "SERVER_PORT",          8081);
@@ -106,6 +112,35 @@ public class Main {
                 micrometerCfg.registry = meterRegistry;
             }));
 
+            config.routes.before(ctx -> {
+                String requestId = ctx.header(REQUEST_ID_HEADER);
+                if (requestId == null || requestId.isBlank()) {
+                    requestId = UUID.randomUUID().toString();
+                }
+                MDC.put(MDC_REQUEST_ID, requestId);
+                MDC.put("method", ctx.method().name());
+                MDC.put("path", ctx.path());
+                ctx.attribute(ATTR_START_NANOS, System.nanoTime());
+                ctx.attribute(MDC_REQUEST_ID, requestId);
+                ctx.header(REQUEST_ID_HEADER, requestId);
+            });
+
+            config.routes.after(ctx -> {
+                try {
+                    Long startNanos = ctx.attribute(ATTR_START_NANOS);
+                    long durationMs = startNanos != null
+                            ? (System.nanoTime() - startNanos) / 1_000_000L
+                            : -1L;
+                    int status = ctx.status().getCode();
+                    MDC.put("status",      String.valueOf(status));
+                    MDC.put("duration_ms", String.valueOf(durationMs));
+                    access.info("{} {} -> {} ({}ms)",
+                            ctx.method(), ctx.path(), status, durationMs);
+                } finally {
+                    MDC.clear();
+                }
+            });
+
             config.routes.exception(IllegalArgumentException.class, (e, ctx) -> {
                 log.warn("Illegal argument: {}", e.getMessage());
                 ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("error", String.valueOf(e.getMessage())));
@@ -117,7 +152,6 @@ public class Main {
 
             if (rulePackService != null) {
                 new RulePackController(rulePackService).register(config.routes);
-                new RulePackGraphQLController(rulePackService, objectMapper).register(config.routes);
             } else {
                 io.javalin.http.Handler unavailable = ctx -> ctx.status(HttpStatus.SERVICE_UNAVAILABLE)
                         .json(Map.of("error", "GCP backends are disabled (ENABLE_GCP=false)"));
@@ -128,7 +162,6 @@ public class Main {
                 config.routes.post( "/v1/rule-packs",                unavailable);
                 config.routes.post( "/v1/rule-packs/{id}/publish",   unavailable);
                 config.routes.post( "/v1/rule-packs/{id}/deprecate", unavailable);
-                config.routes.post( "/graphql",                      unavailable);
             }
 
             config.routes.get("/actuator/health", ctx -> ctx.json(Map.of(

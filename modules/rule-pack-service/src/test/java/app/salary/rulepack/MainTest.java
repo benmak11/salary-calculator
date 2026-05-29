@@ -94,11 +94,4 @@ class MainTest {
         });
     }
 
-    @Test
-    void graphqlRoute_return503_whenServiceNull() {
-        JavalinTest.test(appWithoutService(), (server, client) -> {
-            var response = client.post("/graphql", "{\"query\":\"{ __typename }\"}");
-            assertEquals(503, response.code());
-        });
-    }
 }

@@ -1,6 +1,5 @@
 package app.salary.api;
 
-import app.salary.api.service.CalculationStore;
 import app.salary.api.validation.RequestValidator;
 import app.salary.calculator.countries.USCalculator;
 import app.salary.calculator.engine.CalculationOrchestrator;
@@ -43,20 +42,9 @@ class MainTest {
         RulesRegistry rulesRegistry = new RulesRegistry();
         CalculationOrchestrator orchestrator = new CalculationOrchestrator(
                 rulesRegistry, calculatorRegistry, null);
-        CalculationStore store = new CalculationStore();
         RequestValidator validator = new RequestValidator();
 
-        return Main.createApp(mapper, meterRegistry, orchestrator, calculatorRegistry, store, validator);
-    }
-
-    @Test
-    void health_isReachable() {
-        JavalinTest.test(createApp(), (server, client) -> {
-            var response = client.get("/v1/health");
-            assertEquals(200, response.code());
-            JsonNode body = new ObjectMapper().readTree(response.body().string());
-            assertEquals("UP", body.get("status").asText());
-        });
+        return Main.createApp(mapper, meterRegistry, orchestrator, calculatorRegistry, validator);
     }
 
     @Test
@@ -85,14 +73,6 @@ class MainTest {
     void taxYears_isReachable() {
         JavalinTest.test(createApp(), (server, client) -> {
             var response = client.get("/v1/tax-years");
-            assertEquals(200, response.code());
-        });
-    }
-
-    @Test
-    void appLegal_isReachable() {
-        JavalinTest.test(createApp(), (server, client) -> {
-            var response = client.get("/v1/app/legal");
             assertEquals(200, response.code());
         });
     }

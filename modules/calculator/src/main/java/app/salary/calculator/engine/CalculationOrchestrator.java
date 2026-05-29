@@ -82,8 +82,8 @@ public class CalculationOrchestrator {
         response.setLineItems(result.getLineItems());
         response.setExplanation(result.getExplanations());
 
-        log.info("Completed calculation {} - Gross: {}, Net: {}",
-                calculationId, response.getGrossPerCadence(), response.getNetPerCadence());
+        int lineItemCount = response.getLineItems() != null ? response.getLineItems().size() : 0;
+        log.info("Completed calculation {} - lineItems={}", calculationId, lineItemCount);
 
         return response;
     }
