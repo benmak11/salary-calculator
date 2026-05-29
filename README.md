@@ -1,14 +1,17 @@
 # Salary Calculator Microservice
 
-A production-ready Spring Boot microservice for calculating net pay (take-home salary) with detailed tax breakdowns for multiple countries.
+A production-ready Javalin microservice for calculating net pay (take-home salary) with detailed tax breakdowns for multiple countries.
 
 ## 🌟 Features
 
-- 🌍 **Multi-country support** (US, UK - easily extensible)
-- 💰 **Multiple pay cadences** (annual, monthly, biweekly, weekly)
-- 📊 **Detailed tax breakdown** by bands
+- 🌍 **Multi-country support** (US — 40+ states, UK — easily extensible)
+- 💰 **Multiple pay cadences** (annual, semiannual, quarterly, monthly, semimonthly, biweekly, weekly, daily)
+- 📊 **Detailed tax breakdown** by bands, with categorized line items (earnings / federal / FICA / state / pre-tax benefit / retirement / post-tax / net)
+- 🇺🇸 **Modern US W-4 support** (dependents credit, other income, itemized deductions, additional withholding, exemption flags)
+- 🩺 **FSA / HSA / Roth 401(k) / per-benefit premiums** (medical, dental, vision) modeled as discrete line items
+- 💵 **Bonus / supplemental wages** taxed at the IRS flat 22% rate
 - 📝 **Human-readable explanations** for each calculation
-- 🔄 **Auto-discovery** of country calculators
+- 🔄 **Pluggable** country calculators (registered in `Main.java`)
 - 🚀 **Fast development** - add new country in 15 minutes
 - 📦 **Shared utilities** for code reuse
 - 🐳 **Docker ready**
@@ -19,11 +22,11 @@ A production-ready Spring Boot microservice for calculating net pay (take-home s
 ### Unified Calculator Module
 - All country calculators in one module
 - Shared utilities for common logic
-- Auto-discovery via Spring
-- No manual registration needed
+- Plain constructor injection (no DI framework)
+- Calculators registered explicitly in `Main.java` and resolved at runtime by `CalculatorRegistry`
 
 ### Supported Countries
-- 🇺🇸 **United States** (Federal + State taxes, FICA, Medicare)
+- 🇺🇸 **United States** (Federal + 40+ State taxes incl. CA/NY/TX/FL/IL/PA/OH/GA/NC/MI, FICA, Medicare, additional-Medicare surtax)
 - 🇬🇧 **United Kingdom** (Income Tax, National Insurance, Student Loans, Pension)
 
 ## 🚀 Quick Start
@@ -40,16 +43,33 @@ chmod +x setup.sh
 
 ### Option 2: Manual Setup
 ```bash
-# Build
+# Build everything (compiles all modules, runs remaining unit tests)
 ./gradlew clean build
 
-# Run
-./gradlew :modules:api:bootRun
+# Run the API on :8080 — via the Gradle `application` plugin's `run` task
+# (replaces Spring Boot's `bootRun`)
+./gradlew :modules:api:run
+
+# Optionally run the rule-pack-service on :8081 in another terminal.
+# ENABLE_GCP=false boots it without Firestore/GCS/Pub-Sub, so the API
+# transparently falls back to its embedded classpath rule pack.
+ENABLE_GCP=false ./gradlew :modules:rule-pack-service:run
+```
+
+Or run the packaged fat JARs (built with `shadowJar`, replaces `bootJar`):
+```bash
+./gradlew :modules:api:shadowJar :modules:rule-pack-service:shadowJar
+java -jar modules/api/build/libs/salary-calculator-api-1.0.0-all.jar
 ```
 
 ### Option 3: Docker
 ```bash
-docker-compose up -d
+# Multi-stage builds compile the shadowJars inside the images, then start the
+# API (:8080) and rule-pack-service (:8081) on a shared network.
+docker compose up --build
+
+# Optional Prometheus + Grafana monitoring stack:
+docker compose --profile monitoring up --build
 ```
 
 ## 📡 API Endpoints
@@ -70,7 +90,9 @@ GET /v1/countries
 ```
 
 ### API Documentation
-Interactive Swagger UI available at: `http://localhost:8080/swagger-ui.html`
+The interactive Swagger UI was removed during the Javalin migration. DTOs still carry
+`swagger-annotations`, so an OpenAPI spec can be re-introduced later. Until then, use the
+endpoint list above and the usage examples below.
 
 ## 📖 API Usage Examples
 
@@ -100,7 +122,7 @@ curl -X POST http://localhost:8080/v1/calculate \
   "grossPerCadence": 100000.0,
   "netPerCadence": 72556.15,
   "currency": "USD",
-  "rulePackVersion": "US-2025.10.0",
+  "rulePackVersion": "US-2025.11.0",
   "lineItems": [
     {
       "name": "Pre-tax Deductions",
@@ -115,7 +137,7 @@ curl -X POST http://localhost:8080/v1/calculate \
       "amount": 5952.85
     },
     {
-      "name": "FICA (Social Security)",
+      "name": "Social Security",
       "amount": 6200.0
     },
     {
@@ -171,7 +193,7 @@ curl -X POST http://localhost:8080/v1/calculate \
   "grossPerCadence": 10000.0,
   "netPerCadence": 7234.68,
   "currency": "USD",
-  "rulePackVersion": "US-2025.10.0",
+  "rulePackVersion": "US-2025.11.0",
   "lineItems": [
     {
       "name": "Pre-tax Deductions",
@@ -186,7 +208,7 @@ curl -X POST http://localhost:8080/v1/calculate \
       "amount": 412.56
     },
     {
-      "name": "FICA (Social Security)",
+      "name": "Social Security",
       "amount": 620.0
     },
     {
@@ -421,24 +443,50 @@ curl http://localhost:8080/v1/health
 |-------|------|-------------|----------|
 | `country` | string | Country code (US, UK) | Yes |
 | `taxYear` | integer | Tax year (>= 2025) | Yes |
-| `annualSalary` | number | Annual gross salary | Yes |
+| `annualSalary` | number | Annual gross salary (provide this OR `earnings`) | Yes |
 | `countryOptions.US.state` | string | US state code | Yes (for US) |
-| `countryOptions.US.filingStatus` | string | SINGLE or MARRIED | Yes (for US) |
+| `countryOptions.US.filingStatus` | string | SINGLE, MARRIED, or HEAD_OF_HOUSEHOLD | Yes (for US) |
 
 ### Optional Fields
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `cadence` | string | ANNUAL | Pay frequency: ANNUAL, MONTHLY, BIWEEKLY, WEEKLY |
-| `pretax.pensionPercent` | number | 0.0 | Pre-tax pension contribution (0-1) |
-| `pretax.fixed` | number | 0.0 | Fixed pre-tax deduction amount |
+| `cadence` | string | ANNUAL | Pay frequency: ANNUAL, SEMIANNUAL, QUARTERLY, MONTHLY, SEMIMONTHLY, BIWEEKLY, WEEKLY, DAILY |
+| `bonus` | number | 0.0 | Annual bonus / supplemental wages (US: flat 22% federal withholding) |
+| `earnings` | object | null | Structured earnings (`salary` or `hourly` + bonus/commission). Alternative to `annualSalary` |
+| `payDate` | string | null | Pay date (ISO-8601 yyyy-MM-dd). Informational only |
+| `pretax.percent` | number | 0.0 | Percentage-based pre-tax deduction (0-1) |
+| `pretax.pensionPercent` | number | 0.0 | Pension / 401(k) contribution percent (0-1) |
+| `pretax.fixed` | number | 0.0 | Fixed pre-tax deduction (catch-all); use `customDeductions` for named items |
 | `pretax.hsa` | number | 0.0 | HSA contribution (US only) |
+| `pretax.medical` | number | 0.0 | Annual medical insurance premium (US only) |
+| `pretax.dental` | number | 0.0 | Annual dental insurance premium (US only) |
+| `pretax.vision` | number | 0.0 | Annual vision insurance premium (US only) |
+| `pretax.healthcareFsa` | number | 0.0 | Annual Healthcare FSA contribution (US only) |
+| `pretax.dependentCareFsa` | number | 0.0 | Annual Dependent Care FSA contribution (US only, separate $5k IRS cap) |
+| `pretax.customDeductions` | array | `[]` | Named custom pre-tax deductions: `[{ "name": "...", "amount": ... }]` |
 | `posttax.fixed` | number | 0.0 | Fixed post-tax deduction amount |
+| `posttax.roth401kPercent` | number | 0.0 | Roth 401(k) employee contribution percent of regular wages (0-1, US only) |
 | `posttax.studentLoanPlan` | string | null | Student loan plan: PLAN1, PLAN2, POSTGRAD (UK only) |
-| `countryOptions.US.allowances` | integer | 0 | Number of allowances (US only) |
+| `countryOptions.US.allowances` | integer | 0 | Number of allowances (legacy / pre-2020 W-4) |
+| `countryOptions.US.w4` | object | null | Modern W-4 fields (2020+) — see W-4 Schema below |
 | `countryOptions.UK.taxCode` | string | "1257L" | UK tax code |
 | `countryOptions.UK.scottishResident` | boolean | false | Scottish resident flag |
 | `countryOptions.UK.niCategory` | string | "A" | National Insurance category |
+
+### W-4 Schema (`countryOptions.US.w4`)
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `useOldW4` | boolean | false | Use 2019-or-earlier W-4 (allowances-based) instead of the modern W-4 |
+| `nonresidentAlien` | boolean | false | Filer is a nonresident alien |
+| `dependentsAmount` | number | 0.0 | Step 3 dependents credit ($2000/qualifying child + $500/other dependent) |
+| `otherIncome` | number | 0.0 | Step 4(a) — annual non-job income |
+| `itemizedDeductions` | number | 0.0 | Step 4(b) — itemized deductions (overrides standard deduction if greater) |
+| `additionalWithholding` | number | 0.0 | Step 4(c) — additional federal withholding **per pay period** |
+| `exemptFederal` | boolean | false | Exempt from federal income tax withholding |
+| `exemptSocialSecurity` | boolean | false | Exempt from Social Security tax |
+| `exemptMedicare` | boolean | false | Exempt from Medicare tax (also disables additional Medicare surtax) |
 
 ## 🧪 Testing
 
@@ -460,18 +508,17 @@ See [TESTING.md](TESTING.md) for comprehensive testing documentation.
 ### Adding a New Country
 
 1. Create calculator in `modules/calculator/src/main/java/app/salary/calculator/countries/`
-2. Implement `CountryCalculator` interface
-3. Add `@Component` annotation
-4. Create rule pack JSON in `modules/rules-registry/src/main/resources/rulepacks/`
-5. Spring will auto-discover and register it!
+2. Implement `CountryCalculator` interface (take any shared calculators via the constructor)
+3. Create rule pack JSON in `modules/rules-registry/src/main/resources/rulepacks/`
+4. Register it: add `new YourCalculator(...)` to the `calculators` list wired into `CalculatorRegistry` in `modules/api/src/main/java/app/salary/api/Main.java`
 
 See existing calculators (USCalculator, UKCalculator) for examples.
 
 ## 📊 Monitoring
 
-- Health endpoint: `GET /v1/health`
+- Health endpoint: `GET /v1/health` (also `GET /actuator/health`)
 - Prometheus metrics: `GET /actuator/prometheus`
-- API docs: `http://localhost:8080/swagger-ui.html`
+- Optional Prometheus + Grafana stack: `docker compose --profile monitoring up`
 
 ## 🤝 Contributing
 

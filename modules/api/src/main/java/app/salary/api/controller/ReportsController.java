@@ -2,18 +2,14 @@ package app.salary.api.controller;
 
 import app.salary.api.service.CalculationStore;
 import app.salary.common.dto.CalculateResponse;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
+import io.javalin.Javalin;
+import io.javalin.http.Context;
+import io.javalin.http.HttpStatus;
 import jakarta.validation.constraints.NotBlank;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 import java.util.Optional;
 
-@RestController
-@RequestMapping("/v1/reports")
-@Tag(name = "Reports", description = "Report generation endpoints")
 public class ReportsController {
 
     private final CalculationStore calculationStore;
@@ -22,38 +18,37 @@ public class ReportsController {
         this.calculationStore = calculationStore;
     }
 
+    public void register(Javalin app) {
+        app.post("/v1/reports/pdf", this::generatePdf);
+    }
+
     /**
      * PDF payslip generation endpoint.
      *
      * TODO: Integrate with a PDF generation library (e.g. Apache PDFBox, iText) and
      *       upload the generated file to GCS, returning a signed download URL.
-     *       Currently returns 202 Accepted with a stub message.
      */
-    @PostMapping("/pdf")
-    @Operation(summary = "Generate a PDF payslip for a completed calculation")
-    public ResponseEntity<Map<String, String>> generatePdf(
-            @RequestBody PdfReportRequest request) {
+    private void generatePdf(Context ctx) {
+        PdfReportRequest request = ctx.bodyAsClass(PdfReportRequest.class);
 
         if (request.getCalculationId() == null || request.getCalculationId().isBlank()) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("error", "calculationId is required"));
+            ctx.status(HttpStatus.BAD_REQUEST)
+                    .json(Map.of("error", "calculationId is required"));
+            return;
         }
 
         Optional<CalculateResponse> stored = calculationStore.find(request.getCalculationId());
         if (stored.isEmpty()) {
-            return ResponseEntity.notFound().build();
+            ctx.status(HttpStatus.NOT_FOUND);
+            return;
         }
 
-        // PDF generation not yet implemented — return 202 Accepted with a placeholder message.
-        return ResponseEntity.accepted()
-                .body(Map.of(
-                    "status", "PENDING",
-                    "message", "PDF generation is not yet available. Your report will be emailed when ready.",
-                    "calculationId", request.getCalculationId()
-                ));
+        ctx.status(HttpStatus.ACCEPTED).json(Map.of(
+                "status",        "PENDING",
+                "message",       "PDF generation is not yet available. Your report will be emailed when ready.",
+                "calculationId", request.getCalculationId()
+        ));
     }
-
-    // ── Inner request DTO (kept here since it is only used by this controller) ─
 
     public static class PdfReportRequest {
         @NotBlank

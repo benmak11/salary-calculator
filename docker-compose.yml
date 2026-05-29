@@ -1,30 +1,65 @@
-version: '3.9'
-
 services:
-  salary-calculator:
+  salary-calculator-api:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: salary-calculator
+    container_name: salary-calculator-api
     ports:
       - "8080:8080"
     environment:
-      - SPRING_PROFILES_ACTIVE=docker
+      - SERVER_PORT=8080
+      # Point the api at the rule-pack-service inside the compose network.
+      # Leave blank to skip remote calls and use the embedded classpath rule pack.
+      - RULE_PACK_SERVICE_URL=http://rule-pack-service:8081
       - JAVA_OPTS=-Xmx512m -Xms256m
+    depends_on:
+      rule-pack-service:
+        condition: service_started
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 30s
     restart: unless-stopped
     networks:
       - salary-calc-network
     labels:
-      - "com.salary-calculator.description=Salary Calculator API"
+      - "com.salary-calculator.description=Salary Calculator API (Javalin)"
       - "com.salary-calculator.version=1.0.0"
 
-  # Optional: Prometheus for metrics
+  rule-pack-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.rule-pack-service
+    container_name: rule-pack-service
+    ports:
+      - "8081:8081"
+    environment:
+      - SERVER_PORT=8081
+      # ENABLE_GCP=false boots the service without Firestore/GCS/Pub/Sub. The api
+      # will then transparently fall back to its embedded classpath rule pack. Set
+      # to true (plus mount credentials and set GOOGLE_APPLICATION_CREDENTIALS)
+      # to exercise the real GCP backends.
+      - ENABLE_GCP=false
+      - GCP_PROJECT_ID=salary-calculator-dev
+      - GCP_BUCKET_RULEPACKS=salary-calculator-rulepacks
+      - PUBSUB_TOPIC=rule-pack-lifecycle
+      - JAVA_OPTS=-Xmx512m -Xms256m
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - salary-calc-network
+    labels:
+      - "com.salary-calculator.description=Rule Pack Service (Javalin)"
+      - "com.salary-calculator.version=1.0.0"
+
+  # ── Optional monitoring stack ───────────────────────────────────────────
   prometheus:
     image: prom/prometheus:v2.48.0
     container_name: salary-calc-prometheus
@@ -45,7 +80,6 @@ services:
       - monitoring
     restart: unless-stopped
 
-  # Optional: Grafana for visualization
   grafana:
     image: grafana/grafana:10.2.2
     container_name: salary-calc-grafana

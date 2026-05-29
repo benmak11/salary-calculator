@@ -1,41 +1,34 @@
 package app.salary.api.controller;
 
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import io.javalin.Javalin;
+import io.javalin.http.Context;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
-@RestController
-@RequestMapping("/v1/app")
-@Tag(name = "App", description = "Application metadata endpoints")
 public class AppController {
 
-    // ── GET /v1/app/legal ────────────────────────────────────────────────────────
+    public void register(Javalin app) {
+        app.get("/v1/app/legal", this::getLegal);
+        app.get("/v1/app/version", this::getVersion);
+    }
 
-    @GetMapping("/legal")
-    @Operation(summary = "Return current legal document and support URLs")
-    public ResponseEntity<Map<String, String>> getLegal() {
+    private void getLegal(Context ctx) {
         // TODO: Source from a CMS or application configuration rather than hardcoding.
-        return ResponseEntity.ok(Map.of(
-            "helpCenterUrl",    "https://help.incomatic.app",
-            "privacyPolicyUrl", "https://incomatic.app/privacy",
-            "termsUrl",         "https://incomatic.app/terms"
+        ctx.json(Map.of(
+                "helpCenterUrl",    "https://help.incomatic.app",
+                "privacyPolicyUrl", "https://incomatic.app/privacy",
+                "termsUrl",         "https://incomatic.app/terms"
         ));
     }
 
-    // ── GET /v1/app/version ──────────────────────────────────────────────────────
-
-    @GetMapping("/version")
-    @Operation(summary = "Return current app version info and minimum supported version for force-upgrade enforcement")
-    public ResponseEntity<Map<String, Object>> getVersion() {
-        // TODO: Drive from application.yml or a release management system.
-        return ResponseEntity.ok(Map.of(
-            "latestVersion",          "2.4.0",
-            "minimumSupportedVersion","2.0.0",
-            "forceUpgrade",           false,
-            "releaseNotesUrl",        "https://incomatic.app/release-notes/2.4.0"
-        ));
+    private void getVersion(Context ctx) {
+        // TODO: Drive from a build manifest or release management system.
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("latestVersion",           "2.4.0");
+        body.put("minimumSupportedVersion", "2.0.0");
+        body.put("forceUpgrade",            false);
+        body.put("releaseNotesUrl",         "https://incomatic.app/release-notes/2.4.0");
+        ctx.json(body);
     }
 }

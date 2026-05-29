@@ -2,6 +2,7 @@ package app.salary.calculator.engine;
 
 import app.salary.common.dto.Explanation;
 import app.salary.common.dto.LineItem;
+import app.salary.common.dto.LineItemCategory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,6 +35,10 @@ public class CalculationResult {
     public void setRulePackVersion(String rulePackVersion) { this.rulePackVersion = rulePackVersion; }
 
     public void addLineItem(String name, Double amount) { lineItems.add(new LineItem(name, amount)); }
+
+    public void addLineItem(String name, Double amount, LineItemCategory category) {
+        lineItems.add(new LineItem(name, amount, category));
+    }
 
     public void addExplanation(String id, String text) { explanations.add(new Explanation(id, text)); }
 }

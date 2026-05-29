@@ -40,6 +40,14 @@ public class Pretax {
     @Schema(description = "Annual vision insurance premium (US only — emitted as a named line item)", example = "288.0")
     private Double vision = 0.0;
 
+    @Min(0)
+    @Schema(description = "Annual Healthcare FSA contribution (US only — pre-tax, separate IRS cap)", example = "3200.0")
+    private Double healthcareFsa = 0.0;
+
+    @Min(0)
+    @Schema(description = "Annual Dependent Care FSA contribution (US only — pre-tax, separate $5k IRS cap)", example = "5000.0")
+    private Double dependentCareFsa = 0.0;
+
     @Valid
     @Schema(description = "Named custom pre-tax deductions; each is emitted as its own line item")
     private List<NamedDeduction> customDeductions = new ArrayList<>();
@@ -58,6 +66,10 @@ public class Pretax {
     public void setDental(Double dental) { this.dental = dental; }
     public Double getVision() { return vision; }
     public void setVision(Double vision) { this.vision = vision; }
+    public Double getHealthcareFsa() { return healthcareFsa; }
+    public void setHealthcareFsa(Double healthcareFsa) { this.healthcareFsa = healthcareFsa; }
+    public Double getDependentCareFsa() { return dependentCareFsa; }
+    public void setDependentCareFsa(Double dependentCareFsa) { this.dependentCareFsa = dependentCareFsa; }
     public List<NamedDeduction> getCustomDeductions() { return customDeductions; }
     public void setCustomDeductions(List<NamedDeduction> customDeductions) {
         this.customDeductions = customDeductions != null ? customDeductions : new ArrayList<>();

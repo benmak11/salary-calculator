@@ -3,9 +3,7 @@ package app.salary.calculator.shared;
 import app.salary.common.dto.NamedDeduction;
 import app.salary.common.dto.Posttax;
 import app.salary.common.dto.Pretax;
-import org.springframework.stereotype.Component;
 
-@Component
 public class DeductionCalculator {
 
     /**
@@ -38,6 +36,12 @@ public class DeductionCalculator {
         if (pretax.getVision() != null && pretax.getVision() > 0) {
             deductions += pretax.getVision();
         }
+        if (pretax.getHealthcareFsa() != null && pretax.getHealthcareFsa() > 0) {
+            deductions += pretax.getHealthcareFsa();
+        }
+        if (pretax.getDependentCareFsa() != null && pretax.getDependentCareFsa() > 0) {
+            deductions += pretax.getDependentCareFsa();
+        }
         // Named custom deductions
         if (pretax.getCustomDeductions() != null) {
             for (NamedDeduction nd : pretax.getCustomDeductions()) {
@@ -52,6 +56,18 @@ public class DeductionCalculator {
     public double calculatePosttaxDeductions(Posttax posttax) {
         if (posttax == null) return 0.0;
         return posttax.getFixed() != null ? posttax.getFixed() : 0.0;
+    }
+
+    /**
+     * Roth 401(k) is post-tax federally but applies only to regular wages (excludes bonus/commission).
+     * Returns the annual Roth contribution; the caller emits a RETIREMENT-tagged line item and
+     * subtracts from net.
+     */
+    public double calculateRoth401k(Posttax posttax, double regularWagesAnnual) {
+        if (posttax == null) return 0.0;
+        Double pct = posttax.getRoth401kPercent();
+        if (pct == null || pct <= 0) return 0.0;
+        return regularWagesAnnual * pct;
     }
 
     public double calculatePensionContribution(Pretax pretax, double grossIncome) {

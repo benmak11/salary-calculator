@@ -158,6 +158,143 @@ class CalculationInputTest {
         assertEquals(2, input.getUsOptions().getAllowances());
     }
 
+    // ── Earnings normalization (Phase 2) ────────────────────────────────────────
+
+    @Test
+    void from_withEarningsSalaryPerYear_shouldNormalizeToAnnual() {
+        CalculateRequest request = new CalculateRequest();
+        request.setCountry(Country.US);
+        request.setTaxYear(2025);
+        request.setCadence(PayCadence.BIWEEKLY);
+
+        Salary salary = new Salary();
+        salary.setAmount(200000.0);
+        salary.setBasis(Salary.Basis.PER_YEAR);
+        Earnings earnings = new Earnings();
+        earnings.setSalary(salary);
+        request.setEarnings(earnings);
+
+        CalculationInput input = CalculationInput.from(request);
+
+        assertEquals(200000.0, input.getSalaryAnnual());
+        assertEquals(200000.0, input.getAnnualGross());
+        assertEquals(0.0, input.getBonusAnnual());
+    }
+
+    @Test
+    void from_withEarningsSalaryPerPeriod_shouldMultiplyByPeriods() {
+        CalculateRequest request = new CalculateRequest();
+        request.setCountry(Country.US);
+        request.setTaxYear(2025);
+        request.setCadence(PayCadence.BIWEEKLY);
+
+        Salary salary = new Salary();
+        salary.setAmount(5000.0);
+        salary.setBasis(Salary.Basis.PER_PERIOD);
+        Earnings earnings = new Earnings();
+        earnings.setSalary(salary);
+        request.setEarnings(earnings);
+
+        CalculationInput input = CalculationInput.from(request);
+
+        // 5000 per period × 26 biweekly periods
+        assertEquals(130000.0, input.getSalaryAnnual());
+        assertEquals(130000.0, input.getAnnualGross());
+    }
+
+    @Test
+    void from_withHourlyEarnings_shouldComputeAnnualRegularAndOvertime() {
+        CalculateRequest request = new CalculateRequest();
+        request.setCountry(Country.US);
+        request.setTaxYear(2025);
+        request.setCadence(PayCadence.WEEKLY);
+
+        Hourly hourly = new Hourly();
+        hourly.setRate(20.0);
+        hourly.setRegularHours(40.0);
+        hourly.setOvertimeHours(5.0);
+        hourly.setOvertimeMultiplier(1.5);
+        Earnings earnings = new Earnings();
+        earnings.setHourly(hourly);
+        request.setEarnings(earnings);
+
+        CalculationInput input = CalculationInput.from(request);
+
+        // Regular: 20 × 40 × 52 = 41600
+        // Overtime: 20 × 1.5 × 5 × 52 = 7800
+        assertEquals(41600.0, input.getSalaryAnnual(), 0.01);
+        assertEquals(7800.0, input.getOvertimeAnnual(), 0.01);
+        assertEquals(49400.0, input.getAnnualGross(), 0.01);
+    }
+
+    @Test
+    void from_withBonusAndCommissionInEarnings_shouldAddToSupplemental() {
+        CalculateRequest request = new CalculateRequest();
+        request.setCountry(Country.US);
+        request.setTaxYear(2025);
+        request.setCadence(PayCadence.ANNUAL);
+
+        Salary salary = new Salary();
+        salary.setAmount(100000.0);
+        salary.setBasis(Salary.Basis.PER_YEAR);
+        Earnings earnings = new Earnings();
+        earnings.setSalary(salary);
+        earnings.setBonus(10000.0);
+        earnings.setCommission(5000.0);
+        request.setEarnings(earnings);
+
+        CalculationInput input = CalculationInput.from(request);
+
+        assertEquals(100000.0, input.getSalaryAnnual());
+        assertEquals(10000.0, input.getBonusAnnual());
+        assertEquals(5000.0, input.getCommissionAnnual());
+        assertEquals(15000.0, input.getSupplementalAnnual());
+        assertEquals(115000.0, input.getAnnualGross());
+    }
+
+    @Test
+    void from_withoutEarningsOrAnnualSalary_shouldThrow() {
+        CalculateRequest request = new CalculateRequest();
+        request.setCountry(Country.US);
+        request.setTaxYear(2025);
+        request.setCadence(PayCadence.ANNUAL);
+        // neither annualSalary nor earnings set
+
+        assertThrows(IllegalArgumentException.class, () -> CalculationInput.from(request));
+    }
+
+    @Test
+    void getRegularWagesAnnual_withExplicitBreakdown_shouldSumComponents() {
+        CalculationInput input = new CalculationInput();
+        input.setSalaryAnnual(80000.0);
+        input.setOvertimeAnnual(5000.0);
+        input.setDoubleTimeAnnual(1000.0);
+        input.setBonusAnnual(10000.0);
+
+        // explicit breakdown wins; bonus is excluded from regular wages
+        assertEquals(86000.0, input.getRegularWagesAnnual(), 0.01);
+    }
+
+    @Test
+    void getRegularWagesAnnual_withoutBreakdown_shouldFallBackToGrossMinusSupplemental() {
+        // Back-compat path: legacy callers that set annualGross + bonusAnnual directly
+        CalculationInput input = new CalculationInput();
+        input.setAnnualGross(110000.0);
+        input.setBonusAnnual(10000.0);
+        input.setCommissionAnnual(5000.0);
+
+        assertEquals(95000.0, input.getRegularWagesAnnual(), 0.01);
+    }
+
+    @Test
+    void getSupplementalAnnual_handlesNullCommission() {
+        CalculationInput input = new CalculationInput();
+        input.setBonusAnnual(10000.0);
+        input.setCommissionAnnual(null);
+
+        assertEquals(10000.0, input.getSupplementalAnnual(), 0.01);
+    }
+
     @Test
     void gettersAndSetters_shouldWorkCorrectly() {
         CalculationInput input = new CalculationInput();

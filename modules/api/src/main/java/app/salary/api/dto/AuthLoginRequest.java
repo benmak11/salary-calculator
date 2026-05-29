@@ -8,11 +8,10 @@ import jakarta.validation.constraints.NotBlank;
 @ExcludeFromCodeCoverage
 @Schema(description = "Login credentials")
 public class AuthLoginRequest {
-    @NotBlank @Email
+
     @Schema(example = "julian.v@incomatic.com")
     private String email;
 
-    @NotBlank
     @Schema(example = "••••••••")
     private String password;
 

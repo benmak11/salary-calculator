@@ -2,31 +2,40 @@
   "metadata": {
     "country": "US",
     "taxYear": 2025,
-    "version": "US-2025.10.0"
+    "version": "US-2025.11.0"
   },
   "federal": {
     "standardDeductions": {
-      "SINGLE": 14600,
-      "MARRIED": 29200,
-      "HEAD_OF_HOUSEHOLD": 21900
+      "SINGLE": 15750,
+      "MARRIED": 31500,
+      "HEAD_OF_HOUSEHOLD": 23625
     },
     "brackets": [
-      { "upTo": 11600, "rate": 0.10 },
-      { "upTo": 47150, "rate": 0.12 },
-      { "upTo": 100525, "rate": 0.22 },
-      { "upTo": 191950, "rate": 0.24 },
-      { "upTo": 243725, "rate": 0.32 },
-      { "upTo": 609350, "rate": 0.35 },
+      { "upTo": 11925, "rate": 0.10 },
+      { "upTo": 48475, "rate": 0.12 },
+      { "upTo": 103350, "rate": 0.22 },
+      { "upTo": 197300, "rate": 0.24 },
+      { "upTo": 250525, "rate": 0.32 },
+      { "upTo": 626350, "rate": 0.35 },
       { "rate": 0.37 }
     ],
     "bracketsByFilingStatus": {
+      "MARRIED": [
+        { "upTo": 23850, "rate": 0.10 },
+        { "upTo": 96950, "rate": 0.12 },
+        { "upTo": 206700, "rate": 0.22 },
+        { "upTo": 394600, "rate": 0.24 },
+        { "upTo": 501050, "rate": 0.32 },
+        { "upTo": 751600, "rate": 0.35 },
+        { "rate": 0.37 }
+      ],
       "HEAD_OF_HOUSEHOLD": [
-        { "upTo": 16550, "rate": 0.10 },
-        { "upTo": 63100, "rate": 0.12 },
-        { "upTo": 100500, "rate": 0.22 },
-        { "upTo": 191950, "rate": 0.24 },
-        { "upTo": 243700, "rate": 0.32 },
-        { "upTo": 609350, "rate": 0.35 },
+        { "upTo": 17000, "rate": 0.10 },
+        { "upTo": 64850, "rate": 0.12 },
+        { "upTo": 103350, "rate": 0.22 },
+        { "upTo": 197300, "rate": 0.24 },
+        { "upTo": 250500, "rate": 0.32 },
+        { "upTo": 626350, "rate": 0.35 },
         { "rate": 0.37 }
       ]
     },
@@ -34,12 +43,147 @@
   },
   "fica": {
     "ssRate": 0.062,
-    "ssWageBase": 168600,
+    "ssWageBase": 176100,
     "medicareRate": 0.0145,
     "additionalMedicareThreshold": 200000,
     "additionalRate": 0.009
   },
   "states": {
+    "AL": {
+      "brackets": [
+        { "upTo": 500, "rate": 0.02 },
+        { "upTo": 3000, "rate": 0.04 },
+        { "rate": 0.05 }
+      ]
+    },
+    "AK": {
+      "brackets": [],
+      "local": 0.0
+    },
+    "AZ": {
+      "brackets": [ { "rate": 0.0250 } ]
+    },
+    "AR": {
+      "brackets": [
+        { "upTo": 4500, "rate": 0.02 },
+        { "rate": 0.039 }
+      ]
+    },
+    "CA": {
+      "brackets": [
+        { "upTo": 10756, "rate": 0.01 },
+        { "upTo": 25499, "rate": 0.02 },
+        { "upTo": 40245, "rate": 0.04 },
+        { "upTo": 55866, "rate": 0.06 },
+        { "upTo": 70606, "rate": 0.08 },
+        { "upTo": 360659, "rate": 0.093 },
+        { "upTo": 432787, "rate": 0.103 },
+        { "upTo": 721314, "rate": 0.113 },
+        { "rate": 0.123 }
+      ],
+      "local": 0.0
+    },
+    "CO": {
+      "brackets": [{ "rate": 0.044 }],
+      "local": 0.0
+    },
+    "CT": {
+      "brackets": [
+        { "upTo": 10000, "rate": 0.02 },
+        { "upTo": 50000, "rate": 0.045 },
+        { "upTo": 100000, "rate": 0.055 },
+        { "upTo": 200000, "rate": 0.06 },
+        { "upTo": 250000, "rate": 0.065 },
+        { "upTo": 500000, "rate": 0.069 },
+        { "rate": 0.0699 }
+      ],
+      "local": 0.0
+    },
+    "DE": {
+      "brackets": [
+        { "upTo": 5000, "rate": 0.022 },
+        { "upTo": 10000, "rate": 0.039 },
+        { "upTo": 20000, "rate": 0.048 },
+        { "upTo": 25000, "rate": 0.052 },
+        { "upTo": 60000, "rate": 0.0555 },
+        { "rate": 0.066 }
+      ],
+      "local": 0.0
+    },
+    "FL": {
+      "brackets": [],
+      "local": 0.0
+    },
+    "GA": {
+      "brackets": [{ "rate": 0.0539 }],
+      "local": 0.0
+    },
+    "HI": {
+      "brackets": [
+        { "upTo": 9600, "rate": 0.014 },
+        { "upTo": 14400, "rate": 0.032 },
+        { "upTo": 19200, "rate": 0.055 },
+        { "upTo": 24000, "rate": 0.064 },
+        { "upTo": 36000, "rate": 0.068 },
+        { "upTo": 48000, "rate": 0.072 },
+        { "upTo": 125000, "rate": 0.076 },
+        { "upTo": 175000, "rate": 0.079 },
+        { "upTo": 225000, "rate": 0.0825 },
+        { "upTo": 275000, "rate": 0.09 },
+        { "upTo": 325000, "rate": 0.10 },
+        { "rate": 0.11 }
+      ],
+      "local": 0.0
+    },
+    "ID": {
+      "brackets": [
+        {"upTo": 4673, "rate": 0},
+        {"rate": 0.05695 }
+      ]
+    },
+    "IL": {
+      "brackets": [{ "rate": 0.0495 }],
+      "local": 0.0
+    },
+    "IN": {
+      "brackets": [
+        { "rate": 0.03 }
+      ],
+      "local": 0.0
+    },
+    "IA": {
+      "brackets": [
+        {"rate":  0.038}
+      ],
+      "local": 0.0
+    },
+    "KS": {
+      "brackets": [
+        { "upTo": 23000, "rate": 0.052 },
+        { "rate": 0.058 }
+      ],
+      "local": 0.0
+    },
+    "KY": {
+      "brackets": [
+        { "rate": 0.04 }
+      ],
+      "local": 0.0
+    },
+    "LA": {
+      "brackets": [
+        { "rate": 0.03 }
+      ],
+        "local": 0.0
+    },
+    "ME": {
+      "brackets": [
+        { "upTo": 26800, "rate": 0.058 },
+        { "upTo": 63450, "rate": 0.0675 },
+        { "rate": 0.0715 }
+      ],
+      "local": 0.0
+    },
     "MD": {
       "brackets": [
         { "upTo": 1000, "rate": 0.02 },
@@ -53,23 +197,237 @@
       ],
       "local": 0.032
     },
-    "CA": {
+    "MA": {
       "brackets": [
-        { "upTo": 10412, "rate": 0.01 },
-        { "upTo": 24684, "rate": 0.02 },
-        { "upTo": 38959, "rate": 0.04 },
-        { "upTo": 54081, "rate": 0.06 },
-        { "upTo": 68350, "rate": 0.08 },
-        { "upTo": 349137, "rate": 0.093 },
-        { "upTo": 418961, "rate": 0.103 },
-        { "upTo": 698271, "rate": 0.113 },
-        { "rate": 0.123 }
+        { "upTo": 1083150, "rate": 0.05 },
+        { "rate": 0.09 }
       ],
+      "local": 0.0
+    },
+    "MI": {
+        "brackets": [
+          { "rate": 0.0425 }
+        ],
+        "local": 0.0
+    },
+    "MN": {
+      "brackets": [
+        { "upTo": 32570, "rate": 0.0535 },
+        { "upTo": 106990, "rate": 0.068 },
+        { "upTo": 198630, "rate": 0.0785 },
+        { "rate": 0.0985 }
+      ],
+      "local": 0.0
+    },
+    "MS": {
+      "brackets": [
+        { "rate": 0.044 }
+      ],
+      "local": 0.0
+    },
+    "MO": {
+      "brackets": [
+        { "upTo": 2626, "rate":  0.020 },
+        { "upTo": 3939, "rate": 0.025 },
+        { "upTo": 5252, "rate": 0.03 },
+        { "upTo": 6565, "rate": 0.035 },
+        { "upTo": 7878, "rate": 0.04 },
+        { "upTo": 9191, "rate": 0.045 },
+        { "rate": 0.047 }
+      ]
+    },
+    "MT": {
+      "brackets": [
+        { "upTo": 21100, "rate":  0.0470 },
+        { "rate": 0.059 }
+      ],
+      "local": 0.0
+    },
+    "NE": {
+      "brackets": [
+        { "upTo": 4030, "rate": 0.0246 },
+        { "upTo": 24120, "rate": 0.0351 },
+        { "upTo": 38870, "rate": 0.0501 },
+        { "rate": 0.0520 }
+      ],
+      "local": 0.0
+    },
+    "NV": {
+      "brackets": [],
+      "local": 0.0
+    },
+    "NH": {
+      "brackets": [],
+      "local": 0.0
+    },
+    "NJ": {
+      "brackets": [
+        { "upTo": 20000, "rate": 0.014 },
+        { "upTo": 35000, "rate": 0.0175 },
+        { "upTo": 40000, "rate": 0.035 },
+        { "upTo": 75000, "rate": 0.05525 },
+        { "upTo": 500000, "rate": 0.0637 },
+        { "upTo": 5000000, "rate": 0.0897 },
+        { "rate": 0.1075 }
+      ],
+      "local": 0.0
+    },
+    "NM": {
+      "brackets": [
+        { "upTo": 5500, "rate": 0.015 },
+        { "upTo": 16500, "rate": 0.032 },
+        { "upTo": 33500, "rate": 0.043 },
+        { "upTo": 66500, "rate": 0.047 },
+        { "upTo": 210000, "rate": 0.049 },
+        { "rate": 0.059 }
+      ],
+      "local": 0.0
+    },
+    "NY": {
+      "brackets": [
+        { "upTo": 8500, "rate": 0.04 },
+        { "upTo": 11700, "rate": 0.045 },
+        { "upTo": 13900, "rate": 0.0525 },
+        { "upTo": 80650, "rate": 0.055 },
+        { "upTo": 215400, "rate": 0.06 },
+        { "upTo": 1077550, "rate": 0.0685 },
+        { "upTo": 5000000, "rate": 0.0965 },
+        { "upTo": 25000000, "rate": 0.103 },
+        { "rate": 0.109 }
+      ],
+      "local": 0.0
+    },
+    "NC": {
+      "brackets": [{ "rate": 0.045 }],
+      "local": 0.0
+    },
+    "ND": {
+      "brackets": [
+        { "upTo": 244825, "rate": 0.0195 },
+        { "rate": 0.0250 }
+      ],
+      "local": 0.0
+    },
+    "OH": {
+      "brackets": [
+        { "upTo": 26050, "rate": 0.0 },
+        { "upTo": 100000, "rate": 0.0275 },
+        { "rate": 0.035 }
+      ],
+      "local": 0.0
+    },
+    "OK": {
+      "brackets": [
+        { "upTo": 1000, "rate": 0.0025 },
+        { "upTo": 2500, "rate": 0.0075 },
+        { "upTo": 3750, "rate": 0.0175 },
+        { "upTo": 4900, "rate": 0.0275 },
+        { "upTo": 7200, "rate": 0.0375 },
+        { "rate": 0.0475 }
+      ],
+      "local": 0.0
+    },
+    "OR": {
+      "brackets": [
+        { "upTo": 4400, "rate": 0.0475 },
+        { "upTo": 11050, "rate": 0.0675 },
+        { "upTo": 125000, "rate": 0.0875 },
+        { "rate": 0.099 }
+      ],
+      "local": 0.0
+    },
+    "PA": {
+      "brackets": [{ "rate": 0.0307 }],
+      "local": 0.0
+    },
+    "RI": {
+      "brackets": [
+        { "upTo": 79900, "rate": 0.0375 },
+        { "upTo": 181650, "rate": 0.0475 },
+        { "rate": 0.0599 }
+      ],
+      "local": 0.0
+    },
+    "SC": {
+      "brackets": [
+        { "upTo": 3560, "rate": 0.0 },
+        { "upTo": 17830, "rate": 0.03 },
+        { "rate": 0.062 }
+      ],
+      "local": 0.0
+    },
+    "SD": {
+      "brackets": [],
+      "local": 0.0
+    },
+    "TN": {
+      "brackets": [],
       "local": 0.0
     },
     "TX": {
       "brackets": [],
       "local": 0.0
-    }
+    },
+    "UT": {
+      "brackets": [{ "rate": 0.0455 }],
+      "local": 0.0
+    },
+    "VT": {
+      "brackets": [
+        { "upTo": 47900, "rate": 0.0335 },
+        { "upTo": 116000, "rate": 0.066 },
+        { "upTo": 242000, "rate": 0.076 },
+        { "rate": 0.0875 }
+      ],
+      "local": 0.0
+    },
+    "VA": {
+      "brackets": [
+        { "upTo": 3000, "rate": 0.02 },
+        { "upTo": 5000, "rate": 0.03 },
+        { "upTo": 17000, "rate": 0.05 },
+        { "rate": 0.0575 }
+      ],
+      "local": 0.0
+    },
+    "WA": {
+      "brackets": [],
+      "local": 0.0
+    },
+    "WV": {
+      "brackets": [
+        { "upTo": 10000, "rate": 0.0222 },
+        { "upTo": 25000, "rate": 0.0296 },
+        { "upTo": 40000, "rate": 0.0333 },
+        { "upTo": 60000, "rate": 0.0444 },
+        { "rate": 0.0482 }
+      ],
+      "local": 0.0
+    },
+    "WI": {
+      "brackets": [
+        { "upTo": 14680, "rate": 0.035 },
+        { "upTo": 29370, "rate": 0.044 },
+        { "upTo": 323290, "rate": 0.053 },
+        { "rate": 0.0765 }
+      ],
+      "local": 0.0
+     },
+    "WY": {
+      "brackets": [],
+      "local": 0.0
+    },
+    "DC": {
+      "brackets": [
+        { "upTo": 10000, "rate": 0.04 },
+        { "upTo": 40000, "rate": 0.06 },
+        { "upTo": 60000, "rate": 0.065 },
+        { "upTo": 250000, "rate": 0.085 },
+        { "upTo": 500000, "rate": 0.0925 },
+        { "upTo": 1000000, "rate": 0.0975 },
+        { "rate": 0.1075 }
+      ],
+      "local": 0.0
+     }
   }
 }
