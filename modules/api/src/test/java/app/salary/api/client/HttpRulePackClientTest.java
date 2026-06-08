@@ -11,8 +11,10 @@ import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 
@@ -42,6 +44,61 @@ class HttpRulePackClientTest {
         HttpRequest sent = captor.getValue();
         assertEquals("Bearer test-token",
                 sent.headers().firstValue("Authorization").orElse(null));
+    }
+
+    @Test
+    void cachesSuccessfulFetchAndSkipsNetworkOnRepeatCall() throws Exception {
+        HttpClient http = mock(HttpClient.class);
+        @SuppressWarnings("unchecked")
+        HttpResponse<String> metadataResp = mock(HttpResponse.class);
+        when(metadataResp.statusCode()).thenReturn(200);
+        when(metadataResp.body()).thenReturn("{\"id\":\"pack-1\"}");
+
+        @SuppressWarnings("unchecked")
+        HttpResponse<String> downloadResp = mock(HttpResponse.class);
+        when(downloadResp.statusCode()).thenReturn(200);
+        // Empty object → convertValue produces an all-null RulePack which is fine
+        // for this test; we only care about caching, not the pack's contents.
+        when(downloadResp.body()).thenReturn("{}");
+
+        // First call: returns metadata. Second call: returns download. Subsequent calls
+        // would also return the download stub, but we assert they never happen.
+        org.mockito.Mockito.doReturn(metadataResp, downloadResp)
+                .when(http).send(any(HttpRequest.class), any());
+
+        HttpRulePackClient client = new HttpRulePackClient(
+                http, new ObjectMapper(), BASE_URL);
+
+        var first  = client.fetchLatest("US", 2025);
+        var second = client.fetchLatest("US", 2025);
+
+        assertTrue(first.isPresent());
+        assertTrue(second.isPresent());
+        // Exactly two HTTP calls total (metadata + download) across both invocations —
+        // the second fetchLatest is served from cache.
+        verify(http, times(2)).send(any(HttpRequest.class), any());
+    }
+
+    @Test
+    void doesNotCacheFailedFetch() throws Exception {
+        HttpClient http = mock(HttpClient.class);
+        @SuppressWarnings("unchecked")
+        HttpResponse<String> errorResp = mock(HttpResponse.class);
+        when(errorResp.statusCode()).thenReturn(500);
+        when(errorResp.body()).thenReturn("");
+        org.mockito.Mockito.doReturn(errorResp).when(http).send(any(HttpRequest.class), any());
+
+        HttpRulePackClient client = new HttpRulePackClient(
+                http, new ObjectMapper(), BASE_URL);
+
+        var first  = client.fetchLatest("US", 2025);
+        var second = client.fetchLatest("US", 2025);
+
+        assertFalse(first.isPresent());
+        assertFalse(second.isPresent());
+        // Both calls must re-attempt the network so a transient upstream failure
+        // doesn't pin the client to the classpath fallback for the cache TTL.
+        verify(http, times(2)).send(any(HttpRequest.class), any());
     }
 
     @Test

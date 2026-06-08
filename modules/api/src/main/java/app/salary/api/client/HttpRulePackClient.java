@@ -4,6 +4,8 @@ import app.salary.calculator.client.RulePackClient;
 import app.salary.rules.RulePack;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -33,11 +35,14 @@ public class HttpRulePackClient implements RulePackClient {
     private static final Logger log = LoggerFactory.getLogger(HttpRulePackClient.class);
     private static final TypeReference<Map<String, Object>> JSON_MAP = new TypeReference<>() {};
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration CACHE_TTL = Duration.ofMinutes(10);
+    private static final int CACHE_MAX_SIZE = 50;
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final String baseUrl;
     private final Supplier<String> idTokenSupplier;
+    private final Cache<String, RulePack> rulePackCache;
 
     public HttpRulePackClient(HttpClient httpClient, ObjectMapper objectMapper, String baseUrl) {
         this(httpClient, objectMapper, baseUrl, null);
@@ -51,6 +56,10 @@ public class HttpRulePackClient implements RulePackClient {
         this.objectMapper = objectMapper;
         this.baseUrl = baseUrl;
         this.idTokenSupplier = idTokenSupplier;
+        this.rulePackCache = Caffeine.newBuilder()
+                .maximumSize(CACHE_MAX_SIZE)
+                .expireAfterWrite(CACHE_TTL)
+                .build();
     }
 
     @Override
@@ -58,6 +67,23 @@ public class HttpRulePackClient implements RulePackClient {
         if (baseUrl == null || baseUrl.isBlank()) {
             return Optional.empty();
         }
+        String key = country + ":" + taxYear;
+        RulePack cached = rulePackCache.getIfPresent(key);
+        if (cached != null) {
+            return Optional.of(cached);
+        }
+        RulePack fetched = doFetch(country, taxYear);
+        if (fetched != null) {
+            rulePackCache.put(key, fetched);
+            return Optional.of(fetched);
+        }
+        // Caches misses are NOT stored — next call re-attempts the upstream so a
+        // transient rule-pack-service outage doesn't pin clients to the classpath
+        // fallback for the whole TTL window.
+        return Optional.empty();
+    }
+
+    private RulePack doFetch(String country, int taxYear) {
         try {
             String latestUrl = String.format("%s/v1/rule-packs/latest?country=%s&taxYear=%d",
                     trimTrailingSlash(baseUrl),
@@ -65,12 +91,12 @@ public class HttpRulePackClient implements RulePackClient {
                     taxYear);
             Map<String, Object> metadata = getJson(latestUrl);
             if (metadata == null) {
-                return Optional.empty();
+                return null;
             }
 
             String id = (String) metadata.get("id");
             if (id == null || id.isBlank()) {
-                return Optional.empty();
+                return null;
             }
 
             String downloadUrl = String.format("%s/v1/rule-packs/%s/download",
@@ -78,15 +104,15 @@ public class HttpRulePackClient implements RulePackClient {
                     URLEncoder.encode(id, StandardCharsets.UTF_8));
             Map<String, Object> rulePackJson = getJson(downloadUrl);
             if (rulePackJson == null) {
-                return Optional.empty();
+                return null;
             }
 
             RulePack rulePack = objectMapper.convertValue(rulePackJson, RulePack.class);
             log.debug("Fetched rule pack from rule-pack-service: {} {}", country, taxYear);
-            return Optional.of(rulePack);
+            return rulePack;
         } catch (Exception e) {
             log.warn("Failed to fetch rule pack from rule-pack-service for {} {}: {}", country, taxYear, e.getMessage());
-            return Optional.empty();
+            return null;
         }
     }
 

@@ -102,7 +102,7 @@ public class RulePackStorageService {
 
             byte[] content = blob.getContent();
             Map<String, Object> rulePackJson = objectMapper.readValue(
-                    content, new TypeReference<Map<String, Object>>() {});
+                    content, new TypeReference<>() {});
 
             return Optional.of(rulePackJson);
         } catch (IOException e) {
@@ -146,12 +146,6 @@ public class RulePackStorageService {
         BlobId blobId = BlobId.of(bucketName, blobName);
         BlobInfo blobInfo = BlobInfo.newBuilder(blobId).build();
         String url = storage.signUrl(blobInfo, 24, HOURS).toString();
-//        String url = storage.signUrl(
-//                blobId,
-//                24,
-//                HOURS,
-//                Storage.SignUrlOption.withV4Signature()
-//        ).toString();
         logger.debug("Generated signed URL for: {}", blobName);
         return url;
     }

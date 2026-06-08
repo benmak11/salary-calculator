@@ -96,7 +96,8 @@ public class RulePackService {
     }
 
     public Optional<Map<String, Object>> downloadRulePack(String id) {
-        return findById(id).flatMap(dto -> storageService.download(dto.getStoragePath()));
+        return cache.getOrLoadPayload(id,
+                () -> findById(id).flatMap(dto -> storageService.download(dto.getStoragePath())));
     }
 
     public RulePackDto createRulePack(String country, Integer taxYear, String version,
