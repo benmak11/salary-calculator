@@ -31,7 +31,7 @@ dependencies {
     implementation 'com.google.cloud:google-cloud-firestore'
     implementation 'com.google.cloud:google-cloud-storage'
     implementation 'com.google.cloud:google-cloud-pubsub'
-    implementation 'com.google.cloud:google-cloud-logging-logback:0.141.0-alpha'
+    implementation 'com.google.cloud:google-cloud-logging-logback:0.142.0-alpha'
 
     // JSON
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.1'

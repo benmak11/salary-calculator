@@ -25,7 +25,10 @@ dependencies {
     implementation 'io.micrometer:micrometer-registry-prometheus:1.13.4'
 
     // Google ID tokens for service-to-service auth on Cloud Run
-    implementation 'com.google.auth:google-auth-library-oauth2-http:1.30.0'
+    implementation 'com.google.auth:google-auth-library-oauth2-http:1.48.0'
+
+    // Client-side rule-pack cache inside HttpRulePackClient.
+    implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
 
     // Logging
     runtimeOnly 'ch.qos.logback:logback-classic:1.5.13'
