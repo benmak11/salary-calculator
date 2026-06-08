@@ -6,4 +6,8 @@ dependencies {
     implementation project(':modules:common')
     implementation project(':modules:rules-registry')
     implementation 'org.slf4j:slf4j-api:2.0.13'
+
+    // Phase timers in CalculationOrchestrator. `api` scope because MeterRegistry
+    // appears in the orchestrator's constructor signature.
+    api 'io.micrometer:micrometer-core:1.13.4'
 }

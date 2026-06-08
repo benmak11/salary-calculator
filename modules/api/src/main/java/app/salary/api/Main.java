@@ -87,7 +87,7 @@ public class Main {
                 httpClient, objectMapper, rulePackServiceUrl, idTokenSupplier);
 
         CalculationOrchestrator orchestrator = new CalculationOrchestrator(
-                rulesRegistry, calculatorRegistry, rulePackClient);
+                rulesRegistry, calculatorRegistry, rulePackClient, meterRegistry);
 
         Javalin app = createApp(objectMapper, meterRegistry, orchestrator,
                 calculatorRegistry, requestValidator);

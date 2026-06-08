@@ -41,7 +41,7 @@ class MainTest {
         CalculatorRegistry calculatorRegistry = new CalculatorRegistry(calculators);
         RulesRegistry rulesRegistry = new RulesRegistry();
         CalculationOrchestrator orchestrator = new CalculationOrchestrator(
-                rulesRegistry, calculatorRegistry, null);
+                rulesRegistry, calculatorRegistry, null, meterRegistry);
         RequestValidator validator = new RequestValidator();
 
         return Main.createApp(mapper, meterRegistry, orchestrator, calculatorRegistry, validator);
