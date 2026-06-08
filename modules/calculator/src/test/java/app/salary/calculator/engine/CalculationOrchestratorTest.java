@@ -7,6 +7,8 @@ import app.salary.common.constants.PayCadence;
 import app.salary.common.dto.*;
 import app.salary.rules.RulePack;
 import app.salary.rules.RulesRegistry;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,11 +37,13 @@ class CalculationOrchestratorTest {
     private RulePackClient rulePackClient;
 
     private CalculationOrchestrator orchestrator;
+    private MeterRegistry meterRegistry;
 
     @BeforeEach
     void setUp() {
         // rulePackClient is null — orchestrator falls back to rulesRegistry (classpath)
-        orchestrator = new CalculationOrchestrator(rulesRegistry, calculatorRegistry, null);
+        meterRegistry = new SimpleMeterRegistry();
+        orchestrator = new CalculationOrchestrator(rulesRegistry, calculatorRegistry, null, meterRegistry);
     }
 
     @Test
@@ -195,7 +199,7 @@ class CalculationOrchestratorTest {
     @Test
     void calculate_whenRulePackClientReturnsRulePack_shouldUseRemoteRulePack() {
         CalculationOrchestrator remoteOrchestrator =
-                new CalculationOrchestrator(rulesRegistry, calculatorRegistry, rulePackClient);
+                new CalculationOrchestrator(rulesRegistry, calculatorRegistry, rulePackClient, meterRegistry);
         CalculateRequest request = createTestRequest();
         RulePack remotePack = new RulePack();
         CalculationResult result = createTestResult();
@@ -214,7 +218,7 @@ class CalculationOrchestratorTest {
     @Test
     void calculate_whenRulePackClientReturnsEmpty_shouldFallBackToClasspath() {
         CalculationOrchestrator remoteOrchestrator =
-                new CalculationOrchestrator(rulesRegistry, calculatorRegistry, rulePackClient);
+                new CalculationOrchestrator(rulesRegistry, calculatorRegistry, rulePackClient, meterRegistry);
         CalculateRequest request = createTestRequest();
         RulePack classPathPack = new RulePack();
         CalculationResult result = createTestResult();
@@ -229,6 +233,25 @@ class CalculationOrchestratorTest {
         assertNotNull(response);
         verify(rulePackClient).fetchLatest("UK", 2025);
         verify(rulesRegistry).getRulePack("UK", 2025);
+    }
+
+    @Test
+    void calculate_shouldRecordPhaseTimers() {
+        CalculateRequest request = createTestRequest();
+        RulePack rulePack = new RulePack();
+        CalculationResult result = createTestResult();
+
+        when(rulesRegistry.getRulePack("UK", 2025)).thenReturn(rulePack);
+        when(calculatorRegistry.getCalculator(Country.UK, 2025)).thenReturn(countryCalculator);
+        when(countryCalculator.calculate(any(), eq(rulePack))).thenReturn(result);
+
+        orchestrator.calculate(request);
+
+        // Fetch timer is tagged with source=classpath here (no rulePackClient configured).
+        assertEquals(1, meterRegistry.get("salary.rulepack.fetch")
+                .tag("source", "classpath").tag("country", "UK").timer().count());
+        assertEquals(1, meterRegistry.get("salary.calculation")
+                .tag("country", "UK").timer().count());
     }
 
     private CalculateRequest createTestRequest() {
