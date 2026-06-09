@@ -4,7 +4,11 @@ import app.salary.common.annotation.ExcludeFromCodeCoverage;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import lombok.Getter;
+import lombok.Setter;
 
+@Setter
+@Getter
 @ExcludeFromCodeCoverage
 @Schema(description = "A named pre-tax or post-tax deduction line item")
 public class NamedDeduction {
@@ -23,8 +27,4 @@ public class NamedDeduction {
         this.amount = amount;
     }
 
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
-    public Double getAmount() { return amount; }
-    public void setAmount(Double amount) { this.amount = amount; }
 }

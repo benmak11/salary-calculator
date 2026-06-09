@@ -4,7 +4,11 @@ import app.salary.common.annotation.ExcludeFromCodeCoverage;
 import app.salary.common.constants.IncomeType;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import lombok.Getter;
+import lombok.Setter;
 
+@Setter
+@Getter
 @ExcludeFromCodeCoverage
 public class Income {
 
@@ -18,27 +22,4 @@ public class Income {
     @Min(0)
     private Double hoursPerWeek;
 
-    public IncomeType getType() {
-        return type;
-    }
-
-    public void setType(IncomeType type) {
-        this.type = type;
-    }
-
-    public Double getAmount() {
-        return amount;
-    }
-
-    public void setAmount(Double amount) {
-        this.amount = amount;
-    }
-
-    public Double getHoursPerWeek() {
-        return hoursPerWeek;
-    }
-
-    public void setHoursPerWeek(Double hoursPerWeek) {
-        this.hoursPerWeek = hoursPerWeek;
-    }
 }

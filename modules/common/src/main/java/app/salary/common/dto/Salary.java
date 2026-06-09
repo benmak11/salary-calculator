@@ -4,7 +4,11 @@ import app.salary.common.annotation.ExcludeFromCodeCoverage;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import lombok.Getter;
+import lombok.Setter;
 
+@Setter
+@Getter
 @ExcludeFromCodeCoverage
 @Schema(description = "Salary earnings line")
 public class Salary {
@@ -22,8 +26,4 @@ public class Salary {
     @Schema(description = "Whether amount is per year or per pay period", example = "PER_YEAR")
     private Basis basis = Basis.PER_YEAR;
 
-    public Double getAmount() { return amount; }
-    public void setAmount(Double amount) { this.amount = amount; }
-    public Basis getBasis() { return basis; }
-    public void setBasis(Basis basis) { this.basis = basis; }
 }

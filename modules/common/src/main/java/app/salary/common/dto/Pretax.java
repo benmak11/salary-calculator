@@ -5,10 +5,14 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.List;
 
+@Getter
+@Setter
 @ExcludeFromCodeCoverage
 @Schema(description = "Pre-tax deductions configuration")
 public class Pretax {
@@ -52,25 +56,6 @@ public class Pretax {
     @Schema(description = "Named custom pre-tax deductions; each is emitted as its own line item")
     private List<NamedDeduction> customDeductions = new ArrayList<>();
 
-    public Double getPercent() { return percent; }
-    public void setPercent(Double percent) { this.percent = percent; }
-    public Double getFixed() { return fixed; }
-    public void setFixed(Double fixed) { this.fixed = fixed; }
-    public Double getHsa() { return hsa; }
-    public void setHsa(Double hsa) { this.hsa = hsa; }
-    public Double getPensionPercent() { return pensionPercent; }
-    public void setPensionPercent(Double pensionPercent) { this.pensionPercent = pensionPercent; }
-    public Double getMedical() { return medical; }
-    public void setMedical(Double medical) { this.medical = medical; }
-    public Double getDental() { return dental; }
-    public void setDental(Double dental) { this.dental = dental; }
-    public Double getVision() { return vision; }
-    public void setVision(Double vision) { this.vision = vision; }
-    public Double getHealthcareFsa() { return healthcareFsa; }
-    public void setHealthcareFsa(Double healthcareFsa) { this.healthcareFsa = healthcareFsa; }
-    public Double getDependentCareFsa() { return dependentCareFsa; }
-    public void setDependentCareFsa(Double dependentCareFsa) { this.dependentCareFsa = dependentCareFsa; }
-    public List<NamedDeduction> getCustomDeductions() { return customDeductions; }
     public void setCustomDeductions(List<NamedDeduction> customDeductions) {
         this.customDeductions = customDeductions != null ? customDeductions : new ArrayList<>();
     }

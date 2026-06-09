@@ -1,5 +1,9 @@
 package app.salary.api.controller;
 
+import app.salary.api.auth.AuthMiddleware;
+import app.salary.api.auth.SessionTokenService;
+import app.salary.api.store.CalculationStore;
+import app.salary.api.store.InMemoryCalculationStore;
 import app.salary.api.validation.RequestValidator;
 import app.salary.api.validation.ValidationException;
 import app.salary.calculator.engine.CalculationOrchestrator;
@@ -34,11 +38,13 @@ class CalculateControllerTest {
 
     private CalculationOrchestrator orchestrator;
     private CalculatorRegistry calculatorRegistry;
+    private CalculationStore calculationStore;
 
     @BeforeEach
     void setUp() {
         orchestrator = mock(CalculationOrchestrator.class);
         calculatorRegistry = mock(CalculatorRegistry.class);
+        calculationStore = new InMemoryCalculationStore();
     }
 
     private Javalin app() {
@@ -51,7 +57,7 @@ class CalculateControllerTest {
                     ctx.status(HttpStatus.UNPROCESSABLE_CONTENT)
                             .json(Map.of("error", String.valueOf(e.getMessage()))));
             new CalculateController(orchestrator, calculatorRegistry,
-                    new RequestValidator()).register(config.routes);
+                    new RequestValidator(), calculationStore).register(config.routes);
         });
     }
 
@@ -145,6 +151,77 @@ class CalculateControllerTest {
 
             JsonNode body = MAPPER.readTree(response.body().string());
             assertTrue(body.has("country") || body.has("taxYear"));
+        });
+    }
+
+    @Test
+    void calculate_anonymous_doesNotPersist() {
+        CalculateResponse stub = new CalculateResponse();
+        stub.setCalculationId("orchestrator-id");
+        stub.setGrossPerCadence(100_000.0);
+        stub.setNetPerCadence(72_000.0);
+        stub.setCurrency("USD");
+        when(orchestrator.calculate(any(CalculateRequest.class))).thenReturn(stub);
+
+        JavalinTest.test(app(), (server, client) -> {
+            String payload = """
+                    {
+                      "country":"US","taxYear":2025,"annualSalary":100000,
+                      "countryOptions":{"US":{"state":"CA","filingStatus":"SINGLE"}}
+                    }
+                    """;
+            var response = client.post("/v1/calculate", payload);
+            assertEquals(200, response.code());
+
+            JsonNode body = MAPPER.readTree(response.body().string());
+            assertEquals("orchestrator-id", body.get("calculationId").asText(),
+                    "Anonymous calls must keep the orchestrator-assigned id");
+            assertEquals(0, ((InMemoryCalculationStore) calculationStore)
+                    .list("any", 100, null).getItems().size());
+        });
+    }
+
+    @Test
+    void calculate_authed_persistsAndReplacesId() {
+        byte[] secret = new byte[32];
+        for (int i = 0; i < secret.length; i++) secret[i] = (byte) i;
+        SessionTokenService tokens = new SessionTokenService(secret);
+        AuthMiddleware middleware = new AuthMiddleware(tokens);
+        String bearer = "Bearer " + tokens.mint("user-xyz").token();
+
+        CalculateResponse stub = new CalculateResponse();
+        stub.setCalculationId("orchestrator-id");
+        stub.setGrossPerCadence(100_000.0);
+        stub.setNetPerCadence(72_000.0);
+        stub.setCurrency("USD");
+        when(orchestrator.calculate(any(CalculateRequest.class))).thenReturn(stub);
+
+        Javalin appWithAuth = Javalin.create(config -> {
+            config.jsonMapper(new JavalinJackson(MAPPER, false));
+            config.startup.showJavalinBanner = false;
+            config.routes.before(middleware::handle);
+            config.routes.exception(ValidationException.class, (e, ctx) ->
+                    ctx.status(HttpStatus.BAD_REQUEST).json(e.getErrors()));
+            new CalculateController(orchestrator, calculatorRegistry,
+                    new RequestValidator(), calculationStore).register(config.routes);
+        });
+
+        JavalinTest.test(appWithAuth, (server, client) -> {
+            String payload = """
+                    {
+                      "country":"US","taxYear":2025,"annualSalary":100000,
+                      "countryOptions":{"US":{"state":"CA","filingStatus":"SINGLE"}}
+                    }
+                    """;
+            var response = client.post("/v1/calculate", payload, r -> r.header("Authorization", bearer));
+            assertEquals(200, response.code());
+
+            JsonNode body = MAPPER.readTree(response.body().string());
+            String returnedId = body.get("calculationId").asText();
+            assertTrue(!returnedId.equals("orchestrator-id"),
+                    "Persisted id should replace the orchestrator-supplied one");
+            assertTrue(calculationStore.get("user-xyz", returnedId).isPresent(),
+                    "Calculation should be in the store under the authenticated user");
         });
     }
 }

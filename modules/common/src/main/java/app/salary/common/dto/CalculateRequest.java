@@ -8,9 +8,12 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import lombok.*;
 
 @ExcludeFromCodeCoverage
 @ValidCountryOptions
+@Setter
+@Getter
 @Schema(description = "Request to calculate net salary with tax breakdown")
 public class CalculateRequest {
     @NotNull
@@ -52,24 +55,4 @@ public class CalculateRequest {
     @Schema(description = "Country-specific options")
     private CountryOptions countryOptions;
 
-    public Country getCountry() { return country; }
-    public void setCountry(Country country) { this.country = country; }
-    public Integer getTaxYear() { return taxYear; }
-    public void setTaxYear(Integer taxYear) { this.taxYear = taxYear; }
-    public Double getAnnualSalary() { return annualSalary; }
-    public void setAnnualSalary(Double annualSalary) { this.annualSalary = annualSalary; }
-    public Double getBonus() { return bonus; }
-    public void setBonus(Double bonus) { this.bonus = bonus; }
-    public Earnings getEarnings() { return earnings; }
-    public void setEarnings(Earnings earnings) { this.earnings = earnings; }
-    public String getPayDate() { return payDate; }
-    public void setPayDate(String payDate) { this.payDate = payDate; }
-    public PayCadence getCadence() { return cadence; }
-    public void setCadence(PayCadence cadence) { this.cadence = cadence; }
-    public Pretax getPretax() { return pretax; }
-    public void setPretax(Pretax pretax) { this.pretax = pretax; }
-    public Posttax getPosttax() { return posttax; }
-    public void setPosttax(Posttax posttax) { this.posttax = posttax; }
-    public CountryOptions getCountryOptions() { return countryOptions; }
-    public void setCountryOptions(CountryOptions countryOptions) { this.countryOptions = countryOptions; }
 }

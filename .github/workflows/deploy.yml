@@ -65,7 +65,8 @@ jobs:
             --service-account=${{ vars.API_SA }} \
             --allow-unauthenticated \
             --port=8080 --memory=512Mi --cpu=1 \
-            --set-env-vars=RULE_PACK_SERVICE_URL=$RP_URL,RULE_PACK_AUDIENCE=$RP_URL,SERVER_PORT=8080
+            --set-env-vars=RULE_PACK_SERVICE_URL=$RP_URL,RULE_PACK_AUDIENCE=$RP_URL,SERVER_PORT=8080,ENABLE_GCP=true,GCP_PROJECT_ID=${{ vars.GCP_PROJECT_ID }},APPLE_AUDIENCE=com.makusha.incomatic
+            --update-secrets=SESSION_JWT_SECRET=salary-calculator-api-session-jwt-secret:latest
 
       - name: Smoke test
         run: |

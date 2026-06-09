@@ -2,11 +2,16 @@ package app.salary.common.dto;
 
 import app.salary.common.annotation.ExcludeFromCodeCoverage;
 import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.List;
 
 @ExcludeFromCodeCoverage
 @Schema(description = "Salary calculation result with detailed tax breakdown")
+@Setter
+@Getter
 public class CalculateResponse {
     @Schema(description = "Gross pay per payment period (base + bonus)", example = "100000.0")
     private Double grossPerCadence;
@@ -35,22 +40,4 @@ public class CalculateResponse {
     @Schema(description = "Version of tax rules used", example = "US-2025.10.0")
     private String rulePackVersion;
 
-    public Double getGrossPerCadence() { return grossPerCadence; }
-    public void setGrossPerCadence(Double grossPerCadence) { this.grossPerCadence = grossPerCadence; }
-    public Double getBaseSalaryPerCadence() { return baseSalaryPerCadence; }
-    public void setBaseSalaryPerCadence(Double baseSalaryPerCadence) { this.baseSalaryPerCadence = baseSalaryPerCadence; }
-    public Double getBonusPerCadence() { return bonusPerCadence; }
-    public void setBonusPerCadence(Double bonusPerCadence) { this.bonusPerCadence = bonusPerCadence; }
-    public Double getNetPerCadence() { return netPerCadence; }
-    public void setNetPerCadence(Double netPerCadence) { this.netPerCadence = netPerCadence; }
-    public String getCurrency() { return currency; }
-    public void setCurrency(String currency) { this.currency = currency; }
-    public List<LineItem> getLineItems() { return lineItems; }
-    public void setLineItems(List<LineItem> lineItems) { this.lineItems = lineItems; }
-    public List<Explanation> getExplanation() { return explanation; }
-    public void setExplanation(List<Explanation> explanation) { this.explanation = explanation; }
-    public String getCalculationId() { return calculationId; }
-    public void setCalculationId(String calculationId) { this.calculationId = calculationId; }
-    public String getRulePackVersion() { return rulePackVersion; }
-    public void setRulePackVersion(String rulePackVersion) { this.rulePackVersion = rulePackVersion; }
 }
