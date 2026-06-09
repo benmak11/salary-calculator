@@ -72,12 +72,48 @@ docker compose up --build
 docker compose --profile monitoring up --build
 ```
 
+## 🔑 Environment Variables
+
+The API reads configuration from environment variables (see `Env` in `Main.java`):
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `SERVER_PORT` | `8080` | HTTP listen port |
+| `RULE_PACK_SERVICE_URL` | empty | Rule-pack-service base URL. Empty = use embedded classpath rule pack |
+| `RULE_PACK_AUDIENCE` | empty | OIDC audience for service-to-service tokens (Cloud Run internal calls) |
+| `GCP_PROJECT_ID` | `salary-calculator-dev` | GCP project for Firestore (user directory + calculation history) |
+| `ENABLE_GCP` | auto | When `true`, connects to Firestore. Auto-detected from `GOOGLE_APPLICATION_CREDENTIALS` / `GOOGLE_CLOUD_PROJECT`. Set `false` to force in-memory stores |
+| `APPLE_AUDIENCE` | empty | iOS bundle ID used as the `aud` claim when verifying Apple identity tokens. Leaving this empty disables Sign in with Apple |
+| `SESSION_JWT_SECRET` | (generated) | Base64-encoded (or 32+ raw UTF-8 bytes) HS256 secret for signing our own session JWTs. If unset, a random 32-byte secret is generated at boot — sessions don't survive restart |
+
 ## 📡 API Endpoints
 
 ### Calculate Salary
 ```bash
 POST /v1/calculate
 ```
+When called with a valid `Authorization: Bearer <sessionToken>` (see below), the
+calculation is auto-saved to the caller's history and the response's
+`calculationId` is the Firestore document id. Anonymous calls work identically
+to before — no persistence, no auth required.
+
+### Sign in with Apple
+```bash
+POST /v1/auth/apple
+```
+Body: `{ "identityToken": "<JWT from ASAuthorizationAppleIDProvider>", "nonce": "<raw nonce>", "displayName": "<optional>" }`.
+Returns `{ sessionToken, expiresAt, user: { id, displayName } }`. The
+`sessionToken` is a 30-day HS256 JWT minted by this service — present it as
+`Authorization: Bearer <sessionToken>` on subsequent calls.
+
+### Calculation History (auth required)
+```bash
+GET    /v1/calculations?limit=20
+GET    /v1/calculations/{id}
+DELETE /v1/calculations/{id}
+```
+Newest-first list of saved sessions, full session detail (request + response),
+and hard-delete. Returns `401` when called without a valid session token.
 
 ### Health Check
 ```bash

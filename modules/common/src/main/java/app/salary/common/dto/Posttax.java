@@ -5,7 +5,11 @@ import app.salary.common.constants.StudentLoanPlan;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import lombok.Getter;
+import lombok.Setter;
 
+@Setter
+@Getter
 @ExcludeFromCodeCoverage
 @Schema(description = "Post-tax deductions configuration")
 public class Posttax {
@@ -20,10 +24,4 @@ public class Posttax {
     @Schema(description = "Student loan plan (UK only): PLAN1, PLAN2, or POSTGRAD", example = "PLAN2")
     private StudentLoanPlan studentLoanPlan;
 
-    public Double getFixed() { return fixed; }
-    public void setFixed(Double fixed) { this.fixed = fixed; }
-    public Double getRoth401kPercent() { return roth401kPercent; }
-    public void setRoth401kPercent(Double roth401kPercent) { this.roth401kPercent = roth401kPercent; }
-    public StudentLoanPlan getStudentLoanPlan() { return studentLoanPlan; }
-    public void setStudentLoanPlan(StudentLoanPlan studentLoanPlan) { this.studentLoanPlan = studentLoanPlan; }
 }

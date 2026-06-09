@@ -2,7 +2,10 @@ package app.salary.common.dto;
 
 import app.salary.common.annotation.ExcludeFromCodeCoverage;
 import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.*;
 
+@Setter
+@Getter
 @ExcludeFromCodeCoverage
 @Schema(description = "Human-readable explanation of a calculation step")
 public class Explanation {
@@ -19,8 +22,4 @@ public class Explanation {
         this.text = text;
     }
 
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
-    public String getText() { return text; }
-    public void setText(String text) { this.text = text; }
 }

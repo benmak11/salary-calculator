@@ -1,11 +1,14 @@
 package app.salary.api.controller;
 
+import app.salary.api.auth.AuthMiddleware;
+import app.salary.api.store.CalculationStore;
 import app.salary.api.validation.RequestValidator;
 import app.salary.calculator.engine.CalculationOrchestrator;
 import app.salary.calculator.registry.CalculatorRegistry;
 import app.salary.common.constants.Country;
 import app.salary.common.dto.CalculateRequest;
 import app.salary.common.dto.CalculateResponse;
+import app.salary.common.dto.SavedCalculationSummary;
 import io.javalin.config.RoutesConfig;
 import io.javalin.http.Context;
 import org.slf4j.Logger;
@@ -15,6 +18,7 @@ import org.slf4j.MDC;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public class CalculateController {
     private static final Logger log = LoggerFactory.getLogger(CalculateController.class);
@@ -22,13 +26,16 @@ public class CalculateController {
     private final CalculationOrchestrator orchestrator;
     private final CalculatorRegistry calculatorRegistry;
     private final RequestValidator validator;
+    private final CalculationStore calculationStore;
 
     public CalculateController(CalculationOrchestrator orchestrator,
                                CalculatorRegistry calculatorRegistry,
-                               RequestValidator validator) {
+                               RequestValidator validator,
+                               CalculationStore calculationStore) {
         this.orchestrator = orchestrator;
         this.calculatorRegistry = calculatorRegistry;
         this.validator = validator;
+        this.calculationStore = calculationStore;
     }
 
     public void register(RoutesConfig routes) {
@@ -58,6 +65,13 @@ public class CalculateController {
 
         int lineItemCount = response.getLineItems() != null ? response.getLineItems().size() : 0;
         log.info("calculate done: lineItems={}", lineItemCount);
+
+        Optional<String> userId = AuthMiddleware.currentUserId(ctx);
+        if (userId.isPresent() && calculationStore != null) {
+            SavedCalculationSummary summary = calculationStore.save(userId.get(), request, response);
+            response.setCalculationId(summary.getId());
+            log.info("calculate persisted: id={}", summary.getId());
+        }
 
         ctx.json(response);
     }

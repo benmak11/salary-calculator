@@ -6,7 +6,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import lombok.*;
 
+@Setter
+@Getter
 @ExcludeFromCodeCoverage
 @Schema(description = "US-specific calculation options")
 public class CountryOptionsUS {
@@ -26,12 +29,4 @@ public class CountryOptionsUS {
     @Schema(description = "Modern W-4 fields (2020+). Optional; engine ignores in Phase 1.")
     private W4 w4;
 
-    public String getState() { return state; }
-    public void setState(String state) { this.state = state; }
-    public FilingStatus getFilingStatus() { return filingStatus; }
-    public void setFilingStatus(FilingStatus filingStatus) { this.filingStatus = filingStatus; }
-    public Integer getAllowances() { return allowances; }
-    public void setAllowances(Integer allowances) { this.allowances = allowances; }
-    public W4 getW4() { return w4; }
-    public void setW4(W4 w4) { this.w4 = w4; }
 }

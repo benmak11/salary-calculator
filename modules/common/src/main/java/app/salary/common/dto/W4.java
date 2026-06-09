@@ -3,7 +3,11 @@ package app.salary.common.dto;
 import app.salary.common.annotation.ExcludeFromCodeCoverage;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Min;
+import lombok.Getter;
+import lombok.Setter;
 
+@Setter
+@Getter
 @ExcludeFromCodeCoverage
 @Schema(description = "US Form W-4 fields (modern 2020+ version unless useOldW4=true)")
 public class W4 {
@@ -38,22 +42,4 @@ public class W4 {
     @Schema(description = "Exempt from Medicare tax (also disables additional Medicare)", example = "false")
     private Boolean exemptMedicare = false;
 
-    public Boolean getUseOldW4() { return useOldW4; }
-    public void setUseOldW4(Boolean useOldW4) { this.useOldW4 = useOldW4; }
-    public Boolean getNonresidentAlien() { return nonresidentAlien; }
-    public void setNonresidentAlien(Boolean nonresidentAlien) { this.nonresidentAlien = nonresidentAlien; }
-    public Double getDependentsAmount() { return dependentsAmount; }
-    public void setDependentsAmount(Double dependentsAmount) { this.dependentsAmount = dependentsAmount; }
-    public Double getOtherIncome() { return otherIncome; }
-    public void setOtherIncome(Double otherIncome) { this.otherIncome = otherIncome; }
-    public Double getItemizedDeductions() { return itemizedDeductions; }
-    public void setItemizedDeductions(Double itemizedDeductions) { this.itemizedDeductions = itemizedDeductions; }
-    public Double getAdditionalWithholding() { return additionalWithholding; }
-    public void setAdditionalWithholding(Double additionalWithholding) { this.additionalWithholding = additionalWithholding; }
-    public Boolean getExemptFederal() { return exemptFederal; }
-    public void setExemptFederal(Boolean exemptFederal) { this.exemptFederal = exemptFederal; }
-    public Boolean getExemptSocialSecurity() { return exemptSocialSecurity; }
-    public void setExemptSocialSecurity(Boolean exemptSocialSecurity) { this.exemptSocialSecurity = exemptSocialSecurity; }
-    public Boolean getExemptMedicare() { return exemptMedicare; }
-    public void setExemptMedicare(Boolean exemptMedicare) { this.exemptMedicare = exemptMedicare; }
 }

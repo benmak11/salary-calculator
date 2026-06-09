@@ -1,8 +1,19 @@
 package app.salary.api;
 
+import app.salary.api.auth.AppleIdentityVerifier;
+import app.salary.api.auth.AuthController;
+import app.salary.api.auth.AuthMiddleware;
+import app.salary.api.auth.SessionTokenService;
 import app.salary.api.client.GoogleIdTokenSupplier;
 import app.salary.api.client.HttpRulePackClient;
 import app.salary.api.controller.CalculateController;
+import app.salary.api.controller.CalculationHistoryController;
+import app.salary.api.store.CalculationStore;
+import app.salary.api.store.FirestoreCalculationStore;
+import app.salary.api.store.FirestoreUserDirectory;
+import app.salary.api.store.InMemoryCalculationStore;
+import app.salary.api.store.InMemoryUserDirectory;
+import app.salary.api.store.UserDirectory;
 import app.salary.api.validation.RequestValidator;
 import app.salary.api.validation.ValidationException;
 import app.salary.calculator.client.RulePackClient;
@@ -20,6 +31,8 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.google.cloud.firestore.Firestore;
+import com.google.cloud.firestore.FirestoreOptions;
 import io.javalin.Javalin;
 import io.javalin.http.HttpStatus;
 import io.javalin.json.JavalinJackson;
@@ -31,8 +44,10 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
 import java.net.http.HttpClient;
+import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.time.Duration;
-import java.util.HashMap;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -56,6 +71,10 @@ public class Main {
         int port = Env.intValue("SERVER_PORT", 8080);
         String rulePackServiceUrl = Env.stringValue("RULE_PACK_SERVICE_URL", "");
         String rulePackAudience = Env.stringValue("RULE_PACK_AUDIENCE", "");
+        String projectId = Env.stringValue("GCP_PROJECT_ID", "salary-calculator-dev");
+        boolean enableGcp = Env.boolValue("ENABLE_GCP", detectGcpAvailable());
+        String appleAudience = Env.stringValue("APPLE_AUDIENCE", "");
+        String sessionSecretEnv = Env.stringValue("SESSION_JWT_SECRET", "");
 
         // ── Shared infra ─────────────────────────────────────────────────────
         ObjectMapper objectMapper = buildObjectMapper();
@@ -89,8 +108,37 @@ public class Main {
         CalculationOrchestrator orchestrator = new CalculationOrchestrator(
                 rulesRegistry, calculatorRegistry, rulePackClient, meterRegistry);
 
+        // ── Persistence + identity (lazy / optional) ─────────────────────────
+        Firestore firestore = enableGcp ? buildFirestore(projectId) : null;
+        UserDirectory userDirectory = firestore != null
+                ? new FirestoreUserDirectory(firestore)
+                : new InMemoryUserDirectory();
+        CalculationStore calculationStore = firestore != null
+                ? new FirestoreCalculationStore(firestore, objectMapper)
+                : new InMemoryCalculationStore();
+        if (firestore == null) {
+            log.warn("Firestore unavailable (ENABLE_GCP={}); user directory + calculation history are in-memory only.", enableGcp);
+        }
+
+        AppleIdentityVerifier appleVerifier = appleAudience.isBlank()
+                ? null
+                : new AppleIdentityVerifier(appleAudience);
+        SessionTokenService sessionTokens = buildSessionTokens(sessionSecretEnv);
+        AuthMiddleware authMiddleware = sessionTokens != null ? new AuthMiddleware(sessionTokens) : null;
+        AuthController authController = (appleVerifier != null && sessionTokens != null)
+                ? new AuthController(appleVerifier, sessionTokens, userDirectory, requestValidator)
+                : null;
+        if (authController == null) {
+            log.warn("Sign in with Apple disabled (APPLE_AUDIENCE={}, SESSION_JWT_SECRET configured: {})",
+                    appleAudience.isBlank() ? "<unset>" : "set",
+                    !sessionSecretEnv.isBlank());
+        }
+
+        CalculationHistoryController historyController = new CalculationHistoryController(calculationStore);
+
         Javalin app = createApp(objectMapper, meterRegistry, orchestrator,
-                calculatorRegistry, requestValidator);
+                calculatorRegistry, requestValidator, calculationStore,
+                authMiddleware, authController, historyController);
 
         // ── Boot ─────────────────────────────────────────────────────────────
         app.start(port);
@@ -105,16 +153,16 @@ public class Main {
     /**
      * Builds the Javalin app with all routes, exception handlers, and observability endpoints
      * wired in. Extracted so tests can boot the same app shape via {@code JavalinTest.test(...)}.
-     *
-     * Javalin 7: routes and exception handlers must be registered inside the config block
-     * via {@code config.routes.xxx}; the Javalin instance no longer exposes
-     * {@code get/post/exception} after construction.
      */
     static Javalin createApp(ObjectMapper objectMapper,
                              PrometheusMeterRegistry meterRegistry,
                              CalculationOrchestrator orchestrator,
                              CalculatorRegistry calculatorRegistry,
-                             RequestValidator requestValidator) {
+                             RequestValidator requestValidator,
+                             CalculationStore calculationStore,
+                             AuthMiddleware authMiddleware,
+                             AuthController authController,
+                             CalculationHistoryController historyController) {
         return Javalin.create(config -> {
             config.jsonMapper(new JavalinJackson(objectMapper, false));
             config.startup.showJavalinBanner = false;
@@ -135,6 +183,10 @@ public class Main {
                 ctx.attribute(MDC_REQUEST_ID, requestId);
                 ctx.header(REQUEST_ID_HEADER, requestId);
             });
+
+            if (authMiddleware != null) {
+                config.routes.before(authMiddleware::handle);
+            }
 
             config.routes.after(ctx -> {
                 try {
@@ -167,13 +219,56 @@ public class Main {
                         .json(Map.of("error", "Internal server error"));
             });
 
-            new CalculateController(orchestrator, calculatorRegistry, requestValidator)
+            new CalculateController(orchestrator, calculatorRegistry, requestValidator, calculationStore)
                     .register(config.routes);
+            if (authController != null) {
+                authController.register(config.routes);
+            }
+            historyController.register(config.routes);
 
             config.routes.get("/actuator/health", ctx -> ctx.json(Map.of("status", "UP")));
             config.routes.get("/actuator/prometheus", ctx ->
                     ctx.contentType("text/plain; version=0.0.4").result(meterRegistry.scrape()));
         });
+    }
+
+    private static Firestore buildFirestore(String projectId) {
+        try {
+            return FirestoreOptions.getDefaultInstance().toBuilder()
+                    .setProjectId(projectId)
+                    .build()
+                    .getService();
+        } catch (Exception e) {
+            log.warn("Failed to construct Firestore client (projectId={}): {}", projectId, e.getMessage());
+            return null;
+        }
+    }
+
+    private static SessionTokenService buildSessionTokens(String secretEnv) {
+        byte[] secret;
+        if (secretEnv.isBlank()) {
+            secret = new byte[32];
+            new SecureRandom().nextBytes(secret);
+            log.warn("SESSION_JWT_SECRET not set — generated an ephemeral 32-byte secret. "
+                    + "All sessions will be invalidated on restart. Set SESSION_JWT_SECRET in production.");
+            return new SessionTokenService(secret);
+        }
+        try {
+            secret = Base64.getDecoder().decode(secretEnv);
+        } catch (IllegalArgumentException e) {
+            // Treat the env var as raw UTF-8 bytes when it isn't valid base64.
+            secret = secretEnv.getBytes(StandardCharsets.UTF_8);
+        }
+        if (secret.length < 32) {
+            throw new IllegalStateException("SESSION_JWT_SECRET must decode to at least 32 bytes (got "
+                    + secret.length + ")");
+        }
+        return new SessionTokenService(secret);
+    }
+
+    private static boolean detectGcpAvailable() {
+        return Env.stringValue("GOOGLE_APPLICATION_CREDENTIALS", "").length() > 0
+                || Env.stringValue("GOOGLE_CLOUD_PROJECT", "").length() > 0;
     }
 
     private static ObjectMapper buildObjectMapper() {
@@ -201,6 +296,12 @@ public class Main {
             } catch (NumberFormatException nfe) {
                 return defaultValue;
             }
+        }
+
+        static boolean boolValue(String key, boolean defaultValue) {
+            String v = System.getenv(key);
+            if (v == null || v.isBlank()) return defaultValue;
+            return "true".equalsIgnoreCase(v.trim()) || "1".equals(v.trim());
         }
     }
 }

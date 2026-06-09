@@ -2,7 +2,11 @@ package app.salary.common.dto;
 
 import app.salary.common.annotation.ExcludeFromCodeCoverage;
 import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Getter;
+import lombok.Setter;
 
+@Setter
+@Getter
 @ExcludeFromCodeCoverage
 @Schema(description = "Individual earnings, tax, or deduction line item")
 public class LineItem {
@@ -28,10 +32,4 @@ public class LineItem {
         this.category = category;
     }
 
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
-    public Double getAmount() { return amount; }
-    public void setAmount(Double amount) { this.amount = amount; }
-    public LineItemCategory getCategory() { return category; }
-    public void setCategory(LineItemCategory category) { this.category = category; }
 }
