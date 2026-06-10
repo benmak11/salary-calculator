@@ -38,9 +38,15 @@ public class RulePack {
         private Map<String, List<TaxBracket>> bracketsByFilingStatus;
         /** Flat federal withholding rate applied to supplemental / bonus wages (default 0.22). */
         private Double supplementalWithholdingRate = 0.22;
+        /** Annual dollar value of one withholding allowance (pre-2020 W-4 only; default 4300). */
+        private Double withholdingAllowance = 4300.0;
 
         public Double getSupplementalWithholdingRate() {
             return supplementalWithholdingRate != null ? supplementalWithholdingRate : 0.22;
+        }
+
+        public Double getWithholdingAllowance() {
+            return withholdingAllowance != null ? withholdingAllowance : 4300.0;
         }
 
         /** Returns the appropriate federal brackets for the given filing status. */

@@ -114,9 +114,11 @@ public class USCalculator implements CountryCalculator {
         double bonusFederalTax;
         if (!Boolean.TRUE.equals(w4.getExemptFederal())) {
             federalTax = calculateFederalRegular(input, regularWages, totalPretaxDeductions, w4, rules);
-            // W-4 step 3: dependents credit reduces withholding
-            double dependents = w4.getDependentsAmount() != null ? w4.getDependentsAmount() : 0.0;
-            federalTax = Math.max(0, federalTax - dependents);
+            // W-4 step 3: dependents credit reduces withholding (modern W-4 only)
+            if (!Boolean.TRUE.equals(w4.getUseOldW4())) {
+                double dependents = w4.getDependentsAmount() != null ? w4.getDependentsAmount() : 0.0;
+                federalTax = Math.max(0, federalTax - dependents);
+            }
             // W-4 step 4(c): additional withholding per pay period
             double additional = w4.getAdditionalWithholding() != null ? w4.getAdditionalWithholding() : 0.0;
             if (additional > 0) {
@@ -212,6 +214,19 @@ public class USCalculator implements CountryCalculator {
                                            W4 w4,
                                            RulePack rules) {
         String filingStatus = input.getUsOptions().getFilingStatus().name();
+        List<RulePack.TaxBracket> brackets = rules.getFederal().getBracketsForFilingStatus(filingStatus);
+
+        // Pre-2020 W-4: withholding is allowance-based. Each allowance shelters a
+        // fixed dollar amount; the modern step-3/4 fields don't exist on that form.
+        if (Boolean.TRUE.equals(w4.getUseOldW4())) {
+            int allowances = input.getUsOptions().getAllowances() != null
+                    ? input.getUsOptions().getAllowances() : 0;
+            double allowanceValue = rules.getFederal().getWithholdingAllowance();
+            double legacyTaxable = Math.max(0,
+                    regularWages - totalPretaxDeductions - (allowances * allowanceValue));
+            return bracketCalculator.calculateTax(legacyTaxable, brackets);
+        }
+
         Double standardDeductionObj = rules.getFederal().getStandardDeductions().get(filingStatus);
         double standardDeduction = standardDeductionObj != null ? standardDeductionObj : 14600.0;
         double itemized = w4.getItemizedDeductions() != null ? w4.getItemizedDeductions() : 0.0;
@@ -219,7 +234,6 @@ public class USCalculator implements CountryCalculator {
         double otherIncome = w4.getOtherIncome() != null ? w4.getOtherIncome() : 0.0;
         double taxable = Math.max(0,
                 regularWages - totalPretaxDeductions + otherIncome - effectiveDeduction);
-        List<RulePack.TaxBracket> brackets = rules.getFederal().getBracketsForFilingStatus(filingStatus);
         return bracketCalculator.calculateTax(taxable, brackets);
     }
 
