@@ -39,7 +39,8 @@
         { "rate": 0.37 }
       ]
     },
-    "supplementalWithholdingRate": 0.22
+    "supplementalWithholdingRate": 0.22,
+    "withholdingAllowance": 4300
   },
   "fica": {
     "ssRate": 0.062,

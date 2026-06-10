@@ -702,6 +702,56 @@ class USCalculatorTest {
         assertEquals(10650.0, fed.getAmount(), 0.01);
     }
 
+    // ── Legacy (pre-2020) W-4 allowances ──────────────────────────────────────────
+
+    @Test
+    void calculate_withOldW4Allowances_shouldUseAllowanceBasedTaxable() {
+        CountryOptionsUS usOptions = input.getUsOptions();
+        usOptions.setAllowances(2);
+        W4 w4 = new W4();
+        w4.setUseOldW4(true);
+        usOptions.setW4(w4);
+
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
+        when(bracketCalculator.calculateTax(anyDouble(), anyList())).thenReturn(10000.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(0.0);
+
+        calculator.calculate(input, rulePack);
+
+        // Legacy path: 100000 - 0 pretax - (2 × 4300 allowance) = 91400; no standard deduction
+        verify(bracketCalculator).calculateTax(eq(91400.0), anyList());
+    }
+
+    @Test
+    void calculate_withOldW4_shouldIgnoreModernW4FieldsAndDependentsCredit() {
+        CountryOptionsUS usOptions = input.getUsOptions();
+        usOptions.setAllowances(1);
+        W4 w4 = new W4();
+        w4.setUseOldW4(true);
+        w4.setDependentsAmount(2000.0);     // modern step 3 — must be ignored on old W-4
+        w4.setOtherIncome(5000.0);          // modern step 4(a) — must be ignored
+        w4.setItemizedDeductions(20000.0);  // modern step 4(b) — must be ignored
+        usOptions.setW4(w4);
+
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
+        when(bracketCalculator.calculateTax(anyDouble(), anyList())).thenReturn(15000.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(0.0);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        // Legacy taxable = 100000 - (1 × 4300) = 95700. If modern fields had applied it would be
+        // 100000 + 5000 otherIncome - 20000 itemized = 85000, so 95700 proves they're ignored.
+        verify(bracketCalculator).calculateTax(eq(95700.0), anyList());
+        // Dependents credit must not apply on the legacy path → federal stays at bracket result
+        LineItem fed = findLineItem(result, "Federal Income Tax");
+        assertNotNull(fed);
+        assertEquals(15000.0, fed.getAmount(), 0.01);
+    }
+
     // ── W-4 exemption flags (Phase 2) ─────────────────────────────────────────────
 
     @Test

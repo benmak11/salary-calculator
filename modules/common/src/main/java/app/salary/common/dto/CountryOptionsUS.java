@@ -22,11 +22,11 @@ public class CountryOptionsUS {
     private FilingStatus filingStatus;
 
     @Min(0)
-    @Schema(description = "Number of tax allowances (legacy / pre-2020 W-4)", example = "2")
+    @Schema(description = "Number of tax allowances; applied only when w4.useOldW4=true (pre-2020 W-4)", example = "2")
     private Integer allowances = 0;
 
     @Valid
-    @Schema(description = "Modern W-4 fields (2020+). Optional; engine ignores in Phase 1.")
+    @Schema(description = "W-4 fields. Modern 2020+ by default; set useOldW4=true to use the allowances field above.")
     private W4 w4;
 
 }
