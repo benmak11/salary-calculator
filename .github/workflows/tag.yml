@@ -1,0 +1,26 @@
+name: Auto Tag
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    name: Create version tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so the action can find the previous tag
+
+      - name: Create tag
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          # Deploy runs on push to main (deploy.yml), so this tag is a version
+          # record only and does not need to trigger anything — GITHUB_TOKEN is fine.
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_bump: patch          # feat: -> minor, BREAKING CHANGE -> major
+          tag_prefix: v
