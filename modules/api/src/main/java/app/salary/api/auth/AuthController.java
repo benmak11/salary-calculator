@@ -54,7 +54,8 @@ public class AuthController {
         String userId = identity.appleSub();
         MDC.put("user_id", userId);
 
-        users.upsertOnSignIn(userId, req.getDisplayName(), identity.email());
+        // We intentionally do not persist identity.email() — see UserDirectory.
+        users.upsertOnSignIn(userId, req.getDisplayName());
 
         SessionTokenService.IssuedSession session = sessionTokens.mint(userId);
         String storedDisplayName = users.displayName(userId).orElse(req.getDisplayName());

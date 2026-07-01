@@ -68,6 +68,12 @@ public class InMemoryCalculationStore implements CalculationStore {
         return entries.remove(calcId) != null;
     }
 
+    @Override
+    public int deleteAll(String userId) {
+        Map<String, Entry> entries = byUser.remove(userId);
+        return entries == null ? 0 : entries.size();
+    }
+
     private record Entry(SavedCalculationSummary summary,
                          CalculateRequest request,
                          CalculateResponse response,

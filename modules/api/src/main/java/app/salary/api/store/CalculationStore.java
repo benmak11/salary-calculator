@@ -28,4 +28,7 @@ public interface CalculationStore {
 
     /** Returns true when the document existed and was removed, false when it didn't exist. */
     boolean delete(String userId, String calcId);
+
+    /** Removes every saved calculation for the user. Returns the number of docs deleted. */
+    int deleteAll(String userId);
 }

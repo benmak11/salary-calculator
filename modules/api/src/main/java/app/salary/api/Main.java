@@ -2,6 +2,7 @@ package app.salary.api;
 
 import app.salary.api.auth.AppleIdentityVerifier;
 import app.salary.api.auth.AuthController;
+import app.salary.api.controller.AccountController;
 import app.salary.api.auth.AuthMiddleware;
 import app.salary.api.auth.SessionTokenService;
 import app.salary.api.client.GoogleIdTokenSupplier;
@@ -124,8 +125,8 @@ public class Main {
                 ? null
                 : new AppleIdentityVerifier(appleAudience);
         SessionTokenService sessionTokens = buildSessionTokens(sessionSecretEnv);
-        AuthMiddleware authMiddleware = sessionTokens != null ? new AuthMiddleware(sessionTokens) : null;
-        AuthController authController = (appleVerifier != null && sessionTokens != null)
+        AuthMiddleware authMiddleware = new AuthMiddleware(sessionTokens);
+        AuthController authController = appleVerifier != null
                 ? new AuthController(appleVerifier, sessionTokens, userDirectory, requestValidator)
                 : null;
         if (authController == null) {
@@ -135,10 +136,11 @@ public class Main {
         }
 
         CalculationHistoryController historyController = new CalculationHistoryController(calculationStore);
+        AccountController accountController = new AccountController(calculationStore, userDirectory);
 
         Javalin app = createApp(objectMapper, meterRegistry, orchestrator,
                 calculatorRegistry, requestValidator, calculationStore,
-                authMiddleware, authController, historyController);
+                authMiddleware, authController, historyController, accountController);
 
         // ── Boot ─────────────────────────────────────────────────────────────
         app.start(port);
@@ -162,7 +164,8 @@ public class Main {
                              CalculationStore calculationStore,
                              AuthMiddleware authMiddleware,
                              AuthController authController,
-                             CalculationHistoryController historyController) {
+                             CalculationHistoryController historyController,
+                             AccountController accountController) {
         return Javalin.create(config -> {
             config.jsonMapper(new JavalinJackson(objectMapper, false));
             config.startup.showJavalinBanner = false;
@@ -225,6 +228,7 @@ public class Main {
                 authController.register(config.routes);
             }
             historyController.register(config.routes);
+            accountController.register(config.routes);
 
             config.routes.get("/actuator/health", ctx -> ctx.json(Map.of("status", "UP")));
             config.routes.get("/actuator/prometheus", ctx ->
