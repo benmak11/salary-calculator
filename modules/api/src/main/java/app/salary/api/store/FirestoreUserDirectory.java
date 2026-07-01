@@ -24,16 +24,13 @@ public class FirestoreUserDirectory implements UserDirectory {
     }
 
     @Override
-    public void upsertOnSignIn(String userId, String displayName, String email) {
+    public void upsertOnSignIn(String userId, String displayName) {
         DocumentReference ref = firestore.collection(COLLECTION).document(userId);
         Map<String, Object> patch = new HashMap<>();
         patch.put("id", userId);
         patch.put("lastSeenAt", Timestamp.now());
         if (displayName != null && !displayName.isBlank()) {
             patch.put("displayName", displayName);
-        }
-        if (email != null && !email.isBlank()) {
-            patch.put("email", email);
         }
         try {
             DocumentSnapshot existing = ref.get().get();
@@ -46,6 +43,18 @@ public class FirestoreUserDirectory implements UserDirectory {
             throw new RuntimeException("Firestore user upsert interrupted", ie);
         } catch (ExecutionException e) {
             throw new RuntimeException("Firestore user upsert failed", e);
+        }
+    }
+
+    @Override
+    public void delete(String userId) {
+        try {
+            firestore.collection(COLLECTION).document(userId).delete().get();
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Firestore user delete interrupted", ie);
+        } catch (ExecutionException e) {
+            throw new RuntimeException("Firestore user delete failed", e);
         }
     }
 

@@ -15,15 +15,14 @@ public class InMemoryUserDirectory implements UserDirectory {
     public InMemoryUserDirectory(Clock clock) { this.clock = clock; }
 
     @Override
-    public void upsertOnSignIn(String userId, String displayName, String email) {
+    public void upsertOnSignIn(String userId, String displayName) {
         users.compute(userId, (id, existing) -> {
             Instant now = clock.instant();
             if (existing == null) {
-                return new Entry(displayName, email, now, now);
+                return new Entry(displayName, now, now);
             }
             String name = (existing.displayName != null) ? existing.displayName : displayName;
-            String e = (existing.email != null) ? existing.email : email;
-            return new Entry(name, e, existing.createdAt, now);
+            return new Entry(name, existing.createdAt, now);
         });
     }
 
@@ -33,5 +32,10 @@ public class InMemoryUserDirectory implements UserDirectory {
         return (e == null || e.displayName == null) ? Optional.empty() : Optional.of(e.displayName);
     }
 
-    private record Entry(String displayName, String email, Instant createdAt, Instant lastSeenAt) {}
+    @Override
+    public void delete(String userId) {
+        users.remove(userId);
+    }
+
+    private record Entry(String displayName, Instant createdAt, Instant lastSeenAt) {}
 }

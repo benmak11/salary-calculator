@@ -123,6 +123,22 @@ public class FirestoreCalculationStore implements CalculationStore {
         }
     }
 
+    @Override
+    public int deleteAll(String userId) {
+        try {
+            List<QueryDocumentSnapshot> snaps = userCalculations(userId).get().get().getDocuments();
+            for (QueryDocumentSnapshot snap : snaps) {
+                snap.getReference().delete().get();
+            }
+            return snaps.size();
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Firestore deleteAll interrupted", ie);
+        } catch (ExecutionException e) {
+            throw new RuntimeException("Firestore deleteAll failed", e);
+        }
+    }
+
     private CollectionReference userCalculations(String userId) {
         return firestore.collection(USERS).document(userId).collection(CALCULATIONS);
     }
