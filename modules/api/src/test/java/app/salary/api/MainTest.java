@@ -85,6 +85,20 @@ class MainTest {
         JavalinTest.test(createApp(), (server, client) -> {
             var response = client.get("/v1/tax-years");
             assertEquals(200, response.code());
+            JsonNode body = new ObjectMapper().readTree(response.body().string());
+            assertEquals("US", body.get("country").asText());
+            assertEquals(2025, body.get("defaultTaxYear").asInt());
+            assertTrue(body.get("supportedTaxYears").isArray());
+        });
+    }
+
+    @Test
+    void taxYears_uppercasesCountryQueryParam() {
+        JavalinTest.test(createApp(), (server, client) -> {
+            var response = client.get("/v1/tax-years?country=uk");
+            assertEquals(200, response.code());
+            JsonNode body = new ObjectMapper().readTree(response.body().string());
+            assertEquals("UK", body.get("country").asText());
         });
     }
 

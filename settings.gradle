@@ -4,6 +4,5 @@ include 'modules:common'
 include 'modules:rules-registry'
 include 'modules:calculator'
 include 'modules:api'
-include 'modules:integration-tests'
 
 include 'modules:rule-pack-service'

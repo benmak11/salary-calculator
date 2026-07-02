@@ -17,6 +17,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -90,7 +91,7 @@ public class HttpRulePackClient implements RulePackClient {
                     URLEncoder.encode(country, StandardCharsets.UTF_8),
                     taxYear);
             Map<String, Object> metadata = getJson(latestUrl);
-            if (metadata == null) {
+            if (metadata.isEmpty()) {
                 return null;
             }
 
@@ -102,8 +103,10 @@ public class HttpRulePackClient implements RulePackClient {
             String downloadUrl = String.format("%s/v1/rule-packs/%s/download",
                     trimTrailingSlash(baseUrl),
                     URLEncoder.encode(id, StandardCharsets.UTF_8));
+            // Empty map = HTTP failure or blank body. Bail so the orchestrator falls back
+            // to the embedded classpath rules instead of caching an all-null RulePack.
             Map<String, Object> rulePackJson = getJson(downloadUrl);
-            if (rulePackJson == null) {
+            if (rulePackJson.isEmpty()) {
                 return null;
             }
 
@@ -130,7 +133,7 @@ public class HttpRulePackClient implements RulePackClient {
         HttpRequest req = builder.GET().build();
         HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         if (resp.statusCode() / 100 != 2 || resp.body() == null || resp.body().isBlank()) {
-            return null;
+            return new HashMap<>();
         }
         return objectMapper.readValue(resp.body(), JSON_MAP);
     }

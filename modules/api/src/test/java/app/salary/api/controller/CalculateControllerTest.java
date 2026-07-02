@@ -23,9 +23,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -218,8 +216,7 @@ class CalculateControllerTest {
 
             JsonNode body = MAPPER.readTree(response.body().string());
             String returnedId = body.get("calculationId").asText();
-            assertTrue(!returnedId.equals("orchestrator-id"),
-                    "Persisted id should replace the orchestrator-supplied one");
+            assertNotEquals("orchestrator-id", returnedId, "Persisted id should replace the orchestrator-supplied one");
             assertTrue(calculationStore.get("user-xyz", returnedId).isPresent(),
                     "Calculation should be in the store under the authenticated user");
         });

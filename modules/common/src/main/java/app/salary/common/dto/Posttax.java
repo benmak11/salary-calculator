@@ -21,7 +21,7 @@ public class Posttax {
     @Schema(description = "Roth 401(k) employee contribution percentage of regular wages (0-1, US only). Post-tax federally but tagged as RETIREMENT.", example = "0.02")
     private Double roth401kPercent = 0.0;
 
-    @Schema(description = "Student loan plan (UK only): PLAN1, PLAN2, or POSTGRAD", example = "PLAN2")
+    @Schema(description = "Student loan plan (UK only): PLAN1, PLAN2, or POSTGRADUATE", example = "PLAN2")
     private StudentLoanPlan studentLoanPlan;
 
 }

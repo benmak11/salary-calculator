@@ -57,9 +57,9 @@ class HttpRulePackClientTest {
         @SuppressWarnings("unchecked")
         HttpResponse<String> downloadResp = mock(HttpResponse.class);
         when(downloadResp.statusCode()).thenReturn(200);
-        // Empty object → convertValue produces an all-null RulePack which is fine
-        // for this test; we only care about caching, not the pack's contents.
-        when(downloadResp.body()).thenReturn("{}");
+        // Minimal valid pack: an empty JSON object would (correctly) be treated as a
+        // failed download, so give the pack one real field.
+        when(downloadResp.body()).thenReturn("{\"metadata\":{\"version\":\"t\"}}");
 
         // First call: returns metadata. Second call: returns download. Subsequent calls
         // would also return the download stub, but we assert they never happen.
@@ -99,6 +99,61 @@ class HttpRulePackClientTest {
         // Both calls must re-attempt the network so a transient upstream failure
         // doesn't pin the client to the classpath fallback for the cache TTL.
         verify(http, times(2)).send(any(HttpRequest.class), any());
+    }
+
+    @Test
+    void returnsEmptyAndDoesNotCacheWhenDownloadFails() throws Exception {
+        HttpClient http = mock(HttpClient.class);
+        @SuppressWarnings("unchecked")
+        HttpResponse<String> metadataResp = mock(HttpResponse.class);
+        when(metadataResp.statusCode()).thenReturn(200);
+        when(metadataResp.body()).thenReturn("{\"id\":\"pack-1\"}");
+
+        @SuppressWarnings("unchecked")
+        HttpResponse<String> downloadResp = mock(HttpResponse.class);
+        when(downloadResp.statusCode()).thenReturn(500);
+        when(downloadResp.body()).thenReturn("");
+
+        // Both attempts: metadata succeeds, download fails.
+        org.mockito.Mockito.doReturn(metadataResp, downloadResp, metadataResp, downloadResp)
+                .when(http).send(any(HttpRequest.class), any());
+
+        HttpRulePackClient client = new HttpRulePackClient(
+                http, new ObjectMapper(), BASE_URL);
+
+        var first  = client.fetchLatest("US", 2025);
+        var second = client.fetchLatest("US", 2025);
+
+        // A failed download must NOT surface as an (all-null) pack — the orchestrator
+        // needs the empty Optional to fall back to the embedded classpath rules.
+        assertFalse(first.isPresent());
+        assertFalse(second.isPresent());
+        // And it must not be cached: both invocations hit metadata + download.
+        verify(http, times(4)).send(any(HttpRequest.class), any());
+    }
+
+    @Test
+    void returnsEmptyWithoutNetworkCallWhenBaseUrlBlank() throws Exception {
+        HttpClient http = mock(HttpClient.class);
+
+        assertFalse(new HttpRulePackClient(http, new ObjectMapper(), "")
+                .fetchLatest("US", 2025).isPresent());
+        assertFalse(new HttpRulePackClient(http, new ObjectMapper(), null)
+                .fetchLatest("US", 2025).isPresent());
+
+        verify(http, times(0)).send(any(HttpRequest.class), any());
+    }
+
+    @Test
+    void returnsEmptyWhenRequestThrows() throws Exception {
+        HttpClient http = mock(HttpClient.class);
+        org.mockito.Mockito.doThrow(new java.io.IOException("connection reset"))
+                .when(http).send(any(HttpRequest.class), any());
+
+        HttpRulePackClient client = new HttpRulePackClient(
+                http, new ObjectMapper(), BASE_URL);
+
+        assertFalse(client.fetchLatest("US", 2025).isPresent());
     }
 
     @Test

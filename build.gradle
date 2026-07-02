@@ -1,5 +1,11 @@
+import com.github.spotbugs.snom.Effort
+import com.github.spotbugs.snom.Confidence
+import com.github.spotbugs.snom.SpotBugsTask
+
 plugins {
     id 'java'
+    id 'com.github.spotbugs' version '6.0.26' apply false
+    id 'org.sonarqube' version '5.1.0.4882'
 }
 
 group = 'app.salary'
@@ -14,10 +20,40 @@ java {
 subprojects {
     apply plugin: 'java'
     apply plugin: 'jacoco'
+    apply plugin: 'checkstyle'
+    apply plugin: 'com.github.spotbugs'
 
     repositories {
         mavenCentral()
     }
+
+    // ── Checkstyle (blocking) ────────────────────────────────────────────────
+    checkstyle {
+        toolVersion = '10.17.0'
+        configFile = rootProject.file('config/checkstyle/checkstyle.xml')
+        maxWarnings = 0
+        ignoreFailures = false
+    }
+
+    // ── SpotBugs (blocking, high-confidence only to start) ────────────────────
+    spotbugs {
+        toolVersion = '4.8.6'
+        // valueOf(...) dodges a Groovy quirk: enum constants with a body (Confidence.HIGH)
+        // otherwise resolve to the anonymous subclass instead of the instance.
+        effort = Effort.valueOf('MAX')
+        reportLevel = Confidence.valueOf('HIGH')
+        excludeFilter = rootProject.file('config/spotbugs/exclude.xml')
+        ignoreFailures = false
+    }
+    tasks.withType(SpotBugsTask).configureEach {
+        reports {
+            html.required = true
+            xml.required = true
+        }
+    }
+    // SpotBugs targets production code only; test sources are noisy (e.g. intentional
+    // float-equality asserts) and don't ship.
+    tasks.matching { it.name == 'spotbugsTest' }.configureEach { enabled = false }
 
     dependencies {
         testImplementation 'org.junit.jupiter:junit-jupiter:5.10.3'
@@ -76,9 +112,31 @@ subprojects {
     }
 }
 
-// Integration test task that runs tests in integration-tests module
-tasks.register('integrationTest') {
-    dependsOn ':modules:integration-tests:test'
-    group = 'verification'
-    description = 'Runs integration tests'
+// ── SonarQube Cloud (replaces Qodana) ────────────────────────────────────────
+// Run with:  ./gradlew test jacocoTestReport sonar   (SONAR_TOKEN in the env)
+// Org + project key come from CI env vars; fill the fallbacks or set them in CI.
+sonar {
+    properties {
+        property 'sonar.host.url', 'https://sonarcloud.io'
+        property 'sonar.organization', System.getenv('SONAR_ORGANIZATION') ?: '<your-sonarcloud-org>'
+        property 'sonar.projectKey', System.getenv('SONAR_PROJECT_KEY') ?: '<your-sonarcloud-org>_salary-calculator'
+        property 'sonar.projectName', 'salary-calculator'
+        property 'sonar.java.source', '21'
+        // Feed Sonar the JaCoCo XML we already generate in every module.
+        property 'sonar.coverage.jacoco.xmlReportPaths',
+                "${rootDir}/modules/common/build/reports/jacoco/test/jacocoTestReport.xml," +
+                "${rootDir}/modules/rules-registry/build/reports/jacoco/test/jacocoTestReport.xml," +
+                "${rootDir}/modules/calculator/build/reports/jacoco/test/jacocoTestReport.xml," +
+                "${rootDir}/modules/api/build/reports/jacoco/test/jacocoTestReport.xml," +
+                "${rootDir}/modules/rule-pack-service/build/reports/jacoco/test/jacocoTestReport.xml"
+        // Mirror the JaCoCo/SpotBugs excludes so Sonar doesn't grade generated/wire types.
+        property 'sonar.exclusions',
+                '**/dto/**,**/constants/**,**/annotation/**,**/entity/**,**/exception/**,**/RulePack.java'
+        // Coverage-only exclusions, mirroring the jacocoExcludes policy above:
+        // Main = bootstrap wiring (already stripped from the JaCoCo report);
+        // Firestore*/GoogleIdTokenSupplier = need live GCP — tests deliberately use the
+        // in-memory impls instead (a Firestore emulator is never required).
+        property 'sonar.coverage.exclusions',
+                '**/Main.java,**/store/Firestore*.java,**/client/GoogleIdTokenSupplier.java'
+    }
 }

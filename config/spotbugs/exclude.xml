@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SpotBugs exclusions. Mirrors the JaCoCo excludes in build.gradle: data/wire types
+  and Lombok-generated members produce noisy, low-value findings, so they're skipped.
+-->
+<FindBugsFilter>
+    <!-- DTOs / wire types (mostly Lombok-generated getters/setters/equals). -->
+    <Match><Class name="~.*\.dto\..*"/></Match>
+    <Match><Class name="~.*\.constants\..*"/></Match>
+    <Match><Class name="~.*\.annotation\..*"/></Match>
+    <Match><Class name="~.*\.entity\..*"/></Match>
+
+    <!-- Exposing internal representations is expected for our simple DTO/record graph. -->
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2,EI_EXPOSE_STATIC_REP2"/>
+    </Match>
+
+    <!-- Generated / bootstrap code we don't hand-maintain. -->
+    <Match><Class name="~.*\.RulePack(\$.*)?"/></Match>
+</FindBugsFilter>
