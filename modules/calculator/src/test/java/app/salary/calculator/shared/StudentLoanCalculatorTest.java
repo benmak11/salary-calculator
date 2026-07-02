@@ -41,9 +41,9 @@ class StudentLoanCalculatorTest {
     @Test
     void calculateRepayment_withMissingPlanRules_shouldReturnZero() {
         RulePack rules = createRulesWithStudentLoans();
-        // POSTGRAD not in our test data
+        // POSTGRADUATE not in our test data
 
-        double result = calculator.calculateRepayment(StudentLoanPlan.POSTGRAD, 50000.0, rules);
+        double result = calculator.calculateRepayment(StudentLoanPlan.POSTGRADUATE, 50000.0, rules);
 
         assertEquals(0.0, result, 0.01);
     }

@@ -52,6 +52,10 @@ class AuthControllerTest {
             return Optional.ofNullable(displayName);
         }
 
+        /**
+         * Placeholder override method from @UserDirectory interface. Not used in this test.
+         * @param userId - userId
+         */
         @Override
         public void delete(String userId) { }
     }

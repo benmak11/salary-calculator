@@ -71,7 +71,7 @@ public class FirestoreCalculationStore implements CalculationStore {
 
     @Override
     public CalculationListResponse list(String userId, int limit, String cursor) {
-        int safeLimit = Math.max(1, Math.min(limit, 100));
+        int safeLimit = Math.clamp(limit, 1, 100);
         Query q = userCalculations(userId)
                 .orderBy("createdAt", Query.Direction.DESCENDING)
                 .limit(safeLimit);

@@ -21,6 +21,8 @@ public class CalculationHistoryController {
 
     private final CalculationStore store;
 
+    private final String USER_ID = "user_id";
+
     public CalculationHistoryController(CalculationStore store) {
         this.store = store;
     }
@@ -37,7 +39,7 @@ public class CalculationHistoryController {
             unauthorized(ctx);
             return;
         }
-        MDC.put("user_id", userId.get());
+        MDC.put(USER_ID, userId.get());
         int limit = ctx.queryParamAsClass("limit", Integer.class).getOrDefault(DEFAULT_LIMIT);
         String cursor = ctx.queryParam("cursor");
         CalculationListResponse response = store.list(userId.get(), limit, cursor);
@@ -51,7 +53,7 @@ public class CalculationHistoryController {
             unauthorized(ctx);
             return;
         }
-        MDC.put("user_id", userId.get());
+        MDC.put(USER_ID, userId.get());
         String calcId = ctx.pathParam("id");
         Optional<SavedCalculationDetail> detail = store.get(userId.get(), calcId);
         if (detail.isEmpty()) {
@@ -67,7 +69,7 @@ public class CalculationHistoryController {
             unauthorized(ctx);
             return;
         }
-        MDC.put("user_id", userId.get());
+        MDC.put(USER_ID, userId.get());
         String calcId = ctx.pathParam("id");
         boolean removed = store.delete(userId.get(), calcId);
         if (!removed) {

@@ -67,13 +67,14 @@ public class Main {
     private static final String REQUEST_ID_HEADER = "X-Request-Id";
     private static final String MDC_REQUEST_ID    = "request_id";
     private static final String ATTR_START_NANOS  = "_start_nanos";
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     public static void main(String[] args) {
-        int port = Env.intValue("SERVER_PORT", 8080);
+        int port = Env.intValue();
         String rulePackServiceUrl = Env.stringValue("RULE_PACK_SERVICE_URL", "");
         String rulePackAudience = Env.stringValue("RULE_PACK_AUDIENCE", "");
         String projectId = Env.stringValue("GCP_PROJECT_ID", "salary-calculator-dev");
-        boolean enableGcp = Env.boolValue("ENABLE_GCP", detectGcpAvailable());
+        boolean enableGcp = Env.boolValue(detectGcpAvailable());
         String appleAudience = Env.stringValue("APPLE_AUDIENCE", "");
         String sessionSecretEnv = Env.stringValue("SESSION_JWT_SECRET", "");
 
@@ -170,9 +171,9 @@ public class Main {
             config.jsonMapper(new JavalinJackson(objectMapper, false));
             config.startup.showJavalinBanner = false;
             config.concurrency.useVirtualThreads = true;
-            config.registerPlugin(new MicrometerPlugin(micrometerCfg -> {
-                micrometerCfg.registry = meterRegistry;
-            }));
+            config.registerPlugin(new MicrometerPlugin(micrometerCfg ->
+                    micrometerCfg.registry = meterRegistry
+            ));
 
             config.routes.before(ctx -> {
                 String requestId = ctx.header(REQUEST_ID_HEADER);
@@ -252,7 +253,7 @@ public class Main {
         byte[] secret;
         if (secretEnv.isBlank()) {
             secret = new byte[32];
-            new SecureRandom().nextBytes(secret);
+            SECURE_RANDOM.nextBytes(secret);
             log.warn("SESSION_JWT_SECRET not set — generated an ephemeral 32-byte secret. "
                     + "All sessions will be invalidated on restart. Set SESSION_JWT_SECRET in production.");
             return new SessionTokenService(secret);
@@ -271,8 +272,8 @@ public class Main {
     }
 
     private static boolean detectGcpAvailable() {
-        return Env.stringValue("GOOGLE_APPLICATION_CREDENTIALS", "").length() > 0
-                || Env.stringValue("GOOGLE_CLOUD_PROJECT", "").length() > 0;
+        return !Env.stringValue("GOOGLE_APPLICATION_CREDENTIALS", "").isEmpty()
+                || !Env.stringValue("GOOGLE_CLOUD_PROJECT", "").isEmpty();
     }
 
     private static ObjectMapper buildObjectMapper() {
@@ -281,7 +282,7 @@ public class Main {
         mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         mapper.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
         mapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
-        mapper.setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL);
+        mapper.setDefaultPropertyInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL);
         return mapper;
     }
 
@@ -292,18 +293,18 @@ public class Main {
             return (v == null || v.isBlank()) ? defaultValue : v;
         }
 
-        static int intValue(String key, int defaultValue) {
-            String v = System.getenv(key);
-            if (v == null || v.isBlank()) return defaultValue;
+        static int intValue() {
+            String v = System.getenv("SERVER_PORT");
+            if (v == null || v.isBlank()) return 8080;
             try {
                 return Integer.parseInt(v.trim());
             } catch (NumberFormatException nfe) {
-                return defaultValue;
+                return 8080;
             }
         }
 
-        static boolean boolValue(String key, boolean defaultValue) {
-            String v = System.getenv(key);
+        static boolean boolValue(boolean defaultValue) {
+            String v = System.getenv("ENABLE_GCP");
             if (v == null || v.isBlank()) return defaultValue;
             return "true".equalsIgnoreCase(v.trim()) || "1".equals(v.trim());
         }

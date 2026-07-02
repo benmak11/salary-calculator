@@ -28,6 +28,8 @@ public class CalculateController {
     private final RequestValidator validator;
     private final CalculationStore calculationStore;
 
+    private final String COUNTRY = "country";
+
     public CalculateController(CalculationOrchestrator orchestrator,
                                CalculatorRegistry calculatorRegistry,
                                RequestValidator validator,
@@ -49,7 +51,7 @@ public class CalculateController {
         CalculateRequest request = ctx.bodyAsClass(CalculateRequest.class);
         validator.validate(request);
 
-        if (request.getCountry() != null) MDC.put("country", String.valueOf(request.getCountry()));
+        if (request.getCountry() != null) MDC.put(COUNTRY, String.valueOf(request.getCountry()));
         if (request.getCountryOptions() != null
                 && request.getCountryOptions().getUs() != null
                 && request.getCountryOptions().getUs().getState() != null) {
@@ -58,8 +60,8 @@ public class CalculateController {
 
         boolean hasBonus  = request.getBonus() != null && request.getBonus() > 0;
         boolean hasHourly = request.getEarnings() != null && request.getEarnings().getHourly() != null;
-        log.info("calculate: country={} taxYear={} cadence={} hasBonus={} hasHourly={}",
-                request.getCountry(), request.getTaxYear(), request.getCadence(), hasBonus, hasHourly);
+        log.info("calculate: {}={} taxYear={} cadence={} hasBonus={} hasHourly={}",
+                COUNTRY, request.getCountry(), request.getTaxYear(), request.getCadence(), hasBonus, hasHourly);
 
         CalculateResponse response = orchestrator.calculate(request);
 
@@ -117,10 +119,10 @@ public class CalculateController {
     }
 
     private void getSupportedTaxYears(Context ctx) {
-        String country = ctx.queryParamAsClass("country", String.class).getOrDefault("US");
+        String country = ctx.queryParamAsClass(COUNTRY, String.class).getOrDefault("US");
         List<Integer> taxYears = List.of(2025);
         Map<String, Object> response = new LinkedHashMap<>();
-        response.put("country", country.toUpperCase());
+        response.put(COUNTRY, country.toUpperCase());
         response.put("supportedTaxYears", taxYears);
         response.put("defaultTaxYear", taxYears.getFirst());
         ctx.json(response);

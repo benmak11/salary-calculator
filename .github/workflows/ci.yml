@@ -56,11 +56,51 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    - name: Check code formatting
-      run: ./gradlew checkstyleMain checkstyleTest || true
+    - name: Checkstyle + SpotBugs (blocking)
+      run: ./gradlew checkstyleMain checkstyleTest spotbugsMain
 
-    - name: Run static analysis
-      run: ./gradlew check -x test
+    - name: Upload static-analysis reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: static-analysis-reports
+        path: |
+          **/build/reports/checkstyle/
+          **/build/reports/spotbugs/
+
+  sonar:
+    name: SonarQube Cloud
+    runs-on: ubuntu-latest
+    # Guarded so CI stays green until SonarCloud is set up (see notes below).
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0   # full history: accurate new-code detection + blame
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
+    - name: Tests + coverage + Sonar analysis
+      if: ${{ env.SONAR_TOKEN != '' }}
+      env:
+        SONAR_ORGANIZATION: ${{ secrets.SONAR_ORGANIZATION }}
+        SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
+      run: ./gradlew test jacocoTestReport sonar
+
+    - name: Skip notice
+      if: ${{ env.SONAR_TOKEN == '' }}
+      run: echo "SONAR_TOKEN not set — skipping SonarQube Cloud analysis. See CI setup notes to enable."
 
   build-docker:
     name: Build Docker Image
