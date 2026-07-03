@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -114,13 +115,17 @@ public class HttpRulePackClient implements RulePackClient {
             RulePack rulePack = objectMapper.convertValue(rulePackJson, RulePack.class);
             log.debug("Fetched rule pack from rule-pack-service: {} {}", country, taxYear);
             return rulePack;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Interrupted while fetching rule pack from rule-pack-service for {} {}", country, taxYear);
+            return null;
         } catch (Exception e) {
             log.warn("Failed to fetch rule pack from rule-pack-service for {} {}: {}", country, taxYear, e.getMessage());
             return null;
         }
     }
 
-    private Map<String, Object> getJson(String url) throws Exception {
+    private Map<String, Object> getJson(String url) throws IOException, InterruptedException {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
                 .timeout(REQUEST_TIMEOUT)
                 .header("Accept", "application/json");

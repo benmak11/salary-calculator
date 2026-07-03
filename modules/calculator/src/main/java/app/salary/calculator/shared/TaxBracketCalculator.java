@@ -12,16 +12,12 @@ public class TaxBracketCalculator {
         double previousThreshold = 0.0;
 
         for (RulePack.TaxBracket bracket : brackets) {
-            if (bracket.getUpTo() == null) {
-                tax += (income - previousThreshold) * bracket.getRate();
-                break;
-            } else if (income > bracket.getUpTo()) {
-                tax += (bracket.getUpTo() - previousThreshold) * bracket.getRate();
-                previousThreshold = bracket.getUpTo();
-            } else {
+            if (bracket.getUpTo() == null || income <= bracket.getUpTo()) {
                 tax += (income - previousThreshold) * bracket.getRate();
                 break;
             }
+            tax += (bracket.getUpTo() - previousThreshold) * bracket.getRate();
+            previousThreshold = bracket.getUpTo();
         }
         return tax;
     }
@@ -31,28 +27,22 @@ public class TaxBracketCalculator {
         double remainingIncome = income;
         double previousThreshold = 0.0;
 
-        for (int i = 0; i < brackets.size(); i++) {
+        for (int i = 0; i < brackets.size() && remainingIncome > 0; i++) {
             RulePack.TaxBracket bracket = brackets.get(i);
+            Double upTo = bracket.getUpTo();
+            double taxableInBand = upTo == null
+                    ? remainingIncome
+                    : Math.min(remainingIncome, upTo - previousThreshold);
 
-            if (bracket.getUpTo() == null) {
-                if (remainingIncome > 0) {
-                    double taxInBand = remainingIncome * bracket.getRate();
-                    breakdown.addBand(i, remainingIncome, bracket.getRate(), taxInBand);
-                }
-                break;
-            } else {
-                double bandWidth = bracket.getUpTo() - previousThreshold;
-                double taxableInBand = Math.min(remainingIncome, bandWidth);
-
-                if (taxableInBand > 0) {
-                    double taxInBand = taxableInBand * bracket.getRate();
-                    breakdown.addBand(i, taxableInBand, bracket.getRate(), taxInBand);
-                    remainingIncome -= taxableInBand;
-                }
-
-                previousThreshold = bracket.getUpTo();
-                if (remainingIncome <= 0) break;
+            if (taxableInBand > 0) {
+                breakdown.addBand(i, taxableInBand, bracket.getRate(), taxableInBand * bracket.getRate());
+                remainingIncome -= taxableInBand;
             }
+
+            if (upTo == null) {
+                break;
+            }
+            previousThreshold = upTo;
         }
         return breakdown;
     }

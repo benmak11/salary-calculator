@@ -4,6 +4,8 @@ import app.salary.common.constants.StudentLoanPlan;
 import app.salary.rules.RulePack;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -38,78 +40,23 @@ class StudentLoanCalculatorTest {
         assertEquals(0.0, result, 0.01);
     }
 
-    @Test
-    void calculateRepayment_withMissingPlanRules_shouldReturnZero() {
-        RulePack rules = createRulesWithStudentLoans();
-        // POSTGRADUATE not in our test data
-
-        double result = calculator.calculateRepayment(StudentLoanPlan.POSTGRADUATE, 50000.0, rules);
-
-        assertEquals(0.0, result, 0.01);
-    }
-
-    @Test
-    void calculateRepayment_withIncomeBelowThreshold_shouldReturnZero() {
-        RulePack rules = createRulesWithStudentLoans();
-
-        // Plan 2 threshold is 27295, income is 25000
-        double result = calculator.calculateRepayment(StudentLoanPlan.PLAN2, 25000.0, rules);
-
-        assertEquals(0.0, result, 0.01);
-    }
-
-    @Test
-    void calculateRepayment_withIncomeAtThreshold_shouldReturnZero() {
+    @ParameterizedTest(name = "{0} on income {1} -> repayment {2}")
+    @CsvSource({
+            // Plan 1 threshold: 22015, Plan 2 threshold: 27295, rate 9% above threshold
+            "POSTGRADUATE,  50000.0,     0.0", // plan not in rule pack
+            "PLAN2,         25000.0,     0.0", // below threshold
+            "PLAN2,         27295.0,     0.0", // exactly at threshold
+            "PLAN2,         30000.0,   243.45", // just above: (30000 - 27295) * 0.09
+            "PLAN2,         50000.0,  2043.45", // (50000 - 27295) * 0.09
+            "PLAN2,        100000.0,  6543.45", // high income: (100000 - 27295) * 0.09
+            "PLAN1,         50000.0,  2518.65", // (50000 - 22015) * 0.09
+    })
+    void calculateRepayment_shouldApplyRateToIncomeAboveThreshold(StudentLoanPlan plan, double income, double expected) {
         RulePack rules = createRulesWithStudentLoans();
 
-        // Plan 2 threshold is 27295
-        double result = calculator.calculateRepayment(StudentLoanPlan.PLAN2, 27295.0, rules);
+        double result = calculator.calculateRepayment(plan, income, rules);
 
-        assertEquals(0.0, result, 0.01);
-    }
-
-    @Test
-    void calculateRepayment_plan2_withIncomeAboveThreshold_shouldCalculateCorrectly() {
-        RulePack rules = createRulesWithStudentLoans();
-
-        // Income: 50000, Threshold: 27295, Rate: 9%
-        // Repayment: (50000 - 27295) * 0.09 = 2043.45
-        double result = calculator.calculateRepayment(StudentLoanPlan.PLAN2, 50000.0, rules);
-
-        assertEquals(2043.45, result, 0.01);
-    }
-
-    @Test
-    void calculateRepayment_plan1_withIncomeAboveThreshold_shouldCalculateCorrectly() {
-        RulePack rules = createRulesWithStudentLoans();
-
-        // Income: 50000, Threshold: 22015, Rate: 9%
-        // Repayment: (50000 - 22015) * 0.09 = 2518.65
-        double result = calculator.calculateRepayment(StudentLoanPlan.PLAN1, 50000.0, rules);
-
-        assertEquals(2518.65, result, 0.01);
-    }
-
-    @Test
-    void calculateRepayment_withHighIncome_shouldCalculateCorrectly() {
-        RulePack rules = createRulesWithStudentLoans();
-
-        // Income: 100000, Threshold: 27295, Rate: 9%
-        // Repayment: (100000 - 27295) * 0.09 = 6543.45
-        double result = calculator.calculateRepayment(StudentLoanPlan.PLAN2, 100000.0, rules);
-
-        assertEquals(6543.45, result, 0.01);
-    }
-
-    @Test
-    void calculateRepayment_withIncomeJustAboveThreshold_shouldCalculateCorrectly() {
-        RulePack rules = createRulesWithStudentLoans();
-
-        // Income: 30000, Threshold: 27295, Rate: 9%
-        // Repayment: (30000 - 27295) * 0.09 = 243.45
-        double result = calculator.calculateRepayment(StudentLoanPlan.PLAN2, 30000.0, rules);
-
-        assertEquals(243.45, result, 0.01);
+        assertEquals(expected, result, 0.01);
     }
 
     private RulePack createRulesWithStudentLoans() {

@@ -4,6 +4,8 @@ import app.salary.common.dto.Posttax;
 import app.salary.common.dto.Pretax;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -173,34 +175,19 @@ class DeductionCalculatorTest {
         assertEquals(0.0, result, 0.01);
     }
 
-    @Test
-    void calculatePensionContribution_withZeroPensionPercent_shouldReturnZero() {
+    @ParameterizedTest(name = "pensionPercent {0} of gross {1} -> {2}")
+    @CsvSource({
+            "0.0,   50000.0,      0.0", // zero percent
+            "0.05,  50000.0,   2500.0", // 5%
+            "0.15, 100000.0,  15000.0", // 15%
+    })
+    void calculatePensionContribution_shouldMultiplyPercentByGross(double percent, double gross, double expected) {
         Pretax pretax = new Pretax();
-        pretax.setPensionPercent(0.0);
+        pretax.setPensionPercent(percent);
 
-        double result = calculator.calculatePensionContribution(pretax, 50000.0);
+        double result = calculator.calculatePensionContribution(pretax, gross);
 
-        assertEquals(0.0, result, 0.01);
-    }
-
-    @Test
-    void calculatePensionContribution_withValidPensionPercent_shouldCalculateCorrectly() {
-        Pretax pretax = new Pretax();
-        pretax.setPensionPercent(0.05); // 5%
-
-        double result = calculator.calculatePensionContribution(pretax, 50000.0);
-
-        assertEquals(2500.0, result, 0.01);
-    }
-
-    @Test
-    void calculatePensionContribution_withHighPensionPercent_shouldCalculateCorrectly() {
-        Pretax pretax = new Pretax();
-        pretax.setPensionPercent(0.15); // 15%
-
-        double result = calculator.calculatePensionContribution(pretax, 100000.0);
-
-        assertEquals(15000.0, result, 0.01);
+        assertEquals(expected, result, 0.01);
     }
 
     // ── Roth 401(k) — post-tax retirement on regular wages only ─────────────────
@@ -218,29 +205,20 @@ class DeductionCalculatorTest {
         assertEquals(0.0, result, 0.01);
     }
 
-    @Test
-    void calculateRoth401k_withZeroPercent_shouldReturnZero() {
+    @ParameterizedTest(name = "roth401kPercent {0} of regular wages {1} -> {2}")
+    @CsvSource({
+            "0.0,  100000.0,     0.0", // zero percent
+            "0.04, 100000.0,  4000.0", // 4%
+            // Caller is responsible for passing regular wages excluding supplemental;
+            // the calculator just multiplies whatever it's given (80k regular, NOT 100k gross).
+            "0.05,  80000.0,  4000.0",
+    })
+    void calculateRoth401k_shouldMultiplyPercentByRegularWages(double percent, double regularWages, double expected) {
         Posttax posttax = new Posttax();
-        posttax.setRoth401kPercent(0.0);
-        double result = calculator.calculateRoth401k(posttax, 100000.0);
-        assertEquals(0.0, result, 0.01);
-    }
+        posttax.setRoth401kPercent(percent);
 
-    @Test
-    void calculateRoth401k_withValidPercent_shouldComputeAgainstRegularWages() {
-        Posttax posttax = new Posttax();
-        posttax.setRoth401kPercent(0.04); // 4%
-        double result = calculator.calculateRoth401k(posttax, 100000.0);
-        assertEquals(4000.0, result, 0.01);
-    }
+        double result = calculator.calculateRoth401k(posttax, regularWages);
 
-    @Test
-    void calculateRoth401k_ignoresBonusInRegularWagesArg() {
-        // Caller is responsible for passing regular wages excluding supplemental.
-        // This test documents that the calculator just multiplies whatever it's given.
-        Posttax posttax = new Posttax();
-        posttax.setRoth401kPercent(0.05);
-        double result = calculator.calculateRoth401k(posttax, 80000.0); // regular wages, NOT 100k gross
-        assertEquals(4000.0, result, 0.01);
+        assertEquals(expected, result, 0.01);
     }
 }

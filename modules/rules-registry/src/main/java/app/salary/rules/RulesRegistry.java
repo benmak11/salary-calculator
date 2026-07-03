@@ -48,12 +48,12 @@ public class RulesRegistry {
                     fileName, taxYear, country
                 );
                 log.error(errorMsg);
-                throw new RuntimeException(errorMsg);
+                throw new RulePackLoadException(errorMsg);
             }
             return objectMapper.readValue(is, RulePack.class);
         } catch (IOException io) {
             log.error("Failed to load rule pack: {}", fileName, io);
-            throw new RuntimeException("Failed to load rule pack: " + fileName, io);
+            throw new RulePackLoadException("Failed to load rule pack: " + fileName, io);
         }
     }
 
