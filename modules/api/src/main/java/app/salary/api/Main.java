@@ -158,6 +158,7 @@ public class Main {
      * Builds the Javalin app with all routes, exception handlers, and observability endpoints
      * wired in. Extracted so tests can boot the same app shape via {@code JavalinTest.test(...)}.
      */
+    @SuppressWarnings("java:S107") // hand-wired DI: every collaborator is passed explicitly by design
     static Javalin createApp(ObjectMapper objectMapper,
                              PrometheusMeterRegistry meterRegistry,
                              CalculationOrchestrator orchestrator,

@@ -57,12 +57,12 @@ class RulesRegistryTest {
 
     @Test
     void getRulePack_withInvalidCountry_shouldThrowException() {
-        assertThrows(RuntimeException.class, () -> registry.getRulePack("XX", 2025));
+        assertThrows(RulePackLoadException.class, () -> registry.getRulePack("XX", 2025));
     }
 
     @Test
     void getRulePack_withInvalidYear_shouldThrowException() {
-        assertThrows(RuntimeException.class, () -> registry.getRulePack("UK", 1990));
+        assertThrows(RulePackLoadException.class, () -> registry.getRulePack("UK", 1990));
     }
 
     @Test

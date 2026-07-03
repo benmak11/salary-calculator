@@ -4,53 +4,25 @@ import app.salary.common.dto.NamedDeduction;
 import app.salary.common.dto.Posttax;
 import app.salary.common.dto.Pretax;
 
+import java.util.List;
+
 public class DeductionCalculator {
 
     /**
      * Returns the combined total of ALL pre-tax deductions (including benefits and custom items).
-     * Used for net-pay arithmetic in calculators.
+     * Used for net-pay arithmetic in calculators. Equals the generic catch-all total plus every
+     * named line item (pension, benefit premiums, FSAs, custom deductions).
      */
     public double calculatePretaxDeductions(Pretax pretax, double grossIncome) {
         if (pretax == null) return 0.0;
-
-        double deductions = 0.0;
-        if (pretax.getPercent() != null && pretax.getPercent() > 0) {
-            deductions += grossIncome * pretax.getPercent();
-        }
-        if (pretax.getFixed() != null && pretax.getFixed() > 0) {
-            deductions += pretax.getFixed();
-        }
-        if (pretax.getHsa() != null && pretax.getHsa() > 0) {
-            deductions += pretax.getHsa();
-        }
-        if (pretax.getPensionPercent() != null && pretax.getPensionPercent() > 0) {
-            deductions += grossIncome * pretax.getPensionPercent();
-        }
-        // Individual benefit premiums
-        if (pretax.getMedical() != null && pretax.getMedical() > 0) {
-            deductions += pretax.getMedical();
-        }
-        if (pretax.getDental() != null && pretax.getDental() > 0) {
-            deductions += pretax.getDental();
-        }
-        if (pretax.getVision() != null && pretax.getVision() > 0) {
-            deductions += pretax.getVision();
-        }
-        if (pretax.getHealthcareFsa() != null && pretax.getHealthcareFsa() > 0) {
-            deductions += pretax.getHealthcareFsa();
-        }
-        if (pretax.getDependentCareFsa() != null && pretax.getDependentCareFsa() > 0) {
-            deductions += pretax.getDependentCareFsa();
-        }
-        // Named custom deductions
-        if (pretax.getCustomDeductions() != null) {
-            for (NamedDeduction nd : pretax.getCustomDeductions()) {
-                if (nd.getAmount() != null && nd.getAmount() > 0) {
-                    deductions += nd.getAmount();
-                }
-            }
-        }
-        return deductions;
+        return calculateGenericPretaxDeductions(pretax, grossIncome)
+                + calculatePensionContribution(pretax, grossIncome)
+                + positiveOrZero(pretax.getMedical())
+                + positiveOrZero(pretax.getDental())
+                + positiveOrZero(pretax.getVision())
+                + positiveOrZero(pretax.getHealthcareFsa())
+                + positiveOrZero(pretax.getDependentCareFsa())
+                + customDeductionsTotal(pretax.getCustomDeductions());
     }
 
     public double calculatePosttaxDeductions(Posttax posttax) {
@@ -65,17 +37,12 @@ public class DeductionCalculator {
      */
     public double calculateRoth401k(Posttax posttax, double regularWagesAnnual) {
         if (posttax == null) return 0.0;
-        Double pct = posttax.getRoth401kPercent();
-        if (pct == null || pct <= 0) return 0.0;
-        return regularWagesAnnual * pct;
+        return regularWagesAnnual * positiveOrZero(posttax.getRoth401kPercent());
     }
 
     public double calculatePensionContribution(Pretax pretax, double grossIncome) {
         if (pretax == null) return 0.0;
-        if (pretax.getPensionPercent() != null && pretax.getPensionPercent() > 0) {
-            return grossIncome * pretax.getPensionPercent();
-        }
-        return 0.0;
+        return grossIncome * positiveOrZero(pretax.getPensionPercent());
     }
 
     /**
@@ -85,16 +52,22 @@ public class DeductionCalculator {
      */
     public double calculateGenericPretaxDeductions(Pretax pretax, double grossIncome) {
         if (pretax == null) return 0.0;
-        double deductions = 0.0;
-        if (pretax.getPercent() != null && pretax.getPercent() > 0) {
-            deductions += grossIncome * pretax.getPercent();
+        return grossIncome * positiveOrZero(pretax.getPercent())
+                + positiveOrZero(pretax.getFixed())
+                + positiveOrZero(pretax.getHsa());
+    }
+
+    private static double customDeductionsTotal(List<NamedDeduction> customDeductions) {
+        if (customDeductions == null) return 0.0;
+        double total = 0.0;
+        for (NamedDeduction nd : customDeductions) {
+            total += positiveOrZero(nd.getAmount());
         }
-        if (pretax.getFixed() != null && pretax.getFixed() > 0) {
-            deductions += pretax.getFixed();
-        }
-        if (pretax.getHsa() != null && pretax.getHsa() > 0) {
-            deductions += pretax.getHsa();
-        }
-        return deductions;
+        return total;
+    }
+
+    /** Treats null and non-positive values as "not provided". */
+    private static double positiveOrZero(Double value) {
+        return value != null && value > 0 ? value : 0.0;
     }
 }
