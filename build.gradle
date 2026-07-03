@@ -134,9 +134,9 @@ sonar {
                 '**/dto/**,**/constants/**,**/annotation/**,**/entity/**,**/exception/**,**/RulePack.java'
         // Coverage-only exclusions, mirroring the jacocoExcludes policy above:
         // Main = bootstrap wiring (already stripped from the JaCoCo report);
-        // Firestore*/GoogleIdTokenSupplier = need live GCP — tests deliberately use the
-        // in-memory impls instead (a Firestore emulator is never required).
+        // Firestore*/GoogleIdTokenSupplier/repository = need live GCP — tests deliberately
+        // use the in-memory impls or mocks instead (a Firestore emulator is never required).
         property 'sonar.coverage.exclusions',
-                '**/Main.java,**/store/Firestore*.java,**/client/GoogleIdTokenSupplier.java'
+                '**/Main.java,**/store/Firestore*.java,**/client/GoogleIdTokenSupplier.java,**/repository/**'
     }
 }

@@ -66,6 +66,17 @@ class RulesRegistryTest {
     }
 
     @Test
+    void rulePackLoadException_preservesMessageAndCause() {
+        // The cause-carrying constructor guards the IOException path in loadRulePack,
+        // which valid classpath rule packs can't trigger — covered directly instead.
+        var cause = new java.io.IOException("bad json");
+        var ex = new RulePackLoadException("Failed to load rule pack: /rulepacks/UK-2025.json", cause);
+
+        assertEquals("Failed to load rule pack: /rulepacks/UK-2025.json", ex.getMessage());
+        assertEquals(cause, ex.getCause());
+    }
+
+    @Test
     void clearCache_shouldNotThrowAndRegistryShouldRemainUsable() {
         registry.getRulePack("UK", 2025);
         assertDoesNotThrow(() -> registry.clearCache());
