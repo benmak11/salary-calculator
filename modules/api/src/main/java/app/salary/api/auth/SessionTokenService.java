@@ -9,7 +9,6 @@ import com.auth0.jwt.interfaces.DecodedJWT;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Date;
 import java.util.Optional;
 
 /**
@@ -49,8 +48,8 @@ public class SessionTokenService {
         String token = JWT.create()
                 .withIssuer(ISSUER)
                 .withSubject(userId)
-                .withIssuedAt(Date.from(now))
-                .withExpiresAt(Date.from(expiry))
+                .withIssuedAt(now)
+                .withExpiresAt(expiry)
                 .sign(algorithm);
         return new IssuedSession(token, expiry);
     }

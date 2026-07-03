@@ -2,6 +2,7 @@ package app.salary.api.controller;
 
 import app.salary.api.auth.AuthMiddleware;
 import app.salary.api.store.CalculationStore;
+import app.salary.common.constants.ApiConstants;
 import app.salary.common.dto.CalculationListResponse;
 import app.salary.common.dto.SavedCalculationDetail;
 import io.javalin.config.RoutesConfig;
@@ -21,8 +22,6 @@ public class CalculationHistoryController {
 
     private final CalculationStore store;
 
-    private final String USER_ID = "user_id";
-
     public CalculationHistoryController(CalculationStore store) {
         this.store = store;
     }
@@ -39,7 +38,7 @@ public class CalculationHistoryController {
             unauthorized(ctx);
             return;
         }
-        MDC.put(USER_ID, userId.get());
+        MDC.put(ApiConstants.MDC_USER_ID, userId.get());
         int limit = ctx.queryParamAsClass("limit", Integer.class).getOrDefault(DEFAULT_LIMIT);
         String cursor = ctx.queryParam("cursor");
         CalculationListResponse response = store.list(userId.get(), limit, cursor);
@@ -53,11 +52,11 @@ public class CalculationHistoryController {
             unauthorized(ctx);
             return;
         }
-        MDC.put(USER_ID, userId.get());
+        MDC.put(ApiConstants.MDC_USER_ID, userId.get());
         String calcId = ctx.pathParam("id");
         Optional<SavedCalculationDetail> detail = store.get(userId.get(), calcId);
         if (detail.isEmpty()) {
-            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("error", "Not found"));
+            ctx.status(HttpStatus.NOT_FOUND).json(Map.of(ApiConstants.ERROR, "Not found"));
             return;
         }
         ctx.json(detail.get());
@@ -69,11 +68,11 @@ public class CalculationHistoryController {
             unauthorized(ctx);
             return;
         }
-        MDC.put(USER_ID, userId.get());
+        MDC.put(ApiConstants.MDC_USER_ID, userId.get());
         String calcId = ctx.pathParam("id");
         boolean removed = store.delete(userId.get(), calcId);
         if (!removed) {
-            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("error", "Not found"));
+            ctx.status(HttpStatus.NOT_FOUND).json(Map.of(ApiConstants.ERROR, "Not found"));
             return;
         }
         log.info("history delete: id={}", calcId);
@@ -81,6 +80,6 @@ public class CalculationHistoryController {
     }
 
     private void unauthorized(Context ctx) {
-        ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("error", "Authentication required"));
+        ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of(ApiConstants.ERROR, "Authentication required"));
     }
 }

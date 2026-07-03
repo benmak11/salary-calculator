@@ -3,6 +3,7 @@ package app.salary.api.controller;
 import app.salary.api.auth.AuthMiddleware;
 import app.salary.api.store.CalculationStore;
 import app.salary.api.store.UserDirectory;
+import app.salary.common.constants.ApiConstants;
 import io.javalin.config.RoutesConfig;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
@@ -37,10 +38,10 @@ public class AccountController {
     private void deleteAccount(Context ctx) {
         Optional<String> userId = AuthMiddleware.currentUserId(ctx);
         if (userId.isEmpty()) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("error", "Authentication required"));
+            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of(ApiConstants.ERROR, "Authentication required"));
             return;
         }
-        MDC.put("user_id", userId.get());
+        MDC.put(ApiConstants.MDC_USER_ID, userId.get());
         int removed = calculationStore.deleteAll(userId.get());
         users.delete(userId.get());
         log.info("account deleted: calculationsRemoved={}", removed);

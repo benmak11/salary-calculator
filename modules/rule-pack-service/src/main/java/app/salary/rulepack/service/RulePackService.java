@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * Service layer for rule pack operations.
@@ -64,7 +63,7 @@ public class RulePackService {
                 .sorted(Comparator.comparing(RulePackEntity::getCreatedAt,
                         Comparator.nullsLast(Comparator.reverseOrder())))
                 .map(this::toDto)
-                .collect(Collectors.toList());
+                .toList();
 
         long total = filtered.size();
         int fromIndex = page * size;

@@ -2,6 +2,7 @@ package app.salary.calculator.engine;
 
 import app.salary.calculator.client.RulePackClient;
 import app.salary.calculator.registry.CalculatorRegistry;
+import app.salary.common.constants.ApiConstants;
 import app.salary.common.dto.CalculateRequest;
 import app.salary.common.dto.CalculateResponse;
 import app.salary.rules.RulePack;
@@ -58,7 +59,7 @@ public class CalculationOrchestrator {
             rulePackSource = "remote";
         }
         rulePackSample.stop(meterRegistry.timer(METRIC_RULEPACK_FETCH,
-                "source", rulePackSource, "country", country));
+                "source", rulePackSource, ApiConstants.COUNTRY, country));
 
         // Get calculator from registry
         CountryCalculator calculator = calculatorRegistry.getCalculator(
@@ -72,7 +73,7 @@ public class CalculationOrchestrator {
         // Perform calculation
         Timer.Sample calcSample = Timer.start(meterRegistry);
         CalculationResult result = calculator.calculate(input, rulePack);
-        calcSample.stop(meterRegistry.timer(METRIC_CALCULATION, "country", country));
+        calcSample.stop(meterRegistry.timer(METRIC_CALCULATION, ApiConstants.COUNTRY, country));
 
         // Build response
         CalculateResponse response = new CalculateResponse();
@@ -93,9 +94,7 @@ public class CalculationOrchestrator {
         response.setBonusPerCadence(bonus / periodsPerYear);
 
         // Adjust line items to cadence
-        result.getLineItems().forEach(item -> {
-            item.setAmount(item.getAmount() / periodsPerYear);
-        });
+        result.getLineItems().forEach(item -> item.setAmount(item.getAmount() / periodsPerYear));
 
         response.setLineItems(result.getLineItems());
         response.setExplanation(result.getExplanations());

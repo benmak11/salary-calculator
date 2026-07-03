@@ -1,5 +1,6 @@
 package app.salary.api.auth;
 
+import app.salary.common.constants.ApiConstants;
 import io.javalin.http.Context;
 import org.slf4j.MDC;
 
@@ -15,7 +16,6 @@ import java.util.Optional;
 public class AuthMiddleware {
     public static final String ATTR_USER_ID = "userId";
     private static final String BEARER_PREFIX = "Bearer ";
-    private static final String MDC_USER_ID = "user_id";
 
     private final SessionTokenService sessionTokens;
 
@@ -30,7 +30,7 @@ public class AuthMiddleware {
         Optional<String> userId = sessionTokens.validate(token);
         userId.ifPresent(id -> {
             ctx.attribute(ATTR_USER_ID, id);
-            MDC.put(MDC_USER_ID, id);
+            MDC.put(ApiConstants.MDC_USER_ID, id);
         });
     }
 

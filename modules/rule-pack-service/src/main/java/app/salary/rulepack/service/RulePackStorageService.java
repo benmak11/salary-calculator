@@ -3,6 +3,7 @@ package app.salary.rulepack.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.cloud.storage.*;
+import app.salary.rulepack.constants.ApiConstants;
 import app.salary.rulepack.exception.StorageException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,7 +13,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static java.util.concurrent.TimeUnit.*;
@@ -66,8 +66,8 @@ public class RulePackStorageService {
             BlobInfo blobInfo = BlobInfo.newBuilder(blobId)
                     .setContentType("application/json")
                     .setMetadata(Map.of(
-                            "country", country,
-                            "taxYear", String.valueOf(taxYear),
+                            ApiConstants.COUNTRY, country,
+                            ApiConstants.TAX_YEAR, String.valueOf(taxYear),
                             "version", version,
                             "uploadedAt", String.valueOf(System.currentTimeMillis())
                     ))
@@ -166,7 +166,7 @@ public class RulePackStorageService {
                         false
                 )
                 .map(Blob::getName)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /**

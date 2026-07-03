@@ -57,7 +57,9 @@ class AuthControllerTest {
          * @param userId - userId
          */
         @Override
-        public void delete(String userId) { }
+        public void delete(String userId) {
+            // no-op: account deletion is not exercised by these auth tests
+        }
     }
 
     private Javalin app(AppleIdentityVerifier verifier, UserDirectory users) {

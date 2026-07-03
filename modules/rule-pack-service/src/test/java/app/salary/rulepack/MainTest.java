@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -78,7 +79,7 @@ class MainTest {
             // (null) which makes the controller blow up — we only need to confirm a
             // non-404 response (i.e. the route is mounted).
             var response = client.get("/v1/rule-packs");
-            assertTrue(response.code() != 404,
+            assertNotEquals(404, response.code(),
                     "Expected /v1/rule-packs to be registered, got " + response.code());
         });
     }

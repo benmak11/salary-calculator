@@ -5,6 +5,7 @@ import app.salary.api.store.CalculationStore;
 import app.salary.api.validation.RequestValidator;
 import app.salary.calculator.engine.CalculationOrchestrator;
 import app.salary.calculator.registry.CalculatorRegistry;
+import app.salary.common.constants.ApiConstants;
 import app.salary.common.constants.Country;
 import app.salary.common.dto.CalculateRequest;
 import app.salary.common.dto.CalculateResponse;
@@ -28,8 +29,6 @@ public class CalculateController {
     private final RequestValidator validator;
     private final CalculationStore calculationStore;
 
-    private final String COUNTRY = "country";
-
     public CalculateController(CalculationOrchestrator orchestrator,
                                CalculatorRegistry calculatorRegistry,
                                RequestValidator validator,
@@ -51,7 +50,7 @@ public class CalculateController {
         CalculateRequest request = ctx.bodyAsClass(CalculateRequest.class);
         validator.validate(request);
 
-        if (request.getCountry() != null) MDC.put(COUNTRY, String.valueOf(request.getCountry()));
+        if (request.getCountry() != null) MDC.put(ApiConstants.COUNTRY, String.valueOf(request.getCountry()));
         if (request.getCountryOptions() != null
                 && request.getCountryOptions().getUs() != null
                 && request.getCountryOptions().getUs().getState() != null) {
@@ -61,7 +60,7 @@ public class CalculateController {
         boolean hasBonus  = request.getBonus() != null && request.getBonus() > 0;
         boolean hasHourly = request.getEarnings() != null && request.getEarnings().getHourly() != null;
         log.info("calculate: {}={} taxYear={} cadence={} hasBonus={} hasHourly={}",
-                COUNTRY, request.getCountry(), request.getTaxYear(), request.getCadence(), hasBonus, hasHourly);
+                ApiConstants.COUNTRY, request.getCountry(), request.getTaxYear(), request.getCadence(), hasBonus, hasHourly);
 
         CalculateResponse response = orchestrator.calculate(request);
 
@@ -119,10 +118,10 @@ public class CalculateController {
     }
 
     private void getSupportedTaxYears(Context ctx) {
-        String country = ctx.queryParamAsClass(COUNTRY, String.class).getOrDefault("US");
+        String country = ctx.queryParamAsClass(ApiConstants.COUNTRY, String.class).getOrDefault("US");
         List<Integer> taxYears = List.of(2025);
         Map<String, Object> response = new LinkedHashMap<>();
-        response.put(COUNTRY, country.toUpperCase());
+        response.put(ApiConstants.COUNTRY, country.toUpperCase());
         response.put("supportedTaxYears", taxYears);
         response.put("defaultTaxYear", taxYears.getFirst());
         ctx.json(response);
