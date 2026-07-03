@@ -1,6 +1,7 @@
 package app.salary.rulepack;
 
 import app.salary.rulepack.cache.RulePackCache;
+import app.salary.rulepack.constants.ApiConstants;
 import app.salary.rulepack.controller.RulePackController;
 import app.salary.rulepack.event.RulePackLifecyclePublisher;
 import app.salary.rulepack.repository.RulePackRepository;
@@ -20,6 +21,7 @@ import io.javalin.Javalin;
 import io.javalin.http.HttpStatus;
 import io.javalin.json.JavalinJackson;
 import io.javalin.micrometer.MicrometerPlugin;
+import io.javalin.plugin.bundled.CorsPluginConfig;
 import io.micrometer.prometheusmetrics.PrometheusConfig;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import org.slf4j.Logger;
@@ -107,10 +109,8 @@ public class Main {
             config.jsonMapper(new JavalinJackson(objectMapper, false));
             config.startup.showJavalinBanner = false;
             config.concurrency.useVirtualThreads = true;
-            config.bundledPlugins.enableCors(cors -> cors.addRule(it -> it.anyHost()));
-            config.registerPlugin(new MicrometerPlugin(micrometerCfg -> {
-                micrometerCfg.registry = meterRegistry;
-            }));
+            config.bundledPlugins.enableCors(cors -> cors.addRule(CorsPluginConfig.CorsRule::anyHost));
+            config.registerPlugin(new MicrometerPlugin(micrometerCfg -> micrometerCfg.registry = meterRegistry));
 
             config.routes.before(ctx -> {
                 String requestId = ctx.header(REQUEST_ID_HEADER);
@@ -143,18 +143,18 @@ public class Main {
 
             config.routes.exception(IllegalArgumentException.class, (e, ctx) -> {
                 log.warn("Illegal argument: {}", e.getMessage());
-                ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("error", String.valueOf(e.getMessage())));
+                ctx.status(HttpStatus.BAD_REQUEST).json(Map.of(ApiConstants.ERROR, String.valueOf(e.getMessage())));
             });
             config.routes.exception(Exception.class, (e, ctx) -> {
                 log.error("Unexpected error", e);
-                ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).json(Map.of("error", "Internal server error"));
+                ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).json(Map.of(ApiConstants.ERROR, "Internal server error"));
             });
 
             if (rulePackService != null) {
                 new RulePackController(rulePackService).register(config.routes);
             } else {
                 io.javalin.http.Handler unavailable = ctx -> ctx.status(HttpStatus.SERVICE_UNAVAILABLE)
-                        .json(Map.of("error", "GCP backends are disabled (ENABLE_GCP=false)"));
+                        .json(Map.of(ApiConstants.ERROR, "GCP backends are disabled (ENABLE_GCP=false)"));
                 config.routes.get(  "/v1/rule-packs",                unavailable);
                 config.routes.get(  "/v1/rule-packs/latest",         unavailable);
                 config.routes.get(  "/v1/rule-packs/{id}",           unavailable);
@@ -211,8 +211,8 @@ public class Main {
 
     private static boolean detectGcpAvailable() {
         // Default to "enabled" only when an explicit credentials env var is present.
-        return Env.stringValue("GOOGLE_APPLICATION_CREDENTIALS", "").length() > 0
-                || Env.stringValue("GOOGLE_CLOUD_PROJECT", "").length() > 0;
+        return !Env.stringValue("GOOGLE_APPLICATION_CREDENTIALS", "").isEmpty()
+                || !Env.stringValue("GOOGLE_CLOUD_PROJECT", "").isEmpty();
     }
 
     private static ObjectMapper buildObjectMapper() {

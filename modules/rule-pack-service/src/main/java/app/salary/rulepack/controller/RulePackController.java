@@ -1,5 +1,6 @@
 package app.salary.rulepack.controller;
 
+import app.salary.rulepack.constants.ApiConstants;
 import app.salary.rulepack.dto.RulePackDto;
 import app.salary.rulepack.dto.RulePackListResponse;
 import app.salary.rulepack.service.RulePackService;
@@ -39,8 +40,8 @@ public class RulePackController {
     }
 
     private void list(Context ctx) {
-        String country = ctx.queryParam("country");
-        Integer taxYear = ctx.queryParamAsClass("taxYear", Integer.class).getOrNull();
+        String country = ctx.queryParam(ApiConstants.COUNTRY);
+        Integer taxYear = ctx.queryParamAsClass(ApiConstants.TAX_YEAR, Integer.class).getOrNull();
         String status = ctx.queryParamAsClass("status", String.class).getOrDefault("PUBLISHED");
         int page = ctx.queryParamAsClass("page", Integer.class).getOrDefault(0);
         int size = ctx.queryParamAsClass("size", Integer.class).getOrDefault(10);
@@ -54,8 +55,8 @@ public class RulePackController {
     }
 
     private void getLatest(Context ctx) {
-        String country = ctx.queryParamAsClass("country", String.class).get();
-        Integer taxYear = ctx.queryParamAsClass("taxYear", Integer.class).get();
+        String country = ctx.queryParamAsClass(ApiConstants.COUNTRY, String.class).get();
+        Integer taxYear = ctx.queryParamAsClass(ApiConstants.TAX_YEAR, Integer.class).get();
 
         RulePackDto dto = rulePackService.findLatest(country, taxYear);
         if (dto == null) {
@@ -80,8 +81,8 @@ public class RulePackController {
 
     private void create(Context ctx) {
         try {
-            String country = ctx.queryParamAsClass("country", String.class).get();
-            Integer taxYear = ctx.queryParamAsClass("taxYear", Integer.class).get();
+            String country = ctx.queryParamAsClass(ApiConstants.COUNTRY, String.class).get();
+            Integer taxYear = ctx.queryParamAsClass(ApiConstants.TAX_YEAR, Integer.class).get();
             String version = ctx.queryParamAsClass("version", String.class).get();
             String effectiveDate = ctx.queryParamAsClass("effectiveDate", String.class).get();
             Map<String, Object> rulePackJson = ctx.bodyAsClass(OBJECT_MAP.getType());
@@ -93,10 +94,10 @@ public class RulePackController {
             );
             ctx.status(HttpStatus.CREATED).json(created);
         } catch (IllegalArgumentException e) {
-            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("error", String.valueOf(e.getMessage())));
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of(ApiConstants.ERROR, String.valueOf(e.getMessage())));
         } catch (Exception e) {
             logger.error("Error creating rule pack", e);
-            ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).json(Map.of("error", "Internal server error"));
+            ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).json(Map.of(ApiConstants.ERROR, "Internal server error"));
         }
     }
 

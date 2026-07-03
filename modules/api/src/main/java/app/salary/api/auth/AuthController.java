@@ -2,6 +2,7 @@ package app.salary.api.auth;
 
 import app.salary.api.store.UserDirectory;
 import app.salary.api.validation.RequestValidator;
+import app.salary.common.constants.ApiConstants;
 import app.salary.common.dto.AppleSignInRequest;
 import app.salary.common.dto.AppleSignInResponse;
 import io.javalin.config.RoutesConfig;
@@ -47,12 +48,12 @@ public class AuthController {
         } catch (AppleVerificationException e) {
             log.warn("Apple identity verification failed: {}", e.getMessage());
             ctx.status(HttpStatus.UNAUTHORIZED)
-                    .json(Map.of("error", "Invalid Apple identity token"));
+                    .json(Map.of(ApiConstants.ERROR, "Invalid Apple identity token"));
             return;
         }
 
         String userId = identity.appleSub();
-        MDC.put("user_id", userId);
+        MDC.put(ApiConstants.MDC_USER_ID, userId);
 
         // We intentionally do not persist identity.email() — see UserDirectory.
         users.upsertOnSignIn(userId, req.getDisplayName());

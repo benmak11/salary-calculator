@@ -6,7 +6,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class CalculatorRegistry {
     private static final Logger log = LoggerFactory.getLogger(CalculatorRegistry.class);
@@ -39,7 +38,7 @@ public class CalculatorRegistry {
         return calculators.stream()
                 .map(this::extractSupportedCountry)
                 .distinct()
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public int getCalculatorCount() {

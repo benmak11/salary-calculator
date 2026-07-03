@@ -1,6 +1,7 @@
 package app.salary.api.client;
 
 import app.salary.calculator.client.RulePackClient;
+import app.salary.common.constants.ApiConstants;
 import app.salary.rules.RulePack;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -123,7 +124,7 @@ public class HttpRulePackClient implements RulePackClient {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
                 .timeout(REQUEST_TIMEOUT)
                 .header("Accept", "application/json");
-        String requestId = MDC.get("request_id");
+        String requestId = MDC.get(ApiConstants.MDC_REQUEST_ID);
         if (requestId != null && !requestId.isBlank()) {
             builder.header("X-Request-Id", requestId);
         }

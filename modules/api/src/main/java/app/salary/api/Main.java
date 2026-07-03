@@ -27,6 +27,7 @@ import app.salary.calculator.shared.DeductionCalculator;
 import app.salary.calculator.shared.IncomeCalculator;
 import app.salary.calculator.shared.StudentLoanCalculator;
 import app.salary.calculator.shared.TaxBracketCalculator;
+import app.salary.common.constants.ApiConstants;
 import app.salary.rules.RulesRegistry;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -65,7 +66,7 @@ public class Main {
     private static final Logger access = LoggerFactory.getLogger("app.salary.api.access");
 
     private static final String REQUEST_ID_HEADER = "X-Request-Id";
-    private static final String MDC_REQUEST_ID    = "request_id";
+    private static final String MDC_REQUEST_ID    = ApiConstants.MDC_REQUEST_ID;
     private static final String ATTR_START_NANOS  = "_start_nanos";
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
@@ -215,12 +216,12 @@ public class Main {
             config.routes.exception(IllegalArgumentException.class, (e, ctx) -> {
                 log.warn("Illegal argument: {}", e.getMessage());
                 ctx.status(HttpStatus.UNPROCESSABLE_CONTENT)
-                        .json(Map.of("error", String.valueOf(e.getMessage())));
+                        .json(Map.of(ApiConstants.ERROR, String.valueOf(e.getMessage())));
             });
             config.routes.exception(Exception.class, (e, ctx) -> {
                 log.error("Unexpected error", e);
                 ctx.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                        .json(Map.of("error", "Internal server error"));
+                        .json(Map.of(ApiConstants.ERROR, "Internal server error"));
             });
 
             new CalculateController(orchestrator, calculatorRegistry, requestValidator, calculationStore)

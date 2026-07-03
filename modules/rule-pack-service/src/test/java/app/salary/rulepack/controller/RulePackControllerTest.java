@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Month;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -58,8 +59,8 @@ class RulePackControllerTest {
                 .taxYear(year)
                 .version(version)
                 .status(status)
-                .effectiveDate(LocalDate.of(year, 1, 1))
-                .createdAt(LocalDateTime.of(year, 1, 1, 0, 0))
+                .effectiveDate(LocalDate.of(year, Month.JANUARY, 1))
+                .createdAt(LocalDateTime.of(year, Month.JANUARY, 1, 0, 0))
                 .checksum("abc123")
                 .storagePath("rulepack/" + country + "/" + year + "/" + version + ".json")
                 .build();
@@ -68,7 +69,7 @@ class RulePackControllerTest {
     @Test
     void list_returnsPagedResults() {
         RulePackDto pack = dto("id-1", "US", 2025, "US-2025.11.0", RulePackStatus.PUBLISHED);
-        when(service.findRulePacks(eq("US"), eq(2025), eq("PUBLISHED"), eq(0), eq(10)))
+        when(service.findRulePacks("US", 2025, "PUBLISHED", 0, 10))
                 .thenReturn(new RulePackService.PageResult<>(List.of(pack), 1L, 0, 10));
 
         JavalinTest.test(app(), (server, client) -> {
@@ -151,7 +152,7 @@ class RulePackControllerTest {
     void create_returns201WithCreatedDto() {
         RulePackDto created = dto("new-id", "US", 2026, "US-2026.1.0", RulePackStatus.DRAFT);
         when(service.createRulePack(eq("US"), eq(2026), eq("US-2026.1.0"),
-                eq(LocalDate.of(2026, 1, 1)), any()))
+                eq(LocalDate.of(2026, Month.JANUARY, 1)), any()))
                 .thenReturn(created);
 
         JavalinTest.test(app(), (server, client) -> {

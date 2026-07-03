@@ -37,7 +37,7 @@ class RulePackStorageServiceTest {
     }
 
     @Test
-    void upload_shouldUploadToGCS() throws Exception {
+    void upload_shouldUploadToGCS() {
         Map<String, Object> rulePackJson = Map.of("rule", "value");
 
         when(storage.create(any(BlobInfo.class), any(byte[].class))).thenReturn(blob);
@@ -64,7 +64,7 @@ class RulePackStorageServiceTest {
     }
 
     @Test
-    void download_shouldReturnRulePackContent() throws Exception {
+    void download_shouldReturnRulePackContent() {
         String jsonContent = "{\"rule\":\"value\"}";
         byte[] contentBytes = jsonContent.getBytes(StandardCharsets.UTF_8);
 

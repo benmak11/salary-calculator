@@ -584,7 +584,7 @@ class USCalculatorTest {
         calculator.calculate(input, rulePack);
 
         // Roth is computed on regular wages = 100k (not 115k gross)
-        verify(deductionCalculator).calculateRoth401k(eq(posttax), eq(100000.0));
+        verify(deductionCalculator).calculateRoth401k(posttax, 100000.0);
     }
 
     // ── W-4 fields (Phase 2) ──────────────────────────────────────────────────────
