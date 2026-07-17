@@ -2,8 +2,12 @@ package app.salary.api;
 
 import app.salary.api.controller.AccountController;
 import app.salary.api.controller.CalculationHistoryController;
+import app.salary.api.controller.GrantsController;
+import app.salary.api.controller.StocksController;
 import app.salary.api.store.CalculationStore;
+import app.salary.api.store.GrantStore;
 import app.salary.api.store.InMemoryCalculationStore;
+import app.salary.api.store.InMemoryGrantStore;
 import app.salary.api.store.InMemoryUserDirectory;
 import app.salary.api.store.UserDirectory;
 import app.salary.api.validation.RequestValidator;
@@ -51,11 +55,15 @@ class MainTest {
         RequestValidator validator = new RequestValidator();
 
         CalculationStore calculationStore = new InMemoryCalculationStore();
+        GrantStore grantStore = new InMemoryGrantStore();
         UserDirectory userDirectory = new InMemoryUserDirectory();
         CalculationHistoryController historyController = new CalculationHistoryController(calculationStore);
-        AccountController accountController = new AccountController(calculationStore, userDirectory);
+        AccountController accountController = new AccountController(calculationStore, grantStore, userDirectory);
+        GrantsController grantsController = new GrantsController(grantStore, validator);
+        StocksController stocksController = new StocksController(null);
         return Main.createApp(mapper, meterRegistry, orchestrator, calculatorRegistry, validator,
-                calculationStore, null, null, historyController, accountController);
+                calculationStore, null, null, historyController, accountController, grantsController,
+                stocksController);
     }
 
     @Test

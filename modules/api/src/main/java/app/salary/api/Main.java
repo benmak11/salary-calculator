@@ -5,14 +5,21 @@ import app.salary.api.auth.AuthController;
 import app.salary.api.controller.AccountController;
 import app.salary.api.auth.AuthMiddleware;
 import app.salary.api.auth.SessionTokenService;
+import app.salary.api.client.FinnhubStockClient;
 import app.salary.api.client.GoogleIdTokenSupplier;
 import app.salary.api.client.HttpRulePackClient;
+import app.salary.api.client.StockClient;
 import app.salary.api.controller.CalculateController;
 import app.salary.api.controller.CalculationHistoryController;
+import app.salary.api.controller.GrantsController;
+import app.salary.api.controller.StocksController;
 import app.salary.api.store.CalculationStore;
 import app.salary.api.store.FirestoreCalculationStore;
+import app.salary.api.store.FirestoreGrantStore;
 import app.salary.api.store.FirestoreUserDirectory;
+import app.salary.api.store.GrantStore;
 import app.salary.api.store.InMemoryCalculationStore;
+import app.salary.api.store.InMemoryGrantStore;
 import app.salary.api.store.InMemoryUserDirectory;
 import app.salary.api.store.UserDirectory;
 import app.salary.api.validation.RequestValidator;
@@ -78,6 +85,8 @@ public class Main {
         boolean enableGcp = Env.boolValue(detectGcpAvailable());
         String appleAudience = Env.stringValue("APPLE_AUDIENCE", "");
         String sessionSecretEnv = Env.stringValue("SESSION_JWT_SECRET", "");
+        String finnhubApiKey = Env.stringValue("FINNHUB_API_KEY", "");
+        String finnhubBaseUrl = Env.stringValue("FINNHUB_BASE_URL", "https://finnhub.io/api/v1");
 
         // ── Shared infra ─────────────────────────────────────────────────────
         ObjectMapper objectMapper = buildObjectMapper();
@@ -111,6 +120,13 @@ public class Main {
         CalculationOrchestrator orchestrator = new CalculationOrchestrator(
                 rulesRegistry, calculatorRegistry, rulePackClient, meterRegistry);
 
+        StockClient stockClient = finnhubApiKey.isBlank()
+                ? null
+                : new FinnhubStockClient(httpClient, objectMapper, finnhubBaseUrl, finnhubApiKey);
+        if (stockClient == null) {
+            log.warn("FINNHUB_API_KEY not set — /v1/stocks endpoints will answer 503 (manual price entry only).");
+        }
+
         // ── Persistence + identity (lazy / optional) ─────────────────────────
         Firestore firestore = enableGcp ? buildFirestore(projectId) : null;
         UserDirectory userDirectory = firestore != null
@@ -119,8 +135,11 @@ public class Main {
         CalculationStore calculationStore = firestore != null
                 ? new FirestoreCalculationStore(firestore, objectMapper)
                 : new InMemoryCalculationStore();
+        GrantStore grantStore = firestore != null
+                ? new FirestoreGrantStore(firestore, objectMapper)
+                : new InMemoryGrantStore();
         if (firestore == null) {
-            log.warn("Firestore unavailable (ENABLE_GCP={}); user directory + calculation history are in-memory only.", enableGcp);
+            log.warn("Firestore unavailable (ENABLE_GCP={}); user directory + calculation history + grants are in-memory only.", enableGcp);
         }
 
         AppleIdentityVerifier appleVerifier = appleAudience.isBlank()
@@ -138,11 +157,14 @@ public class Main {
         }
 
         CalculationHistoryController historyController = new CalculationHistoryController(calculationStore);
-        AccountController accountController = new AccountController(calculationStore, userDirectory);
+        AccountController accountController = new AccountController(calculationStore, grantStore, userDirectory);
+        GrantsController grantsController = new GrantsController(grantStore, requestValidator);
+        StocksController stocksController = new StocksController(stockClient);
 
         Javalin app = createApp(objectMapper, meterRegistry, orchestrator,
                 calculatorRegistry, requestValidator, calculationStore,
-                authMiddleware, authController, historyController, accountController);
+                authMiddleware, authController, historyController, accountController,
+                grantsController, stocksController);
 
         // ── Boot ─────────────────────────────────────────────────────────────
         app.start(port);
@@ -168,7 +190,9 @@ public class Main {
                              AuthMiddleware authMiddleware,
                              AuthController authController,
                              CalculationHistoryController historyController,
-                             AccountController accountController) {
+                             AccountController accountController,
+                             GrantsController grantsController,
+                             StocksController stocksController) {
         return Javalin.create(config -> {
             config.jsonMapper(new JavalinJackson(objectMapper, false));
             config.startup.showJavalinBanner = false;
@@ -232,6 +256,8 @@ public class Main {
             }
             historyController.register(config.routes);
             accountController.register(config.routes);
+            grantsController.register(config.routes);
+            stocksController.register(config.routes);
 
             config.routes.get("/actuator/health", ctx -> ctx.json(Map.of("status", "UP")));
             config.routes.get("/actuator/prometheus", ctx ->

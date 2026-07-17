@@ -3,7 +3,9 @@ package app.salary.api.controller;
 import app.salary.api.auth.AuthMiddleware;
 import app.salary.api.auth.SessionTokenService;
 import app.salary.api.store.CalculationStore;
+import app.salary.api.store.GrantStore;
 import app.salary.api.store.InMemoryCalculationStore;
+import app.salary.api.store.InMemoryGrantStore;
 import app.salary.api.store.InMemoryUserDirectory;
 import app.salary.api.store.UserDirectory;
 import app.salary.common.constants.Country;
@@ -27,12 +29,14 @@ class AccountControllerTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private CalculationStore store;
+    private GrantStore grants;
     private UserDirectory users;
     private SessionTokenService sessionTokens;
 
     @BeforeEach
     void setUp() {
         store = new InMemoryCalculationStore();
+        grants = new InMemoryGrantStore();
         users = new InMemoryUserDirectory();
         byte[] secret = new byte[32];
         for (int i = 0; i < secret.length; i++) secret[i] = (byte) i;
@@ -45,8 +49,24 @@ class AccountControllerTest {
             config.jsonMapper(new JavalinJackson(MAPPER, false));
             config.startup.showJavalinBanner = false;
             config.routes.before(middleware::handle);
-            new AccountController(store, users).register(config.routes);
+            new AccountController(store, grants, users).register(config.routes);
         });
+    }
+
+    private static app.salary.common.dto.RsuGrant sampleGrant() {
+        var schedule = new app.salary.common.dto.RsuGrant.VestingSchedule();
+        schedule.setPresetId("annual4");
+        schedule.setTotalMonths(48);
+        schedule.setCliffMonths(12);
+        schedule.setFreqMonths(12);
+        var grant = new app.salary.common.dto.RsuGrant();
+        grant.setTicker("AAPL");
+        grant.setCompany("Apple Inc.");
+        grant.setSharesTotal(400.0);
+        grant.setPricePerShare(232.14);
+        grant.setGrantDate("2025-03-15");
+        grant.setSchedule(schedule);
+        return grant;
     }
 
     private static CalculateRequest sampleRequest() {
@@ -74,12 +94,14 @@ class AccountControllerTest {
     }
 
     @Test
-    void deleteAccountRemovesCalculationsAndDirectoryRecord() {
+    void deleteAccountRemovesCalculationsGrantsAndDirectoryRecord() {
         var saved = store.save("user-1", sampleRequest(), new CalculateResponse());
         store.save("user-1", sampleRequest(), new CalculateResponse());
+        grants.create("user-1", sampleGrant());
         users.upsertOnSignIn("user-1", "Alex Carter");
         // a second user's data must be left untouched
         store.save("user-2", sampleRequest(), new CalculateResponse());
+        grants.create("user-2", sampleGrant());
         users.upsertOnSignIn("user-2", "Sam Rivera");
 
         JavalinTest.test(app(), (server, client) -> {
@@ -90,10 +112,12 @@ class AccountControllerTest {
             // user-1 fully wiped
             assertEquals(0, store.list("user-1", 50, null).getItems().size());
             assertTrue(store.get("user-1", saved.getId()).isEmpty());
+            assertTrue(grants.list("user-1").isEmpty());
             assertTrue(users.displayName("user-1").isEmpty());
 
             // user-2 intact
             assertEquals(1, store.list("user-2", 50, null).getItems().size());
+            assertEquals(1, grants.list("user-2").size());
             assertTrue(users.displayName("user-2").isPresent());
         });
     }

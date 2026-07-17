@@ -6,6 +6,7 @@ import app.salary.common.constants.Country;
 import app.salary.common.dto.LineItemCategory;
 import app.salary.common.dto.NamedDeduction;
 import app.salary.common.dto.Pretax;
+import app.salary.common.dto.SupplementalBreakdown;
 import app.salary.common.dto.W4;
 import app.salary.rules.RulePack;
 import org.slf4j.Logger;
@@ -62,6 +63,14 @@ public class USCalculator implements CountryCalculator {
         if (input.getCommissionAnnual() != null && input.getCommissionAnnual() > 0) {
             result.addLineItem("Commission", input.getCommissionAnnual(), LineItemCategory.EARNINGS);
         }
+        if (input.getRsuVestingAnnual() != null && input.getRsuVestingAnnual() > 0) {
+            result.addLineItem("RSU Vesting", input.getRsuVestingAnnual(), LineItemCategory.EARNINGS);
+        }
+        if (input.getBonusDeferredToYear() != null) {
+            result.addExplanation("bonus_deferred",
+                    "Bonus lands in " + input.getBonusDeferredToYear()
+                            + " and is excluded from this tax year's calculation");
+        }
 
         // ── Named pre-tax benefit line items ──────────────────────────────────
         if (pretax.getMedical() != null && pretax.getMedical() > 0) {
@@ -111,7 +120,7 @@ public class USCalculator implements CountryCalculator {
 
         // ── Federal income tax ────────────────────────────────────────────────
         double federalTax = 0.0;
-        double bonusFederalTax;
+        double supplementalFederalTax = 0.0;
         if (!Boolean.TRUE.equals(w4.getExemptFederal())) {
             federalTax = calculateFederalRegular(input, regularWages, totalPretaxDeductions, w4, rules);
             // W-4 step 3: dependents credit reduces withholding (modern W-4 only)
@@ -124,10 +133,10 @@ public class USCalculator implements CountryCalculator {
             if (additional > 0) {
                 federalTax += additional * input.getPayCadence().getPeriodsPerYear();
             }
-            // Supplemental withholding on bonus + commission
+            // Supplemental withholding on bonus + commission + RSU vesting
             if (supplementalAnnual > 0) {
-                bonusFederalTax = supplementalAnnual * rules.getFederal().getSupplementalWithholdingRate();
-                federalTax += bonusFederalTax;
+                supplementalFederalTax = supplementalAnnual * rules.getFederal().getSupplementalWithholdingRate();
+                federalTax += supplementalFederalTax;
                 result.addExplanation("supplemental_withholding",
                         "Supplemental wages of $" + String.format("%.0f", supplementalAnnual) +
                         " withheld at flat " +
@@ -176,6 +185,14 @@ public class USCalculator implements CountryCalculator {
             result.addExplanation("medicare_exempt", "Filer exempt from Medicare tax");
         }
 
+        // ── Supplemental income tax slice (bonus + commission + RSU vesting) ──
+        // Attribution of the totals above, not additional tax: supplemental wages
+        // stack on top of regular wages for the SS cap and Medicare threshold.
+        if (supplementalAnnual > 0) {
+            result.setSupplemental(buildSupplementalBreakdown(
+                    input, w4, rules, supplementalAnnual, grossAnnual, supplementalFederalTax));
+        }
+
         // ── Post-tax deductions (fixed catch-all) ─────────────────────────────
         double posttaxFixed = deductionCalculator.calculatePosttaxDeductions(input.getPosttax());
         if (posttaxFixed > 0) {
@@ -199,6 +216,42 @@ public class USCalculator implements CountryCalculator {
         result.setNetAnnual(netAnnual);
 
         return result;
+    }
+
+    private SupplementalBreakdown buildSupplementalBreakdown(CalculationInput input,
+                                                             W4 w4,
+                                                             RulePack rules,
+                                                             double supplementalAnnual,
+                                                             double grossAnnual,
+                                                             double supplementalFederalTax) {
+        double regularWages = grossAnnual - supplementalAnnual;
+
+        SupplementalBreakdown breakdown = new SupplementalBreakdown();
+        breakdown.setBonusGross(input.getBonusAnnual() != null ? input.getBonusAnnual() : 0.0);
+        breakdown.setCommissionGross(input.getCommissionAnnual() != null ? input.getCommissionAnnual() : 0.0);
+        breakdown.setRsuGross(input.getRsuVestingAnnual() != null ? input.getRsuVestingAnnual() : 0.0);
+        breakdown.setFederalTax(supplementalFederalTax);
+
+        double ssSlice = 0.0;
+        if (!Boolean.TRUE.equals(w4.getExemptSocialSecurity())) {
+            double ssWageBase = rules.getFica().getSsWageBase();
+            double taxableSupplemental = Math.min(grossAnnual, ssWageBase) - Math.min(regularWages, ssWageBase);
+            ssSlice = taxableSupplemental * rules.getFica().getSsRate();
+        }
+        breakdown.setSocialSecurity(ssSlice);
+
+        double medicareSlice = 0.0;
+        if (!Boolean.TRUE.equals(w4.getExemptMedicare())) {
+            medicareSlice = supplementalAnnual * rules.getFica().getMedicareRate();
+            double threshold = rules.getFica().getAdditionalMedicareThreshold();
+            double additionalTaxable = Math.max(0, grossAnnual - threshold)
+                    - Math.max(0, regularWages - threshold);
+            medicareSlice += additionalTaxable * rules.getFica().getAdditionalRate();
+        }
+        breakdown.setMedicare(medicareSlice);
+
+        breakdown.setNet(supplementalAnnual - supplementalFederalTax - ssSlice - medicareSlice);
+        return breakdown;
     }
 
     private W4 w4OrDefault(CalculationInput input) {

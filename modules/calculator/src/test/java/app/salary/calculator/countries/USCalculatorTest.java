@@ -877,6 +877,97 @@ class USCalculatorTest {
         }
     }
 
+    // ── Supplemental income slice (bonus + commission + RSU vesting) ─────────────
+
+    @Test
+    void calculate_withBonusAndRsu_shouldBreakOutSupplementalSlice() {
+        // regular 100k + bonus 10k + RSU 20k = 130k gross, all under the SS wage base
+        input.setAnnualGross(130000.0);
+        input.setBonusAnnual(10000.0);
+        input.setRsuVestingAnnual(20000.0);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        var supplemental = result.getSupplemental();
+        assertNotNull(supplemental);
+        assertEquals(10000.0, supplemental.getBonusGross(), 0.01);
+        assertEquals(0.0, supplemental.getCommissionGross(), 0.01);
+        assertEquals(20000.0, supplemental.getRsuGross(), 0.01);
+        assertEquals(30000.0 * 0.22, supplemental.getFederalTax(), 0.01);
+        assertEquals(30000.0 * 0.062, supplemental.getSocialSecurity(), 0.01);
+        assertEquals(30000.0 * 0.0145, supplemental.getMedicare(), 0.01);
+        assertEquals(30000.0 - 6600.0 - 1860.0 - 435.0, supplemental.getNet(), 0.01);
+
+        LineItem rsuItem = findLineItem(result, "RSU Vesting");
+        assertNotNull(rsuItem);
+        assertEquals(20000.0, rsuItem.getAmount(), 0.01);
+        assertEquals(LineItemCategory.EARNINGS, rsuItem.getCategory());
+    }
+
+    @Test
+    void calculate_supplementalStraddlingSsWageBase_shouldCapSocialSecuritySlice() {
+        // regular 160k fills most of the 168.6k base; only 8.6k of the 20k bonus is SS-taxable
+        input.setAnnualGross(180000.0);
+        input.setBonusAnnual(20000.0);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        assertEquals(8600.0 * 0.062, result.getSupplemental().getSocialSecurity(), 0.01);
+        // whole-calculation SS still caps at the wage base
+        assertEquals(168600.0 * 0.062, findLineItem(result, "Social Security").getAmount(), 0.01);
+    }
+
+    @Test
+    void calculate_regularWagesAboveSsWageBase_shouldZeroSsSliceAndAddMedicareSurtax() {
+        // regular 200k already exceeds the SS base and sits exactly at the Medicare threshold,
+        // so the whole 20k bonus escapes SS but takes the full 0.9% Additional Medicare
+        input.setAnnualGross(220000.0);
+        input.setBonusAnnual(20000.0);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        var supplemental = result.getSupplemental();
+        assertEquals(0.0, supplemental.getSocialSecurity(), 0.01);
+        assertEquals(20000.0 * 0.0145 + 20000.0 * 0.009, supplemental.getMedicare(), 0.01);
+    }
+
+    @Test
+    void calculate_supplementalWithFicaExemptions_shouldZeroExemptSlices() {
+        input.setAnnualGross(110000.0);
+        input.setBonusAnnual(10000.0);
+        W4 w4 = new W4();
+        w4.setExemptSocialSecurity(true);
+        w4.setExemptMedicare(true);
+        input.getUsOptions().setW4(w4);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        var supplemental = result.getSupplemental();
+        assertEquals(0.0, supplemental.getSocialSecurity(), 0.01);
+        assertEquals(0.0, supplemental.getMedicare(), 0.01);
+        assertEquals(2200.0, supplemental.getFederalTax(), 0.01);
+        assertEquals(7800.0, supplemental.getNet(), 0.01);
+    }
+
+    @Test
+    void calculate_withoutSupplementalIncome_shouldOmitSupplementalBlock() {
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        assertNull(result.getSupplemental());
+    }
+
+    @Test
+    void calculate_bonusDeferredToFutureYear_shouldExplainExclusion() {
+        input.setBonusDeferredToYear(2027);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        assertNull(result.getSupplemental());
+        assertTrue(result.getExplanations().stream()
+                .anyMatch(e -> "bonus_deferred".equals(e.getId())
+                        && e.getText().contains("2027")));
+    }
+
     // ── Helper ────────────────────────────────────────────────────────────────────
 
     private LineItem findLineItem(CalculationResult result, String name) {

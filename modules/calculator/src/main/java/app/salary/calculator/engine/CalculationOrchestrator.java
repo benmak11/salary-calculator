@@ -93,6 +93,9 @@ public class CalculationOrchestrator {
         response.setBaseSalaryPerCadence(baseSalary / periodsPerYear);
         response.setBonusPerCadence(bonus / periodsPerYear);
 
+        // Supplemental slice stays annual (lump-sum-shaped) — see SupplementalBreakdown javadoc
+        response.setSupplemental(result.getSupplemental());
+
         // Adjust line items to cadence
         result.getLineItems().forEach(item -> item.setAmount(item.getAmount() / periodsPerYear));
 

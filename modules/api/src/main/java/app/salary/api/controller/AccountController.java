@@ -2,6 +2,7 @@ package app.salary.api.controller;
 
 import app.salary.api.auth.AuthMiddleware;
 import app.salary.api.store.CalculationStore;
+import app.salary.api.store.GrantStore;
 import app.salary.api.store.UserDirectory;
 import app.salary.common.constants.ApiConstants;
 import io.javalin.config.RoutesConfig;
@@ -23,10 +24,12 @@ public class AccountController {
     private static final Logger log = LoggerFactory.getLogger(AccountController.class);
 
     private final CalculationStore calculationStore;
+    private final GrantStore grantStore;
     private final UserDirectory users;
 
-    public AccountController(CalculationStore calculationStore, UserDirectory users) {
+    public AccountController(CalculationStore calculationStore, GrantStore grantStore, UserDirectory users) {
         this.calculationStore = calculationStore;
+        this.grantStore = grantStore;
         this.users = users;
     }
 
@@ -34,7 +37,7 @@ public class AccountController {
         routes.delete("/v1/account", this::deleteAccount);
     }
 
-    /** Deletes the user's saved calculations and their directory record. Idempotent. */
+    /** Deletes the user's saved calculations, RSU grants, and directory record. Idempotent. */
     private void deleteAccount(Context ctx) {
         Optional<String> userId = AuthMiddleware.currentUserId(ctx);
         if (userId.isEmpty()) {
@@ -43,8 +46,9 @@ public class AccountController {
         }
         MDC.put(ApiConstants.MDC_USER_ID, userId.get());
         int removed = calculationStore.deleteAll(userId.get());
+        int grantsRemoved = grantStore.deleteAll(userId.get());
         users.delete(userId.get());
-        log.info("account deleted: calculationsRemoved={}", removed);
+        log.info("account deleted: calculationsRemoved={} grantsRemoved={}", removed, grantsRemoved);
         ctx.status(HttpStatus.NO_CONTENT);
     }
 }

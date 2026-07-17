@@ -3,42 +3,35 @@ package app.salary.calculator.engine;
 import app.salary.common.dto.Explanation;
 import app.salary.common.dto.LineItem;
 import app.salary.common.dto.LineItemCategory;
+import app.salary.common.dto.SupplementalBreakdown;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.List;
 
+@Getter
+@Setter
 public class CalculationResult {
     private Double grossAnnual;
     private Double baseSalaryAnnual;
     private Double bonusAnnual = 0.0;
     private Double netAnnual;
     private String currency;
+    private SupplementalBreakdown supplemental;
     private List<LineItem> lineItems = new ArrayList<>();
     private List<Explanation> explanations = new ArrayList<>();
     private String rulePackVersion;
 
-    public Double getGrossAnnual() { return grossAnnual; }
-    public void setGrossAnnual(Double grossAnnual) { this.grossAnnual = grossAnnual; }
-    public Double getBaseSalaryAnnual() { return baseSalaryAnnual; }
-    public void setBaseSalaryAnnual(Double baseSalaryAnnual) { this.baseSalaryAnnual = baseSalaryAnnual; }
-    public Double getBonusAnnual() { return bonusAnnual; }
-    public void setBonusAnnual(Double bonusAnnual) { this.bonusAnnual = bonusAnnual; }
-    public Double getNetAnnual() { return netAnnual; }
-    public void setNetAnnual(Double netAnnual) { this.netAnnual = netAnnual; }
-    public String getCurrency() { return currency; }
-    public void setCurrency(String currency) { this.currency = currency; }
-    public List<LineItem> getLineItems() { return lineItems; }
-    public void setLineItems(List<LineItem> lineItems) { this.lineItems = lineItems; }
-    public List<Explanation> getExplanations() { return explanations; }
-    public void setExplanations(List<Explanation> explanations) { this.explanations = explanations; }
-    public String getRulePackVersion() { return rulePackVersion; }
-    public void setRulePackVersion(String rulePackVersion) { this.rulePackVersion = rulePackVersion; }
-
-    public void addLineItem(String name, Double amount) { lineItems.add(new LineItem(name, amount)); }
+    public void addLineItem(String name, Double amount) {
+        lineItems.add(new LineItem(name, amount));
+    }
 
     public void addLineItem(String name, Double amount, LineItemCategory category) {
         lineItems.add(new LineItem(name, amount, category));
     }
 
-    public void addExplanation(String id, String text) { explanations.add(new Explanation(id, text)); }
+    public void addExplanation(String id, String text) {
+        explanations.add(new Explanation(id, text));
+    }
 }

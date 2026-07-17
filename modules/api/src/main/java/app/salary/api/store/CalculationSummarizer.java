@@ -55,7 +55,9 @@ final class CalculationSummarizer {
         return s;
     }
 
-    private static double orZero(Double d) { return d == null ? 0.0 : d; }
+    private static double orZero(Double d) {
+        return d == null ? 0.0 : d;
+    }
 
     private static double sumByCategory(List<LineItem> items, LineItemCategory... categories) {
         if (items == null || items.isEmpty()) return 0.0;
