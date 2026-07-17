@@ -3,7 +3,11 @@ package app.salary.calculator.engine;
 import app.salary.common.constants.Country;
 import app.salary.common.constants.PayCadence;
 import app.salary.common.dto.*;
+import lombok.Getter;
+import lombok.Setter;
 
+@Setter
+@Getter
 public class CalculationInput {
     private Country country;
     private Integer taxYear;
@@ -13,6 +17,8 @@ public class CalculationInput {
     private Double doubleTimeAnnual = 0.0;
     private Double bonusAnnual = 0.0;
     private Double commissionAnnual = 0.0;
+    private Double rsuVestingAnnual = 0.0;
+    private Integer bonusDeferredToYear;
     private PayCadence payCadence;
     private Pretax pretax;
     private Posttax posttax;
@@ -55,8 +61,9 @@ public class CalculationInput {
                 input.overtimeAnnual = rate * otMult * otHrs * periods;
                 input.doubleTimeAnnual = rate * dtMult * dtHrs * periods;
             }
-            input.bonusAnnual = earnings.getBonus() != null ? earnings.getBonus() : 0.0;
+            applyBonusInclusionRule(input, earnings);
             input.commissionAnnual = earnings.getCommission() != null ? earnings.getCommission() : 0.0;
+            input.rsuVestingAnnual = earnings.getRsuVesting() != null ? earnings.getRsuVesting() : 0.0;
         } else {
             // Back-compat path: annualSalary + bonus
             if (request.getAnnualSalary() == null) {
@@ -70,15 +77,50 @@ public class CalculationInput {
                 + input.overtimeAnnual
                 + input.doubleTimeAnnual
                 + input.bonusAnnual
-                + input.commissionAnnual;
+                + input.commissionAnnual
+                + input.rsuVestingAnnual;
 
         return input;
+    }
+
+    /**
+     * A bonus counts toward the requested tax year when its payout year matches (one-time)
+     * or has already started (recurring). Otherwise it is excluded from the calculation
+     * entirely and {@code bonusDeferredToYear} records where it lands — the client shows it
+     * in the yearly earnings outlook instead of this year's paycheck.
+     */
+    private static void applyBonusInclusionRule(CalculationInput input, Earnings earnings) {
+        double bonus = earnings.getBonus() != null ? earnings.getBonus() : 0.0;
+        if (bonus <= 0) {
+            input.bonusAnnual = 0.0;
+            return;
+        }
+        int payoutYear = parsePayoutYear(earnings.getBonusDate(), input.taxYear);
+        boolean recurring = Boolean.TRUE.equals(earnings.getBonusRecurring());
+        boolean included = recurring ? payoutYear <= input.taxYear : payoutYear == input.taxYear;
+        if (included) {
+            input.bonusAnnual = bonus;
+        } else {
+            input.bonusAnnual = 0.0;
+            input.bonusDeferredToYear = payoutYear;
+        }
+    }
+
+    /** Lenient ISO yyyy-MM-dd parse; anything unparseable falls back to the tax year. */
+    private static int parsePayoutYear(String bonusDate, Integer taxYear) {
+        if (bonusDate == null || bonusDate.isBlank()) return taxYear;
+        try {
+            return java.time.LocalDate.parse(bonusDate.trim()).getYear();
+        } catch (java.time.format.DateTimeParseException e) {
+            return taxYear;
+        }
     }
 
     public double getSupplementalAnnual() {
         double b = bonusAnnual != null ? bonusAnnual : 0.0;
         double c = commissionAnnual != null ? commissionAnnual : 0.0;
-        return b + c;
+        double r = rsuVestingAnnual != null ? rsuVestingAnnual : 0.0;
+        return b + c + r;
     }
 
     public double getRegularWagesAnnual() {
@@ -93,31 +135,4 @@ public class CalculationInput {
         }
         return 0;
     }
-
-    public Country getCountry() { return country; }
-    public void setCountry(Country country) { this.country = country; }
-    public Integer getTaxYear() { return taxYear; }
-    public void setTaxYear(Integer taxYear) { this.taxYear = taxYear; }
-    public Double getAnnualGross() { return annualGross; }
-    public void setAnnualGross(Double annualGross) { this.annualGross = annualGross; }
-    public Double getSalaryAnnual() { return salaryAnnual; }
-    public void setSalaryAnnual(Double salaryAnnual) { this.salaryAnnual = salaryAnnual; }
-    public Double getOvertimeAnnual() { return overtimeAnnual; }
-    public void setOvertimeAnnual(Double overtimeAnnual) { this.overtimeAnnual = overtimeAnnual; }
-    public Double getDoubleTimeAnnual() { return doubleTimeAnnual; }
-    public void setDoubleTimeAnnual(Double doubleTimeAnnual) { this.doubleTimeAnnual = doubleTimeAnnual; }
-    public Double getBonusAnnual() { return bonusAnnual; }
-    public void setBonusAnnual(Double bonusAnnual) { this.bonusAnnual = bonusAnnual; }
-    public Double getCommissionAnnual() { return commissionAnnual; }
-    public void setCommissionAnnual(Double commissionAnnual) { this.commissionAnnual = commissionAnnual; }
-    public PayCadence getPayCadence() { return payCadence; }
-    public void setPayCadence(PayCadence payCadence) { this.payCadence = payCadence; }
-    public Pretax getPretax() { return pretax; }
-    public void setPretax(Pretax pretax) { this.pretax = pretax; }
-    public Posttax getPosttax() { return posttax; }
-    public void setPosttax(Posttax posttax) { this.posttax = posttax; }
-    public CountryOptionsUS getUsOptions() { return usOptions; }
-    public void setUsOptions(CountryOptionsUS usOptions) { this.usOptions = usOptions; }
-    public CountryOptionsUK getUkOptions() { return ukOptions; }
-    public void setUkOptions(CountryOptionsUK ukOptions) { this.ukOptions = ukOptions; }
 }

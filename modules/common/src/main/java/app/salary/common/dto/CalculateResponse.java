@@ -27,6 +27,10 @@ public class CalculateResponse {
     @Schema(description = "Currency code (USD for US, GBP for UK)", example = "USD")
     private String currency;
 
+    @Schema(description = "Annual tax slice for supplemental income (bonus/commission/RSU); "
+            + "null when there is no supplemental income")
+    private SupplementalBreakdown supplemental;
+
     @Schema(description = "Itemized list of deductions and taxes")
     private List<LineItem> lineItems;
 

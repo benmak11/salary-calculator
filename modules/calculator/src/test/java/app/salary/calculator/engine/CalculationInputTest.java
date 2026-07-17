@@ -5,6 +5,8 @@ import app.salary.common.constants.FilingStatus;
 import app.salary.common.constants.PayCadence;
 import app.salary.common.dto.*;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -250,6 +252,61 @@ class CalculationInputTest {
         assertEquals(5000.0, input.getCommissionAnnual());
         assertEquals(15000.0, input.getSupplementalAnnual());
         assertEquals(115000.0, input.getAnnualGross());
+    }
+
+    // ── Bonus payout date + recurring rule ───────────────────────────────────────
+
+    private static CalculateRequest earningsRequest(Double bonus, String bonusDate, Boolean recurring) {
+        CalculateRequest request = new CalculateRequest();
+        request.setCountry(Country.US);
+        request.setTaxYear(2025);
+        request.setCadence(PayCadence.ANNUAL);
+        Salary salary = new Salary();
+        salary.setAmount(100000.0);
+        salary.setBasis(Salary.Basis.PER_YEAR);
+        Earnings earnings = new Earnings();
+        earnings.setSalary(salary);
+        earnings.setBonus(bonus);
+        earnings.setBonusDate(bonusDate);
+        earnings.setBonusRecurring(recurring);
+        request.setEarnings(earnings);
+        return request;
+    }
+
+    @ParameterizedTest(name = "bonus dated {0}, recurring={1} -> included {2}, deferred to {4}")
+    @CsvSource(nullValues = "null", value = {
+            // Tax year is 2025. Rule: recurring ? payoutYear <= taxYear : payoutYear == taxYear
+            // bonusDate,  recurring, expectedBonus, expectedGross, expectedDeferredToYear
+            "2025-03-15,   false,     10000.0,       110000.0,      null", // dated in tax year
+            "2027-03-15,   false,     0.0,           100000.0,      2027", // one-time future year -> deferred
+            "2024-03-15,   true,      10000.0,       110000.0,      null", // recurring started in past year
+            "2026-03-15,   true,      0.0,           100000.0,      2026", // recurring starting future year -> deferred
+            "2024-03-15,   false,     0.0,           100000.0,      2024", // one-time in past year -> excluded
+            "null,         false,     10000.0,       110000.0,      null", // no date -> assume tax year
+            "next march,   false,     10000.0,       110000.0,      null", // unparseable -> fall back to tax year
+    })
+    void from_bonusDateAndRecurringRule(String bonusDate, boolean recurring, double expectedBonus,
+                                        double expectedGross, Integer expectedDeferredToYear) {
+        CalculationInput input = CalculationInput.from(earningsRequest(10000.0, bonusDate, recurring));
+
+        assertEquals(expectedBonus, input.getBonusAnnual());
+        assertEquals(expectedGross, input.getAnnualGross());
+        assertEquals(expectedDeferredToYear, input.getBonusDeferredToYear());
+    }
+
+    @Test
+    void from_rsuVesting_shouldCountTowardGrossAndSupplemental() {
+        CalculateRequest request = earningsRequest(0.0, null, false);
+        request.getEarnings().setRsuVesting(18750.0);
+        request.getEarnings().setCommission(5000.0);
+
+        CalculationInput input = CalculationInput.from(request);
+
+        assertEquals(18750.0, input.getRsuVestingAnnual());
+        assertEquals(23750.0, input.getSupplementalAnnual(), 0.01);
+        assertEquals(123750.0, input.getAnnualGross(), 0.01);
+        // RSU value is supplemental, not regular wages
+        assertEquals(100000.0, input.getRegularWagesAnnual(), 0.01);
     }
 
     @Test
