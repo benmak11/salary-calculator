@@ -515,7 +515,6 @@ curl http://localhost:8080/v1/health
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `useOldW4` | boolean | false | Use 2019-or-earlier W-4 (allowances-based) instead of the modern W-4 |
-| `nonresidentAlien` | boolean | false | Filer is a nonresident alien |
 | `dependentsAmount` | number | 0.0 | Step 3 dependents credit ($2000/qualifying child + $500/other dependent) |
 | `otherIncome` | number | 0.0 | Step 4(a) — annual non-job income |
 | `itemizedDeductions` | number | 0.0 | Step 4(b) — itemized deductions (overrides standard deduction if greater) |

@@ -14,9 +14,6 @@ public class W4 {
     @Schema(description = "Use 2019-or-earlier W-4 (allowances-based) instead of modern W-4", example = "false")
     private Boolean useOldW4 = false;
 
-    @Schema(description = "Filer is a nonresident alien", example = "false")
-    private Boolean nonresidentAlien = false;
-
     @Min(0)
     @Schema(description = "W-4 step 3 dependents credit dollar amount ($2000 per qualifying child + $500 per other dependent)", example = "0")
     private Double dependentsAmount = 0.0;
