@@ -1,6 +1,7 @@
 package app.salary.api.controller;
 
 import app.salary.api.auth.AuthMiddleware;
+import app.salary.api.store.BudgetStore;
 import app.salary.api.store.CalculationStore;
 import app.salary.api.store.GrantStore;
 import app.salary.api.store.UserDirectory;
@@ -25,11 +26,14 @@ public class AccountController {
 
     private final CalculationStore calculationStore;
     private final GrantStore grantStore;
+    private final BudgetStore budgetStore;
     private final UserDirectory users;
 
-    public AccountController(CalculationStore calculationStore, GrantStore grantStore, UserDirectory users) {
+    public AccountController(CalculationStore calculationStore, GrantStore grantStore,
+                              BudgetStore budgetStore, UserDirectory users) {
         this.calculationStore = calculationStore;
         this.grantStore = grantStore;
+        this.budgetStore = budgetStore;
         this.users = users;
     }
 
@@ -37,7 +41,7 @@ public class AccountController {
         routes.delete("/v1/account", this::deleteAccount);
     }
 
-    /** Deletes the user's saved calculations, RSU grants, and directory record. Idempotent. */
+    /** Deletes the user's saved calculations, RSU grants, budget, and directory record. Idempotent. */
     private void deleteAccount(Context ctx) {
         Optional<String> userId = AuthMiddleware.currentUserId(ctx);
         if (userId.isEmpty()) {
@@ -47,8 +51,10 @@ public class AccountController {
         MDC.put(ApiConstants.MDC_USER_ID, userId.get());
         int removed = calculationStore.deleteAll(userId.get());
         int grantsRemoved = grantStore.deleteAll(userId.get());
+        boolean budgetRemoved = budgetStore.delete(userId.get());
         users.delete(userId.get());
-        log.info("account deleted: calculationsRemoved={} grantsRemoved={}", removed, grantsRemoved);
+        log.info("account deleted: calculationsRemoved={} grantsRemoved={} budgetRemoved={}",
+                removed, grantsRemoved, budgetRemoved);
         ctx.status(HttpStatus.NO_CONTENT);
     }
 }
