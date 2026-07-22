@@ -2,18 +2,23 @@ package app.salary.api.controller;
 
 import app.salary.api.auth.AuthMiddleware;
 import app.salary.api.auth.SessionTokenService;
+import app.salary.api.store.BudgetStore;
 import app.salary.api.store.CalculationStore;
 import app.salary.api.store.GrantStore;
+import app.salary.api.store.InMemoryBudgetStore;
 import app.salary.api.store.InMemoryCalculationStore;
 import app.salary.api.store.InMemoryGrantStore;
 import app.salary.api.store.InMemoryUserDirectory;
 import app.salary.api.store.UserDirectory;
 import app.salary.common.constants.Country;
+import app.salary.common.constants.GoalType;
 import app.salary.common.constants.PayCadence;
+import app.salary.common.dto.Budget;
 import app.salary.common.dto.CalculateRequest;
 import app.salary.common.dto.CalculateResponse;
 import app.salary.common.dto.CountryOptions;
 import app.salary.common.dto.CountryOptionsUS;
+import app.salary.common.dto.SavingsGoal;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.javalin.Javalin;
 import io.javalin.json.JavalinJackson;
@@ -30,6 +35,7 @@ class AccountControllerTest {
 
     private CalculationStore store;
     private GrantStore grants;
+    private BudgetStore budgets;
     private UserDirectory users;
     private SessionTokenService sessionTokens;
 
@@ -37,6 +43,7 @@ class AccountControllerTest {
     void setUp() {
         store = new InMemoryCalculationStore();
         grants = new InMemoryGrantStore();
+        budgets = new InMemoryBudgetStore();
         users = new InMemoryUserDirectory();
         byte[] secret = new byte[32];
         for (int i = 0; i < secret.length; i++) secret[i] = (byte) i;
@@ -49,8 +56,20 @@ class AccountControllerTest {
             config.jsonMapper(new JavalinJackson(MAPPER, false));
             config.startup.showJavalinBanner = false;
             config.routes.before(middleware::handle);
-            new AccountController(store, grants, users).register(config.routes);
+            new AccountController(store, grants, budgets, users).register(config.routes);
         });
+    }
+
+    private static Budget sampleBudget() {
+        SavingsGoal goal = new SavingsGoal();
+        goal.setId("sg_1");
+        goal.setType(GoalType.EMERGENCY_FUND);
+        goal.setName("Emergency fund");
+        goal.setTargetAmount(10000.0);
+        goal.setPriority(1);
+        Budget budget = new Budget();
+        budget.setGoals(java.util.List.of(goal));
+        return budget;
     }
 
     private static app.salary.common.dto.RsuGrant sampleGrant() {
@@ -94,14 +113,16 @@ class AccountControllerTest {
     }
 
     @Test
-    void deleteAccountRemovesCalculationsGrantsAndDirectoryRecord() {
+    void deleteAccountRemovesCalculationsGrantsBudgetAndDirectoryRecord() {
         var saved = store.save("user-1", sampleRequest(), new CalculateResponse());
         store.save("user-1", sampleRequest(), new CalculateResponse());
         grants.create("user-1", sampleGrant());
+        budgets.save("user-1", sampleBudget());
         users.upsertOnSignIn("user-1", "Alex Carter");
         // a second user's data must be left untouched
         store.save("user-2", sampleRequest(), new CalculateResponse());
         grants.create("user-2", sampleGrant());
+        budgets.save("user-2", sampleBudget());
         users.upsertOnSignIn("user-2", "Sam Rivera");
 
         JavalinTest.test(app(), (server, client) -> {
@@ -113,11 +134,13 @@ class AccountControllerTest {
             assertEquals(0, store.list("user-1", 50, null).getItems().size());
             assertTrue(store.get("user-1", saved.getId()).isEmpty());
             assertTrue(grants.list("user-1").isEmpty());
+            assertTrue(budgets.get("user-1").isEmpty());
             assertTrue(users.displayName("user-1").isEmpty());
 
             // user-2 intact
             assertEquals(1, store.list("user-2", 50, null).getItems().size());
             assertEquals(1, grants.list("user-2").size());
+            assertTrue(budgets.get("user-2").isPresent());
             assertTrue(users.displayName("user-2").isPresent());
         });
     }

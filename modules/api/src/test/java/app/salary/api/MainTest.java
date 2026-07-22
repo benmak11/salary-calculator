@@ -1,11 +1,14 @@
 package app.salary.api;
 
 import app.salary.api.controller.AccountController;
+import app.salary.api.controller.BudgetController;
 import app.salary.api.controller.CalculationHistoryController;
 import app.salary.api.controller.GrantsController;
 import app.salary.api.controller.StocksController;
+import app.salary.api.store.BudgetStore;
 import app.salary.api.store.CalculationStore;
 import app.salary.api.store.GrantStore;
+import app.salary.api.store.InMemoryBudgetStore;
 import app.salary.api.store.InMemoryCalculationStore;
 import app.salary.api.store.InMemoryGrantStore;
 import app.salary.api.store.InMemoryUserDirectory;
@@ -56,14 +59,17 @@ class MainTest {
 
         CalculationStore calculationStore = new InMemoryCalculationStore();
         GrantStore grantStore = new InMemoryGrantStore();
+        BudgetStore budgetStore = new InMemoryBudgetStore();
         UserDirectory userDirectory = new InMemoryUserDirectory();
         CalculationHistoryController historyController = new CalculationHistoryController(calculationStore);
-        AccountController accountController = new AccountController(calculationStore, grantStore, userDirectory);
+        AccountController accountController =
+                new AccountController(calculationStore, grantStore, budgetStore, userDirectory);
         GrantsController grantsController = new GrantsController(grantStore, validator);
+        BudgetController budgetController = new BudgetController(budgetStore, validator);
         StocksController stocksController = new StocksController(null);
         return Main.createApp(mapper, meterRegistry, orchestrator, calculatorRegistry, validator,
                 calculationStore, null, null, historyController, accountController, grantsController,
-                stocksController);
+                budgetController, stocksController);
     }
 
     @Test

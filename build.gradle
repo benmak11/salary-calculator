@@ -80,7 +80,10 @@ subprojects {
         '**/RulePack$*.class',
         '**/*Application.class',
         '**/Main.class',
-        '**/repository/**'
+        '**/repository/**',
+        // Mirrors sonar.coverage.exclusions below: these need live GCP, and tests
+        // deliberately use the in-memory impls instead (never a Firestore emulator).
+        '**/store/Firestore*.class'
     ]
 
     jacocoTestReport {

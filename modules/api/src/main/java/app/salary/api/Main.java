@@ -9,15 +9,19 @@ import app.salary.api.client.FinnhubStockClient;
 import app.salary.api.client.GoogleIdTokenSupplier;
 import app.salary.api.client.HttpRulePackClient;
 import app.salary.api.client.StockClient;
+import app.salary.api.controller.BudgetController;
 import app.salary.api.controller.CalculateController;
 import app.salary.api.controller.CalculationHistoryController;
 import app.salary.api.controller.GrantsController;
 import app.salary.api.controller.StocksController;
+import app.salary.api.store.BudgetStore;
 import app.salary.api.store.CalculationStore;
+import app.salary.api.store.FirestoreBudgetStore;
 import app.salary.api.store.FirestoreCalculationStore;
 import app.salary.api.store.FirestoreGrantStore;
 import app.salary.api.store.FirestoreUserDirectory;
 import app.salary.api.store.GrantStore;
+import app.salary.api.store.InMemoryBudgetStore;
 import app.salary.api.store.InMemoryCalculationStore;
 import app.salary.api.store.InMemoryGrantStore;
 import app.salary.api.store.InMemoryUserDirectory;
@@ -138,8 +142,11 @@ public class Main {
         GrantStore grantStore = firestore != null
                 ? new FirestoreGrantStore(firestore, objectMapper)
                 : new InMemoryGrantStore();
+        BudgetStore budgetStore = firestore != null
+                ? new FirestoreBudgetStore(firestore, objectMapper)
+                : new InMemoryBudgetStore();
         if (firestore == null) {
-            log.warn("Firestore unavailable (ENABLE_GCP={}); user directory + calculation history + grants are in-memory only.", enableGcp);
+            log.warn("Firestore unavailable (ENABLE_GCP={}); user directory + calculation history + grants + budget are in-memory only.", enableGcp);
         }
 
         AppleIdentityVerifier appleVerifier = appleAudience.isBlank()
@@ -157,14 +164,16 @@ public class Main {
         }
 
         CalculationHistoryController historyController = new CalculationHistoryController(calculationStore);
-        AccountController accountController = new AccountController(calculationStore, grantStore, userDirectory);
+        AccountController accountController =
+                new AccountController(calculationStore, grantStore, budgetStore, userDirectory);
         GrantsController grantsController = new GrantsController(grantStore, requestValidator);
+        BudgetController budgetController = new BudgetController(budgetStore, requestValidator);
         StocksController stocksController = new StocksController(stockClient);
 
         Javalin app = createApp(objectMapper, meterRegistry, orchestrator,
                 calculatorRegistry, requestValidator, calculationStore,
                 authMiddleware, authController, historyController, accountController,
-                grantsController, stocksController);
+                grantsController, budgetController, stocksController);
 
         // ── Boot ─────────────────────────────────────────────────────────────
         app.start(port);
@@ -192,6 +201,7 @@ public class Main {
                              CalculationHistoryController historyController,
                              AccountController accountController,
                              GrantsController grantsController,
+                             BudgetController budgetController,
                              StocksController stocksController) {
         return Javalin.create(config -> {
             config.jsonMapper(new JavalinJackson(objectMapper, false));
@@ -257,6 +267,7 @@ public class Main {
             historyController.register(config.routes);
             accountController.register(config.routes);
             grantsController.register(config.routes);
+            budgetController.register(config.routes);
             stocksController.register(config.routes);
 
             config.routes.get("/actuator/health", ctx -> ctx.json(Map.of("status", "UP")));
