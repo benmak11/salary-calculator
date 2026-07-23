@@ -33,6 +33,9 @@ dependencies {
     implementation platform('com.google.cloud:libraries-bom:26.83.0')
     implementation 'com.google.cloud:google-cloud-firestore'
 
+    // Gemini (Vertex AI mode, ADC auth) for AI-generated budget plans.
+    implementation 'com.google.genai:google-genai:1.63.0'
+
     // JWT mint/verify for our own session tokens + Apple identity-token verification.
     // jwks-rsa provides the cached RSA-key fetcher used to verify Apple tokens.
     implementation 'com.auth0:java-jwt:4.4.0'

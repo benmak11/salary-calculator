@@ -83,7 +83,9 @@ subprojects {
         '**/repository/**',
         // Mirrors sonar.coverage.exclusions below: these need live GCP, and tests
         // deliberately use the in-memory impls instead (never a Firestore emulator).
-        '**/store/Firestore*.class'
+        '**/store/Firestore*.class',
+        '**/client/GoogleIdTokenSupplier.class',
+        '**/client/VertexGenerativeAiClient.class'
     ]
 
     jacocoTestReport {
@@ -137,9 +139,11 @@ sonar {
                 '**/dto/**,**/constants/**,**/annotation/**,**/entity/**,**/exception/**,**/RulePack.java'
         // Coverage-only exclusions, mirroring the jacocoExcludes policy above:
         // Main = bootstrap wiring (already stripped from the JaCoCo report);
-        // Firestore*/GoogleIdTokenSupplier/repository = need live GCP — tests deliberately
-        // use the in-memory impls or mocks instead (a Firestore emulator is never required).
+        // Firestore*/GoogleIdTokenSupplier/VertexGenerativeAiClient/repository = need live GCP —
+        // tests deliberately use the in-memory impls or mocks instead (a Firestore/Vertex AI
+        // emulator is never required).
         property 'sonar.coverage.exclusions',
-                '**/Main.java,**/store/Firestore*.java,**/client/GoogleIdTokenSupplier.java,**/repository/**'
+                '**/Main.java,**/store/Firestore*.java,**/client/GoogleIdTokenSupplier.java,' +
+                '**/client/VertexGenerativeAiClient.java,**/repository/**'
     }
 }

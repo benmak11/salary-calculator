@@ -2,6 +2,7 @@ package app.salary.api;
 
 import app.salary.api.controller.AccountController;
 import app.salary.api.controller.BudgetController;
+import app.salary.api.controller.BudgetPlanController;
 import app.salary.api.controller.CalculationHistoryController;
 import app.salary.api.controller.GrantsController;
 import app.salary.api.controller.StocksController;
@@ -66,10 +67,11 @@ class MainTest {
                 new AccountController(calculationStore, grantStore, budgetStore, userDirectory);
         GrantsController grantsController = new GrantsController(grantStore, validator);
         BudgetController budgetController = new BudgetController(budgetStore, validator);
+        BudgetPlanController budgetPlanController = new BudgetPlanController(null, validator);
         StocksController stocksController = new StocksController(null);
         return Main.createApp(mapper, meterRegistry, orchestrator, calculatorRegistry, validator,
                 calculationStore, null, null, historyController, accountController, grantsController,
-                budgetController, stocksController);
+                budgetController, budgetPlanController, stocksController);
     }
 
     @Test
