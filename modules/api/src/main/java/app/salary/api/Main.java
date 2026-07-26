@@ -6,14 +6,18 @@ import app.salary.api.controller.AccountController;
 import app.salary.api.auth.AuthMiddleware;
 import app.salary.api.auth.SessionTokenService;
 import app.salary.api.client.FinnhubStockClient;
+import app.salary.api.client.GenerativeAiClient;
 import app.salary.api.client.GoogleIdTokenSupplier;
 import app.salary.api.client.HttpRulePackClient;
 import app.salary.api.client.StockClient;
+import app.salary.api.client.VertexGenerativeAiClient;
 import app.salary.api.controller.BudgetController;
+import app.salary.api.controller.BudgetPlanController;
 import app.salary.api.controller.CalculateController;
 import app.salary.api.controller.CalculationHistoryController;
 import app.salary.api.controller.GrantsController;
 import app.salary.api.controller.StocksController;
+import app.salary.api.service.BudgetPlanService;
 import app.salary.api.store.BudgetStore;
 import app.salary.api.store.CalculationStore;
 import app.salary.api.store.FirestoreBudgetStore;
@@ -91,6 +95,7 @@ public class Main {
         String sessionSecretEnv = Env.stringValue("SESSION_JWT_SECRET", "");
         String finnhubApiKey = Env.stringValue("FINNHUB_API_KEY", "");
         String finnhubBaseUrl = Env.stringValue("FINNHUB_BASE_URL", "https://finnhub.io/api/v1");
+        String vertexAiLocation = Env.stringValue("VERTEX_AI_LOCATION", "us-central1");
 
         // ── Shared infra ─────────────────────────────────────────────────────
         ObjectMapper objectMapper = buildObjectMapper();
@@ -124,56 +129,37 @@ public class Main {
         CalculationOrchestrator orchestrator = new CalculationOrchestrator(
                 rulesRegistry, calculatorRegistry, rulePackClient, meterRegistry);
 
-        StockClient stockClient = finnhubApiKey.isBlank()
-                ? null
-                : new FinnhubStockClient(httpClient, objectMapper, finnhubBaseUrl, finnhubApiKey);
-        if (stockClient == null) {
-            log.warn("FINNHUB_API_KEY not set — /v1/stocks endpoints will answer 503 (manual price entry only).");
-        }
+        StockClient stockClient = buildStockClient(httpClient, objectMapper, finnhubApiKey, finnhubBaseUrl);
+        BudgetPlanService budgetPlanService =
+                buildBudgetPlanService(projectId, vertexAiLocation, enableGcp, objectMapper);
 
         // ── Persistence + identity (lazy / optional) ─────────────────────────
         Firestore firestore = enableGcp ? buildFirestore(projectId) : null;
-        UserDirectory userDirectory = firestore != null
-                ? new FirestoreUserDirectory(firestore)
-                : new InMemoryUserDirectory();
-        CalculationStore calculationStore = firestore != null
-                ? new FirestoreCalculationStore(firestore, objectMapper)
-                : new InMemoryCalculationStore();
-        GrantStore grantStore = firestore != null
-                ? new FirestoreGrantStore(firestore, objectMapper)
-                : new InMemoryGrantStore();
-        BudgetStore budgetStore = firestore != null
-                ? new FirestoreBudgetStore(firestore, objectMapper)
-                : new InMemoryBudgetStore();
+        UserDirectory userDirectory = buildUserDirectory(firestore);
+        CalculationStore calculationStore = buildCalculationStore(firestore, objectMapper);
+        GrantStore grantStore = buildGrantStore(firestore, objectMapper);
+        BudgetStore budgetStore = buildBudgetStore(firestore, objectMapper);
         if (firestore == null) {
             log.warn("Firestore unavailable (ENABLE_GCP={}); user directory + calculation history + grants + budget are in-memory only.", enableGcp);
         }
 
-        AppleIdentityVerifier appleVerifier = appleAudience.isBlank()
-                ? null
-                : new AppleIdentityVerifier(appleAudience);
         SessionTokenService sessionTokens = buildSessionTokens(sessionSecretEnv);
         AuthMiddleware authMiddleware = new AuthMiddleware(sessionTokens);
-        AuthController authController = appleVerifier != null
-                ? new AuthController(appleVerifier, sessionTokens, userDirectory, requestValidator)
-                : null;
-        if (authController == null) {
-            log.warn("Sign in with Apple disabled (APPLE_AUDIENCE={}, SESSION_JWT_SECRET configured: {})",
-                    appleAudience.isBlank() ? "<unset>" : "set",
-                    !sessionSecretEnv.isBlank());
-        }
+        AuthController authController = buildAuthController(
+                appleAudience, sessionSecretEnv, sessionTokens, userDirectory, requestValidator);
 
         CalculationHistoryController historyController = new CalculationHistoryController(calculationStore);
         AccountController accountController =
                 new AccountController(calculationStore, grantStore, budgetStore, userDirectory);
         GrantsController grantsController = new GrantsController(grantStore, requestValidator);
         BudgetController budgetController = new BudgetController(budgetStore, requestValidator);
+        BudgetPlanController budgetPlanController = new BudgetPlanController(budgetPlanService, requestValidator);
         StocksController stocksController = new StocksController(stockClient);
 
         Javalin app = createApp(objectMapper, meterRegistry, orchestrator,
                 calculatorRegistry, requestValidator, calculationStore,
                 authMiddleware, authController, historyController, accountController,
-                grantsController, budgetController, stocksController);
+                grantsController, budgetController, budgetPlanController, stocksController);
 
         // ── Boot ─────────────────────────────────────────────────────────────
         app.start(port);
@@ -202,6 +188,7 @@ public class Main {
                              AccountController accountController,
                              GrantsController grantsController,
                              BudgetController budgetController,
+                             BudgetPlanController budgetPlanController,
                              StocksController stocksController) {
         return Javalin.create(config -> {
             config.jsonMapper(new JavalinJackson(objectMapper, false));
@@ -268,6 +255,7 @@ public class Main {
             accountController.register(config.routes);
             grantsController.register(config.routes);
             budgetController.register(config.routes);
+            budgetPlanController.register(config.routes);
             stocksController.register(config.routes);
 
             config.routes.get("/actuator/health", ctx -> ctx.json(Map.of("status", "UP")));
@@ -286,6 +274,73 @@ public class Main {
             log.warn("Failed to construct Firestore client (projectId={}): {}", projectId, e.getMessage());
             return null;
         }
+    }
+
+    private static GenerativeAiClient buildGenerativeAiClient(String projectId, String location) {
+        try {
+            return new VertexGenerativeAiClient(projectId, location);
+        } catch (Exception e) {
+            log.warn("Failed to construct Vertex AI client (projectId={}, location={}): {}",
+                    projectId, location, e.getMessage());
+            return null;
+        }
+    }
+
+    private static StockClient buildStockClient(HttpClient httpClient, ObjectMapper objectMapper,
+                                                 String apiKey, String baseUrl) {
+        if (apiKey.isBlank()) {
+            log.warn("FINNHUB_API_KEY not set — /v1/stocks endpoints will answer 503 (manual price entry only).");
+            return null;
+        }
+        return new FinnhubStockClient(httpClient, objectMapper, baseUrl, apiKey);
+    }
+
+    private static BudgetPlanService buildBudgetPlanService(String projectId, String vertexAiLocation,
+                                                              boolean enableGcp, ObjectMapper objectMapper) {
+        GenerativeAiClient generativeAiClient = enableGcp
+                ? buildGenerativeAiClient(projectId, vertexAiLocation)
+                : null;
+        if (generativeAiClient == null) {
+            log.warn("Vertex AI unavailable (ENABLE_GCP={}) — POST /v1/budget/plan will answer 503 "
+                    + "(client falls back to its own on-device plan).", enableGcp);
+            return null;
+        }
+        return new BudgetPlanService(generativeAiClient, objectMapper);
+    }
+
+    private static UserDirectory buildUserDirectory(Firestore firestore) {
+        return firestore != null ? new FirestoreUserDirectory(firestore) : new InMemoryUserDirectory();
+    }
+
+    private static CalculationStore buildCalculationStore(Firestore firestore, ObjectMapper objectMapper) {
+        return firestore != null
+                ? new FirestoreCalculationStore(firestore, objectMapper)
+                : new InMemoryCalculationStore();
+    }
+
+    private static GrantStore buildGrantStore(Firestore firestore, ObjectMapper objectMapper) {
+        return firestore != null
+                ? new FirestoreGrantStore(firestore, objectMapper)
+                : new InMemoryGrantStore();
+    }
+
+    private static BudgetStore buildBudgetStore(Firestore firestore, ObjectMapper objectMapper) {
+        return firestore != null
+                ? new FirestoreBudgetStore(firestore, objectMapper)
+                : new InMemoryBudgetStore();
+    }
+
+    private static AuthController buildAuthController(String appleAudience, String sessionSecretEnv,
+                                                        SessionTokenService sessionTokens,
+                                                        UserDirectory userDirectory,
+                                                        RequestValidator requestValidator) {
+        if (appleAudience.isBlank()) {
+            log.warn("Sign in with Apple disabled (APPLE_AUDIENCE=<unset>, SESSION_JWT_SECRET configured: {})",
+                    !sessionSecretEnv.isBlank());
+            return null;
+        }
+        AppleIdentityVerifier appleVerifier = new AppleIdentityVerifier(appleAudience);
+        return new AuthController(appleVerifier, sessionTokens, userDirectory, requestValidator);
     }
 
     private static SessionTokenService buildSessionTokens(String secretEnv) {
