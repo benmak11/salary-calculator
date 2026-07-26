@@ -32,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class BudgetPlanControllerTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final String MODEL = "gemini-3.1-flash-lite";
     private static final String VALID_JSON =
             "{\"rationale\":\"Front-load the emergency fund.\","
                     + "\"goalContributions\":[{\"goalId\":\"sg_1\",\"suggestedPerPeriodAmount\":250.0}],"
@@ -105,7 +106,7 @@ class BudgetPlanControllerTest {
 
     @Test
     void generate_anonymous_stillWorks() {
-        BudgetPlanService service = new BudgetPlanService(WORKING_CLIENT, MAPPER);
+        BudgetPlanService service = new BudgetPlanService(WORKING_CLIENT, MAPPER, MODEL);
         JavalinTest.test(app(service), (server, client) -> {
             var response = client.post("/v1/budget/plan", requestJson());
             assertEquals(200, response.code());
@@ -117,7 +118,7 @@ class BudgetPlanControllerTest {
 
     @Test
     void generate_signedIn_stillWorks() {
-        BudgetPlanService service = new BudgetPlanService(WORKING_CLIENT, MAPPER);
+        BudgetPlanService service = new BudgetPlanService(WORKING_CLIENT, MAPPER, MODEL);
         JavalinTest.test(app(service), (server, client) -> {
             var response = client.post("/v1/budget/plan", requestJson(),
                     r -> r.header("Authorization", bearerFor("user-1")));
@@ -127,7 +128,7 @@ class BudgetPlanControllerTest {
 
     @Test
     void generate_upstreamFailure_returns503() {
-        BudgetPlanService service = new BudgetPlanService(FAILING_CLIENT, MAPPER);
+        BudgetPlanService service = new BudgetPlanService(FAILING_CLIENT, MAPPER, MODEL);
         JavalinTest.test(app(service), (server, client) -> {
             var response = client.post("/v1/budget/plan", requestJson());
             assertEquals(503, response.code());
@@ -136,7 +137,7 @@ class BudgetPlanControllerTest {
 
     @Test
     void generate_invalidRequest_returns400() {
-        BudgetPlanService service = new BudgetPlanService(WORKING_CLIENT, MAPPER);
+        BudgetPlanService service = new BudgetPlanService(WORKING_CLIENT, MAPPER, MODEL);
         JavalinTest.test(app(service), (server, client) -> {
             String invalid = MAPPER.writeValueAsString(Map.of("netIncomePerPeriod", 2400.0));
             var response = client.post("/v1/budget/plan", invalid);

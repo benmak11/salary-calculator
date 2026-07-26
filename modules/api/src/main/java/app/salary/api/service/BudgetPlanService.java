@@ -26,8 +26,6 @@ import java.util.Map;
  */
 public class BudgetPlanService {
 
-    private static final String MODEL = "gemini-3.1-flash-lite";
-
     private static final Schema RESPONSE_SCHEMA = Schema.builder()
             .type(Type.Known.OBJECT)
             .properties(Map.of(
@@ -53,19 +51,21 @@ public class BudgetPlanService {
 
     private final GenerativeAiClient client;
     private final ObjectMapper objectMapper;
+    private final String model;
 
-    public BudgetPlanService(GenerativeAiClient client, ObjectMapper objectMapper) {
+    public BudgetPlanService(GenerativeAiClient client, ObjectMapper objectMapper, String model) {
         this.client = client;
         this.objectMapper = objectMapper;
+        this.model = model;
     }
 
     public BudgetPlan generatePlan(BudgetPlanRequest request) {
         String prompt = buildPrompt(request);
-        String json = client.generateJson(MODEL, prompt, RESPONSE_SCHEMA);
+        String json = client.generateJson(model, prompt, RESPONSE_SCHEMA);
         try {
             return objectMapper.readValue(json, BudgetPlan.class);
         } catch (JsonProcessingException e) {
-            throw new GenerativeAiException("Malformed plan JSON from " + MODEL, e);
+            throw new GenerativeAiException("Malformed plan JSON from " + model, e);
         }
     }
 
