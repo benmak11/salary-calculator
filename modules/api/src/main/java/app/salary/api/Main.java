@@ -95,7 +95,12 @@ public class Main {
         String sessionSecretEnv = Env.stringValue("SESSION_JWT_SECRET", "");
         String finnhubApiKey = Env.stringValue("FINNHUB_API_KEY", "");
         String finnhubBaseUrl = Env.stringValue("FINNHUB_BASE_URL", "https://finnhub.io/api/v1");
-        String vertexAiLocation = Env.stringValue("VERTEX_AI_LOCATION", "us-central1");
+        // gemini-3.1-flash-lite is a global-endpoint-only model on Vertex AI — it has
+        // no regional binding, so location must be "global" (a regional value like
+        // us-central1 returns a 404 "publisher model not found"). Model is env-tunable
+        // so a future swap is a Cloud Run env change, not a code deploy.
+        String vertexAiLocation = Env.stringValue("VERTEX_AI_LOCATION", "global");
+        String vertexAiModel = Env.stringValue("VERTEX_AI_MODEL", "gemini-3.1-flash-lite");
 
         // ── Shared infra ─────────────────────────────────────────────────────
         ObjectMapper objectMapper = buildObjectMapper();
@@ -131,7 +136,7 @@ public class Main {
 
         StockClient stockClient = buildStockClient(httpClient, objectMapper, finnhubApiKey, finnhubBaseUrl);
         BudgetPlanService budgetPlanService =
-                buildBudgetPlanService(projectId, vertexAiLocation, enableGcp, objectMapper);
+                buildBudgetPlanService(projectId, vertexAiLocation, vertexAiModel, enableGcp, objectMapper);
 
         // ── Persistence + identity (lazy / optional) ─────────────────────────
         Firestore firestore = enableGcp ? buildFirestore(projectId) : null;
@@ -296,7 +301,8 @@ public class Main {
     }
 
     private static BudgetPlanService buildBudgetPlanService(String projectId, String vertexAiLocation,
-                                                              boolean enableGcp, ObjectMapper objectMapper) {
+                                                              String vertexAiModel, boolean enableGcp,
+                                                              ObjectMapper objectMapper) {
         GenerativeAiClient generativeAiClient = enableGcp
                 ? buildGenerativeAiClient(projectId, vertexAiLocation)
                 : null;
@@ -305,7 +311,7 @@ public class Main {
                     + "(client falls back to its own on-device plan).", enableGcp);
             return null;
         }
-        return new BudgetPlanService(generativeAiClient, objectMapper);
+        return new BudgetPlanService(generativeAiClient, objectMapper, vertexAiModel);
     }
 
     private static UserDirectory buildUserDirectory(Firestore firestore) {

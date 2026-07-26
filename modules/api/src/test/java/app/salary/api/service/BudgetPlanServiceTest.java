@@ -37,11 +37,13 @@ class BudgetPlanServiceTest {
     @Mock
     private GenerativeAiClient client;
 
+    private static final String MODEL = "gemini-3.1-flash-lite";
+
     private BudgetPlanService service;
 
     @BeforeEach
     void setUp() {
-        service = new BudgetPlanService(client, new ObjectMapper());
+        service = new BudgetPlanService(client, new ObjectMapper(), MODEL);
     }
 
     private static BudgetPlanRequest request() {
@@ -94,7 +96,7 @@ class BudgetPlanServiceTest {
     }
 
     @Test
-    void generatePlan_callsModelWithGemini31FlashLite() {
+    void generatePlan_callsModelWithConfiguredModel() {
         when(client.generateJson(anyString(), anyString(), any(Schema.class)))
                 .thenReturn("{\"rationale\":\"ok\",\"goalContributions\":[],\"warnings\":[]}");
 
@@ -102,7 +104,7 @@ class BudgetPlanServiceTest {
 
         ArgumentCaptor<String> modelCaptor = ArgumentCaptor.forClass(String.class);
         verify(client).generateJson(modelCaptor.capture(), anyString(), any(Schema.class));
-        assertEquals("gemini-3.1-flash-lite", modelCaptor.getValue());
+        assertEquals(MODEL, modelCaptor.getValue());
     }
 
     @Test
