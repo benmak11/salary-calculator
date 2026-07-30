@@ -10,6 +10,7 @@ import app.salary.common.constants.Country;
 import app.salary.common.dto.CalculateRequest;
 import app.salary.common.dto.CalculateResponse;
 import app.salary.common.dto.SavedCalculationSummary;
+import app.salary.rules.RulesRegistry;
 import io.javalin.config.RoutesConfig;
 import io.javalin.http.Context;
 import org.slf4j.Logger;
@@ -28,15 +29,18 @@ public class CalculateController {
     private final CalculatorRegistry calculatorRegistry;
     private final RequestValidator validator;
     private final CalculationStore calculationStore;
+    private final RulesRegistry rulesRegistry;
 
     public CalculateController(CalculationOrchestrator orchestrator,
                                CalculatorRegistry calculatorRegistry,
                                RequestValidator validator,
-                               CalculationStore calculationStore) {
+                               CalculationStore calculationStore,
+                               RulesRegistry rulesRegistry) {
         this.orchestrator = orchestrator;
         this.calculatorRegistry = calculatorRegistry;
         this.validator = validator;
         this.calculationStore = calculationStore;
+        this.rulesRegistry = rulesRegistry;
     }
 
     public void register(RoutesConfig routes) {
@@ -119,11 +123,11 @@ public class CalculateController {
 
     private void getSupportedTaxYears(Context ctx) {
         String country = ctx.queryParamAsClass(ApiConstants.COUNTRY, String.class).getOrDefault("US");
-        List<Integer> taxYears = List.of(2025);
+        List<Integer> taxYears = rulesRegistry.getSupportedTaxYears(country.toUpperCase());
         Map<String, Object> response = new LinkedHashMap<>();
         response.put(ApiConstants.COUNTRY, country.toUpperCase());
         response.put("supportedTaxYears", taxYears);
-        response.put("defaultTaxYear", taxYears.getFirst());
+        response.put("defaultTaxYear", taxYears.isEmpty() ? null : taxYears.getFirst());
         ctx.json(response);
     }
 

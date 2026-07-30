@@ -70,7 +70,7 @@ class MainTest {
         BudgetPlanController budgetPlanController = new BudgetPlanController(null, validator);
         StocksController stocksController = new StocksController(null);
         return Main.createApp(mapper, meterRegistry, orchestrator, calculatorRegistry, validator,
-                calculationStore, null, null, historyController, accountController, grantsController,
+                calculationStore, rulesRegistry, null, null, historyController, accountController, grantsController,
                 budgetController, budgetPlanController, stocksController);
     }
 

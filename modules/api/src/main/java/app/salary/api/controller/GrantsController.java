@@ -11,7 +11,6 @@ import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 
 import java.util.Map;
 import java.util.Optional;
@@ -39,7 +38,7 @@ public class GrantsController {
     }
 
     private void list(Context ctx) {
-        Optional<String> userId = requireUser(ctx);
+        Optional<String> userId = AuthMiddleware.requireUser(ctx);
         if (userId.isEmpty()) return;
         GrantListResponse response = new GrantListResponse(store.list(userId.get()));
         log.info("grants list: count={}", response.getItems().size());
@@ -47,7 +46,7 @@ public class GrantsController {
     }
 
     private void create(Context ctx) {
-        Optional<String> userId = requireUser(ctx);
+        Optional<String> userId = AuthMiddleware.requireUser(ctx);
         if (userId.isEmpty()) return;
         RsuGrant grant = ctx.bodyAsClass(RsuGrant.class);
         validator.validate(grant);
@@ -57,7 +56,7 @@ public class GrantsController {
     }
 
     private void update(Context ctx) {
-        Optional<String> userId = requireUser(ctx);
+        Optional<String> userId = AuthMiddleware.requireUser(ctx);
         if (userId.isEmpty()) return;
         String grantId = ctx.pathParam("id");
         RsuGrant grant = ctx.bodyAsClass(RsuGrant.class);
@@ -72,7 +71,7 @@ public class GrantsController {
     }
 
     private void delete(Context ctx) {
-        Optional<String> userId = requireUser(ctx);
+        Optional<String> userId = AuthMiddleware.requireUser(ctx);
         if (userId.isEmpty()) return;
         String grantId = ctx.pathParam("id");
         if (!store.delete(userId.get(), grantId)) {
@@ -85,15 +84,5 @@ public class GrantsController {
 
     private void notFound(Context ctx) {
         ctx.status(HttpStatus.NOT_FOUND).json(Map.of(ApiConstants.ERROR, "Not found"));
-    }
-
-    private Optional<String> requireUser(Context ctx) {
-        Optional<String> userId = AuthMiddleware.currentUserId(ctx);
-        if (userId.isEmpty()) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of(ApiConstants.ERROR, "Authentication required"));
-            return Optional.empty();
-        }
-        MDC.put(ApiConstants.MDC_USER_ID, userId.get());
-        return userId;
     }
 }

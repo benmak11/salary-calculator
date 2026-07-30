@@ -5,15 +5,19 @@ plugins {
     id 'jacoco'
 }
 
+// group/version/sourceCompatibility/targetCompatibility are NOT set by root's
+// subprojects {} block (only api-level applies to the root project itself, not its
+// subprojects) — every other module quietly falls back to Gradle's synthetic
+// defaults (group "salary-calculator.modules", version "unspecified") instead.
+// Keep these explicit here; don't drop them as "redundant" without re-verifying
+// that assumption against the other modules' resolved properties.
 group = 'app.salary'
 version = '1.0.0'
 
 sourceCompatibility = '21'
 targetCompatibility = '21'
 
-repositories {
-    mavenCentral()
-}
+// repositories { mavenCentral() } already comes from root's subprojects {} block.
 
 dependencies {
     // Lombok (kept for entity getters/setters/builders)
@@ -34,7 +38,7 @@ dependencies {
     implementation 'com.google.cloud:google-cloud-logging-logback:0.142.0-alpha'
 
     // JSON
-    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.1'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.21.3'
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.17.1'
 
     // Caching (replaces Spring Cache + Redis — sufficient for local Docker)
@@ -79,6 +83,4 @@ test {
     finalizedBy jacocoTestReport
 }
 
-jacoco {
-    toolVersion = "0.8.10"
-}
+// jacoco { toolVersion = "0.8.10" } already comes from root's subprojects {} block.
