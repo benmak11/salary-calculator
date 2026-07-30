@@ -1,179 +1,125 @@
 # Testing Documentation
 
 ## Overview
-This project includes comprehensive unit tests and integration tests to ensure code quality and functionality.
+Unit tests per module (JUnit 5 + Mockito), plus Javalin-level HTTP tests via
+`JavalinTest` in `modules/api`. No separate integration-test module — API
+route tests spin up a real (in-memory-backed) Javalin app per test class.
 
 ## Running Tests
 
 ### Run All Tests
 ```bash
-./gradlew test integrationTest
-```
-
-### Run Unit Tests Only
-```bash
 ./gradlew test
 ```
 
-### Run Integration Tests Only
+### Run Tests for a Specific Module
 ```bash
-./gradlew integrationTest
-```
-
-### Run Tests for Specific Module
-```bash
+./gradlew :modules:api:test
 ./gradlew :modules:calculator:test
 ./gradlew :modules:common:test
+./gradlew :modules:rule-pack-service:test
+./gradlew :modules:rules-registry:test
 ```
 
-## Test Coverage
+### Full Quality Gate (tests + coverage + static analysis)
+```bash
+./gradlew build
+```
+Runs tests, Checkstyle, SpotBugs, and the JaCoCo ≥80% coverage verification
+gate together — this is what CI enforces as blocking.
 
-### Unit Tests (40 tests)
+## Test Coverage by Module
 
-#### CountryOptionsValidator Tests (10 tests)
-- Validates location-aware required fields
-- Ensures US requires state and filingStatus
-- Ensures UK has optional fields with defaults
-- **Location**: `modules/common/src/test/java/app/salary/common/validation/CountryOptionsValidatorTest.java`
+- **`modules/calculator`** — `USCalculator`, `UKCalculator`, `TaxBracketCalculator`,
+  `DeductionCalculator`. Federal/state/FICA math, both W-4 paths (modern +
+  legacy pre-2020 allowances), Roth vs. Traditional 401(k) tax treatment,
+  bonus/commission/RSU supplemental income and its inclusion rules, pay
+  cadence conversions.
+  **Location**: `modules/calculator/src/test/java/app/salary/calculator/`
+- **`modules/api`** — Route-level HTTP tests via `JavalinTest.test(app, (server, client) -> {...})`
+  for every controller: `CalculateController`, `AuthController`,
+  `CalculationHistoryController`, `GrantsController`, `BudgetController`,
+  `BudgetPlanController`, `StocksController`, `AccountController`. Covers
+  request validation, auth (401 on missing/invalid session token), and
+  provider-down fallbacks (Vertex AI / Finnhub unavailable → 503).
+  **Location**: `modules/api/src/test/java/app/salary/api/`
+- **`modules/common`** — DTO validation constraints (Jakarta Validation).
+  **Location**: `modules/common/src/test/java/app/salary/common/`
+- **`modules/rule-pack-service`** — Rule-pack CRUD, Firestore/GCS/Pub-Sub
+  wiring via mocks, publisher/user-directory logic.
+  **Location**: `modules/rule-pack-service/src/test/java/app/salary/rulepack/`
+- **`modules/rules-registry`** — Embedded rule-pack JSON loading/parsing.
 
-#### CalculationInput Tests (8 tests)
-- Tests mapping from CalculateRequest to CalculationInput
-- Validates default value handling
-- Tests all country option mappings
-- **Location**: `modules/calculator/src/test/java/app/salary/calculator/engine/CalculationInputTest.java`
+## Code Coverage
 
-#### USCalculator Tests (11 tests)
-- Tests US salary calculations
-- Validates federal and state tax calculations
-- Tests FICA and Medicare calculations
-- Validates high-income scenarios
-- **Location**: `modules/calculator/src/test/java/app/salary/calculator/countries/USCalculatorTest.java`
+Enforced via JaCoCo (`./gradlew jacocoTestCoverageVerification`, folded into
+`./gradlew build`), **minimum 80% per module**.
 
-#### UKCalculator Tests (11 tests)
-- Tests UK salary calculations
-- Validates income tax and National Insurance
-- Tests personal allowance tapering
-- Validates pension and student loan deductions
-- **Location**: `modules/calculator/src/test/java/app/salary/calculator/countries/UKCalculatorTest.java`
-
-### Integration Tests (20 tests)
-
-#### Calculate Endpoint Tests (15 tests)
-- Valid US and UK requests
-- Different filing statuses (SINGLE, MARRIED)
-- Pretax and posttax deductions
-- Different pay cadences (ANNUAL, MONTHLY)
-- Validation error scenarios
-- High income calculations
-- State-specific rules
-- **Location**: `modules/integration-tests/src/test/java/app/salary/integration/CalculateEndpointIntegrationTest.java`
-
-#### Countries Endpoint Tests (3 tests)
-- Returns list of supported countries
-- Validates response structure
-- Ensures US and UK are included
-- **Location**: `modules/integration-tests/src/test/java/app/salary/integration/CountriesEndpointIntegrationTest.java`
-
-#### Health Endpoint Tests (2 tests)
-- Returns UP status
-- Reports number of calculators
-- **Location**: `modules/integration-tests/src/test/java/app/salary/integration/HealthEndpointIntegrationTest.java`
-
-## Code Coverage Exclusions
-
-The following classes are excluded from code coverage requirements using `@ExcludeFromCodeCoverage`:
-
-### DTOs (Data Transfer Objects)
-- `CalculateRequest`
-- `CalculateResponse`
-- `Income`
-- `Pretax`
-- `Posttax`
-- `CountryOptions`
-- `CountryOptionsUS`
-- `CountryOptionsUK`
-- `LineItem`
-- `Explanation`
-
-### Exception Handlers
-- `GlobalExceptionHandler`
-
-These classes are excluded because they are simple data containers with no business logic.
+### What's excluded from the gate (`jacocoExcludes` in root `build.gradle`)
+- Simple DTOs annotated `@ExcludeFromCodeCoverage` — data containers with no
+  business logic (`CalculateRequest`, `CalculateResponse`, `Pretax`,
+  `Posttax`, `Budget`, `RsuGrant`, `SupplementalBreakdown`, and similar; see
+  the annotation usages for the full current list)
+- `**/repository/**`, `Main.class`, `**/*Application.class`
+- **Firestore-backed stores** (`**/store/Firestore*.class`) and GCP client
+  wiring (`GoogleIdTokenSupplier`, `VertexGenerativeAiClient`) — these need
+  live GCP credentials and are deliberately untested locally; the
+  in-memory-store counterparts (`InMemoryCalculationStore`,
+  `InMemoryUserDirectory`, `InMemoryGrantStore`, `InMemoryBudgetStore`, etc.)
+  carry the coverage instead. This mirrors `sonar.coverage.exclusions` in the
+  same file — keep both lists in sync when adding a new Firestore-backed
+  class or GCP client.
 
 ## CI/CD Integration
 
-### GitHub Actions Workflow
+`.github/workflows/ci.yml` runs on push to `main` and on PRs targeting `main`:
 
-The project includes a comprehensive CI/CD pipeline (`.github/workflows/ci.yml`) that runs on:
-- Push to `main` branch
-- Pull requests to `main` branch
+**1. `test`** — `./gradlew build -x test` then `./gradlew test`; publishes a
+JUnit test report.
 
-#### Workflow Jobs
+**2. `lint`** — `./gradlew checkstyleMain checkstyleTest spotbugsMain`,
+blocking. Uploads Checkstyle/SpotBugs HTML reports as artifacts.
 
-**1. Test Job**
-- Builds the project
-- Runs unit tests
-- Runs integration tests
-- Publishes test results
+**3. `sonar`** — `./gradlew test jacocoTestReport sonar` against SonarQube
+Cloud. Guarded on `SONAR_TOKEN` being set as a repo secret — skips (green, not
+red) when it isn't, so CI stays green while SonarCloud project setup is
+pending.
 
-**2. Lint Job**
-- Runs code quality checks
-- Performs static analysis
+**4. `build-docker`** (only on push to `main`, after `test` + `lint` pass) —
+builds the `api` shadowJar and a Docker image.
 
-**3. Build Docker Job** (only on main branch push)
-- Builds the application JAR
-- Creates Docker image (if Dockerfile exists)
-
-## Test Categories
-
-### API Contract Tests
-Integration tests verify the API contract by testing:
-- Request/response structure
-- HTTP status codes
-- JSON schema validation
-- Error message formats
-
-### Business Logic Tests
-Unit tests verify business logic:
-- Tax calculations
-- Deduction handling
-- Cadence conversions
-- Country-specific rules
-
-### Validation Tests
-Both unit and integration tests verify:
-- Required field validation
-- Data type validation
-- Business rule validation
-- Error handling
+Deploys are a separate workflow (`.github/workflows/deploy.yml`), triggered
+independently on push to `main` via GitHub Actions + Workload Identity
+Federation — see the salary-calculator `CLAUDE.md` for deploy specifics
+(env-var replacement gotcha, secrets wiring order, Cloud Run-to-Cloud Run
+ingress).
 
 ## Best Practices
 
-1. **Run tests before committing**: Always run `./gradlew test integrationTest` before committing
-2. **Write tests for new features**: All new features should include corresponding tests
-3. **Maintain test coverage**: Aim for high test coverage on business logic
-4. **Use descriptive test names**: Test names should clearly describe what they're testing
-5. **Keep tests independent**: Tests should not depend on each other
-6. **Mock external dependencies**: Integration tests use MockMvc to avoid external dependencies
+1. **Run `./gradlew build` before pushing** — it's the same gate CI enforces (tests + Checkstyle + SpotBugs + JaCoCo ≥80%).
+2. **Write tests for new features**, including the 401/503/validation-error paths, not just the happy path.
+3. **New Firestore-backed classes need the exclusion added to both `jacocoExcludes` and `sonar.coverage.exclusions`** in the root `build.gradle` — a class that needs live GCP will otherwise fail the local coverage gate the first time it's added (this has happened before; see the salary-calculator `CLAUDE.md` for the incident).
+4. **Never require a Firestore emulator** — `ENABLE_GCP=false` (the CI/test default) makes all GCP-backed stores fall back to in-memory implementations by design.
+5. **Mock external dependencies** — `GenerativeAiClient` and `StockClient` are interfaces specifically so `BudgetPlanController`/`StocksController` tests can substitute a working/failing lambda without touching Vertex AI or Finnhub.
 
 ## Troubleshooting
 
-### Integration Tests Failing
-If integration tests fail:
-1. Ensure Spring Boot application can start
-2. Check that all required dependencies are in the classpath
-3. Verify rule pack JSON files are present in resources
+### Tests failing after adding a new module or class
+1. Check that any new `@ExcludeFromCodeCoverage` DTO or Firestore-backed class
+   is reflected in `jacocoExcludes` if it should be excluded from the 80% gate.
+2. Verify rule pack JSON files are present under `modules/rules-registry/src/main/resources/rulepacks/`.
+3. For `modules/api` route tests, confirm the test wires the controller with
+   in-memory stores/mocked clients — never live GCP or Vertex AI.
 
-### Unit Tests Failing
-If unit tests fail:
-1. Check that mock objects are properly configured
-2. Verify test data matches expected business rules
-3. Ensure no hardcoded values that might change
+### JaCoCo coverage gate failing locally but not before
+A newly added, genuinely untested class (often a new Firestore-backed store or
+GCP client) is being counted against the 80% minimum. Either add real tests,
+or — only if it truly needs live GCP/Vertex AI credentials to test —add it to
+`jacocoExcludes` (and mirror the exclusion in `sonar.coverage.exclusions`).
 
 ## Future Improvements
 
-- [ ] Add code coverage reporting with JaCoCo
-- [ ] Add mutation testing with PIT
-- [ ] Add contract testing with Pact
-- [ ] Add performance/load testing
-- [ ] Add E2E tests for complete user workflows
+- [ ] Re-introduce an OpenAPI/Swagger UI spec (DTOs already carry `swagger-annotations` from the pre-Javalin-migration setup)
+- [ ] Mutation testing with PIT
+- [ ] Contract testing with Pact
+- [ ] Performance/load testing

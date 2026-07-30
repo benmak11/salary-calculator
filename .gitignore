@@ -10,6 +10,7 @@ build/
 *.iml
 *.ipr
 *.iws
+*.idea/vcs.xml
 .vscode/
 .settings/
 .project

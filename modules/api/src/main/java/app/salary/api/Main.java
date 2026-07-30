@@ -39,7 +39,6 @@ import app.salary.calculator.engine.CalculationOrchestrator;
 import app.salary.calculator.engine.CountryCalculator;
 import app.salary.calculator.registry.CalculatorRegistry;
 import app.salary.calculator.shared.DeductionCalculator;
-import app.salary.calculator.shared.IncomeCalculator;
 import app.salary.calculator.shared.StudentLoanCalculator;
 import app.salary.calculator.shared.TaxBracketCalculator;
 import app.salary.common.constants.ApiConstants;
@@ -111,8 +110,6 @@ public class Main {
         TaxBracketCalculator bracketCalculator = new TaxBracketCalculator();
         DeductionCalculator deductionCalculator = new DeductionCalculator();
         StudentLoanCalculator studentLoanCalculator = new StudentLoanCalculator();
-        IncomeCalculator incomeCalculator = new IncomeCalculator();
-        log.debug("IncomeCalculator constructed (reserved for future request normalization): {}", incomeCalculator);
 
         List<CountryCalculator> calculators = List.of(
                 new USCalculator(bracketCalculator, deductionCalculator),
@@ -162,7 +159,7 @@ public class Main {
         StocksController stocksController = new StocksController(stockClient);
 
         Javalin app = createApp(objectMapper, meterRegistry, orchestrator,
-                calculatorRegistry, requestValidator, calculationStore,
+                calculatorRegistry, requestValidator, calculationStore, rulesRegistry,
                 authMiddleware, authController, historyController, accountController,
                 grantsController, budgetController, budgetPlanController, stocksController);
 
@@ -187,6 +184,7 @@ public class Main {
                              CalculatorRegistry calculatorRegistry,
                              RequestValidator requestValidator,
                              CalculationStore calculationStore,
+                             RulesRegistry rulesRegistry,
                              AuthMiddleware authMiddleware,
                              AuthController authController,
                              CalculationHistoryController historyController,
@@ -251,7 +249,7 @@ public class Main {
                         .json(Map.of(ApiConstants.ERROR, "Internal server error"));
             });
 
-            new CalculateController(orchestrator, calculatorRegistry, requestValidator, calculationStore)
+            new CalculateController(orchestrator, calculatorRegistry, requestValidator, calculationStore, rulesRegistry)
                     .register(config.routes);
             if (authController != null) {
                 authController.register(config.routes);

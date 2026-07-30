@@ -11,6 +11,7 @@ import app.salary.calculator.registry.CalculatorRegistry;
 import app.salary.common.constants.Country;
 import app.salary.common.dto.CalculateRequest;
 import app.salary.common.dto.CalculateResponse;
+import app.salary.rules.RulesRegistry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.javalin.Javalin;
@@ -37,12 +38,14 @@ class CalculateControllerTest {
     private CalculationOrchestrator orchestrator;
     private CalculatorRegistry calculatorRegistry;
     private CalculationStore calculationStore;
+    private RulesRegistry rulesRegistry;
 
     @BeforeEach
     void setUp() {
         orchestrator = mock(CalculationOrchestrator.class);
         calculatorRegistry = mock(CalculatorRegistry.class);
         calculationStore = new InMemoryCalculationStore();
+        rulesRegistry = new RulesRegistry();
     }
 
     private Javalin app() {
@@ -55,7 +58,7 @@ class CalculateControllerTest {
                     ctx.status(HttpStatus.UNPROCESSABLE_CONTENT)
                             .json(Map.of("error", String.valueOf(e.getMessage()))));
             new CalculateController(orchestrator, calculatorRegistry,
-                    new RequestValidator(), calculationStore).register(config.routes);
+                    new RequestValidator(), calculationStore, rulesRegistry).register(config.routes);
         });
     }
 
@@ -109,6 +112,20 @@ class CalculateControllerTest {
 
             JsonNode body = MAPPER.readTree(response.body().string());
             assertEquals("UK", body.get("country").asText());
+        });
+    }
+
+    @Test
+    void getSupportedTaxYears_unknownCountry_returnsEmptyListAndNullDefault() {
+        JavalinTest.test(app(), (server, client) -> {
+            var response = client.get("/v1/tax-years?country=xx");
+            assertEquals(200, response.code());
+
+            JsonNode body = MAPPER.readTree(response.body().string());
+            assertEquals("XX", body.get("country").asText());
+            assertTrue(body.get("supportedTaxYears").isArray());
+            assertEquals(0, body.get("supportedTaxYears").size());
+            assertTrue(body.get("defaultTaxYear").isNull());
         });
     }
 
@@ -201,7 +218,7 @@ class CalculateControllerTest {
             config.routes.exception(ValidationException.class, (e, ctx) ->
                     ctx.status(HttpStatus.BAD_REQUEST).json(e.getErrors()));
             new CalculateController(orchestrator, calculatorRegistry,
-                    new RequestValidator(), calculationStore).register(config.routes);
+                    new RequestValidator(), calculationStore, rulesRegistry).register(config.routes);
         });
 
         JavalinTest.test(appWithAuth, (server, client) -> {

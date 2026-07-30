@@ -3,6 +3,8 @@ package app.salary.rules;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class RulesRegistryTest {
@@ -110,6 +112,21 @@ class RulesRegistryTest {
         assertNotNull(rulePack.getFederal());
         assertNotNull(rulePack.getFederal().getBrackets());
         assertFalse(rulePack.getFederal().getBrackets().isEmpty());
+    }
+
+    @Test
+    void getSupportedTaxYears_us_shouldIncludeEmbedded2025Pack() {
+        assertEquals(List.of(2025), registry.getSupportedTaxYears("US"));
+    }
+
+    @Test
+    void getSupportedTaxYears_uk_shouldIncludeEmbedded2025Pack() {
+        assertEquals(List.of(2025), registry.getSupportedTaxYears("UK"));
+    }
+
+    @Test
+    void getSupportedTaxYears_unknownCountry_shouldReturnEmptyList() {
+        assertTrue(registry.getSupportedTaxYears("XX").isEmpty());
     }
 
     @Test

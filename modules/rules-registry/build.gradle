@@ -10,7 +10,8 @@ dependencies {
     testAnnotationProcessor 'org.projectlombok:lombok:1.18.30'
 
     implementation project(':modules:common')
-    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.1'
+    // jackson-databind version comes from modules:common's `api` dependency (2.21.3) —
+    // don't pin it here, it would just be a stale duplicate of that pin.
     implementation 'org.slf4j:slf4j-api:2.0.13'
     // Caffeine replaces Spring Cache for the classpath rule pack cache
     implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'

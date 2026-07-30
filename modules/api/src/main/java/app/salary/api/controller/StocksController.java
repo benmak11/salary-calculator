@@ -11,7 +11,6 @@ import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 
 import java.util.Map;
 import java.util.Optional;
@@ -39,7 +38,7 @@ public class StocksController {
     }
 
     private void search(Context ctx) {
-        Optional<String> userId = requireUser(ctx);
+        Optional<String> userId = AuthMiddleware.requireUser(ctx);
         if (userId.isEmpty()) return;
         if (unavailable(ctx)) return;
         String query = ctx.queryParam("q");
@@ -57,7 +56,7 @@ public class StocksController {
     }
 
     private void quote(Context ctx) {
-        Optional<String> userId = requireUser(ctx);
+        Optional<String> userId = AuthMiddleware.requireUser(ctx);
         if (userId.isEmpty()) return;
         if (unavailable(ctx)) return;
         String symbol = ctx.pathParam("symbol");
@@ -85,15 +84,5 @@ public class StocksController {
         log.warn("stock provider failure: {}", e.getMessage());
         ctx.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .json(Map.of(ApiConstants.ERROR, "Stock lookup unavailable"));
-    }
-
-    private Optional<String> requireUser(Context ctx) {
-        Optional<String> userId = AuthMiddleware.currentUserId(ctx);
-        if (userId.isEmpty()) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of(ApiConstants.ERROR, "Authentication required"));
-            return Optional.empty();
-        }
-        MDC.put(ApiConstants.MDC_USER_ID, userId.get());
-        return userId;
     }
 }

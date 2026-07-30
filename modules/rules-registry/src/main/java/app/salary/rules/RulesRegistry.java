@@ -9,6 +9,10 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
+import java.time.Year;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Loads rule packs from the classpath and caches them in-process.
@@ -19,6 +23,11 @@ import java.time.Duration;
  */
 public class RulesRegistry {
     private static final Logger log = LoggerFactory.getLogger(RulesRegistry.class);
+
+    // How far back/forward from the current calendar year to probe the classpath for
+    // embedded rule packs. Widened here (not in the caller) if a new tax year ships.
+    private static final int PROBE_YEARS_BACK = 10;
+    private static final int PROBE_YEARS_FORWARD = 1;
 
     private final ObjectMapper objectMapper;
     private final Cache<String, RulePack> cache;
@@ -34,6 +43,33 @@ public class RulesRegistry {
     public RulePack getRulePack(String country, int taxYear) {
         String key = country + "-" + taxYear;
         return cache.get(key, k -> loadRulePack(country, taxYear));
+    }
+
+    /**
+     * Tax years with an embedded rule pack for {@code country}, newest first. Derived by
+     * probing the same classpath convention {@link #loadRulePack} uses ({@code
+     * /rulepacks/{country}-{year}.json}) across a bounded window around the current
+     * calendar year, rather than a hardcoded literal — this is the actual source of truth
+     * for "which years are supported" absent a live rule-pack-service listing endpoint.
+     */
+    public List<Integer> getSupportedTaxYears(String country) {
+        int currentYear = Year.now(ZoneOffset.UTC).getValue();
+        List<Integer> years = new ArrayList<>();
+        for (int year = currentYear + PROBE_YEARS_FORWARD; year >= currentYear - PROBE_YEARS_BACK; year--) {
+            if (hasRulePack(country, year)) {
+                years.add(year);
+            }
+        }
+        return List.copyOf(years);
+    }
+
+    private boolean hasRulePack(String country, int taxYear) {
+        String fileName = String.format("/rulepacks/%s-%d.json", country, taxYear);
+        try (InputStream is = getClass().getResourceAsStream(fileName)) {
+            return is != null;
+        } catch (IOException io) {
+            return false;
+        }
     }
 
     private RulePack loadRulePack(String country, int taxYear) {

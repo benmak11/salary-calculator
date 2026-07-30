@@ -1,29 +1,40 @@
 # Salary Calculator Microservice
 
-A production-ready Javalin microservice for calculating net pay (take-home salary) with detailed tax breakdowns for multiple countries.
+A production Javalin microservice that computes take-home pay for the US and
+UK, with detailed tax breakdowns, and backs the `incomatic` iOS app. Deployed
+to Cloud Run as two services (`api` + `rule-pack-service`).
 
 ## 🌟 Features
 
 - 🌍 **Multi-country support** (US — 40+ states, UK — easily extensible)
 - 💰 **Multiple pay cadences** (annual, semiannual, quarterly, monthly, semimonthly, biweekly, weekly, daily)
-- 📊 **Detailed tax breakdown** by bands, with categorized line items (earnings / federal / FICA / state / pre-tax benefit / retirement / post-tax / net)
-- 🇺🇸 **Modern US W-4 support** (dependents credit, other income, itemized deductions, additional withholding, exemption flags)
-- 🩺 **FSA / HSA / Roth 401(k) / per-benefit premiums** (medical, dental, vision) modeled as discrete line items
-- 💵 **Bonus / supplemental wages** taxed at the IRS flat 22% rate
+- 📊 **Detailed tax breakdown** by category (earnings / federal / FICA / state / pre-tax benefit / retirement / post-tax / net)
+- 🇺🇸 **Modern + legacy US W-4 support** — post-2020 (dependents credit, other income, itemized deductions, additional withholding) and pre-2020 allowances-based withholding, gated per-request
+- 🩺 **FSA / HSA / Traditional + Roth 401(k) / per-benefit premiums** (medical, dental, vision) modeled as discrete line items
+- 💵 **Bonus, commission, and RSU vesting** as structured, dated supplemental income — taxed at the flat IRS supplemental rate, broken out separately in the response
+- 🔐 **Sign in with Apple** — mints a 30-day session JWT; calculation history, RSU grants, and household budget are all saved per-user in Firestore
+- 📈 **Stock quote proxy** (Finnhub) for RSU grant pricing, auth-gated to protect the API key
+- 🤖 **AI-generated budget plans** — Gemini (Vertex AI) suggests per-goal savings contributions, verified against a deterministic on-device engine on the client
 - 📝 **Human-readable explanations** for each calculation
-- 🔄 **Pluggable** country calculators (registered in `Main.java`)
-- 🚀 **Fast development** - add new country in 15 minutes
-- 📦 **Shared utilities** for code reuse
-- 🐳 **Docker ready**
-- 📈 **Production monitoring** (Prometheus, health checks)
+- 🔄 **Pluggable** country calculators (registered explicitly in `Main.java`, no reflection/DI framework)
+- 🐳 **Docker ready**, 📈 **Production monitoring** (Prometheus, health checks)
 
 ## 🏗️ Architecture
 
-### Unified Calculator Module
-- All country calculators in one module
-- Shared utilities for common logic
-- Plain constructor injection (no DI framework)
-- Calculators registered explicitly in `Main.java` and resolved at runtime by `CalculatorRegistry`
+Hand-wired constructor injection throughout — **no Spring, no DI framework**.
+Everything is composed in `Main.java`.
+
+| Module | Responsibility |
+| --- | --- |
+| `modules/common` | Shared DTOs + Jakarta Validation + Swagger annotations |
+| `modules/calculator` | Country calculators (`USCalculator`, `UKCalculator`) + shared tax/deduction helpers. Pure logic, no I/O |
+| `modules/rules-registry` | Embedded classpath rule packs (`US-2025.json`, `UK-2025.json`) — the fallback used when `rule-pack-service` is unreachable |
+| `modules/api` | Public REST surface: calculate, auth, history, grants, budget, stocks. Wires everything in `Main.java` |
+| `modules/rule-pack-service` | Locked-down rule-pack CRUD (Firestore + GCS + Pub/Sub), reached via internal Google ID token auth |
+
+**GCP is optional at runtime.** With `ENABLE_GCP=false` (or no credentials
+present), every GCP-backed store falls back to an in-memory implementation —
+no Firestore emulator required for local dev or tests.
 
 ### Supported Countries
 - 🇺🇸 **United States** (Federal + 40+ State taxes incl. CA/NY/TX/FL/IL/PA/OH/GA/NC/MI, FICA, Medicare, additional-Medicare surtax)
@@ -43,11 +54,10 @@ chmod +x setup.sh
 
 ### Option 2: Manual Setup
 ```bash
-# Build everything (compiles all modules, runs remaining unit tests)
+# Build everything (compiles all modules, runs unit tests)
 ./gradlew clean build
 
 # Run the API on :8080 — via the Gradle `application` plugin's `run` task
-# (replaces Spring Boot's `bootRun`)
 ./gradlew :modules:api:run
 
 # Optionally run the rule-pack-service on :8081 in another terminal.
@@ -56,7 +66,7 @@ chmod +x setup.sh
 ENABLE_GCP=false ./gradlew :modules:rule-pack-service:run
 ```
 
-Or run the packaged fat JARs (built with `shadowJar`, replaces `bootJar`):
+Or run the packaged fat JARs (built with `shadowJar`):
 ```bash
 ./gradlew :modules:api:shadowJar :modules:rule-pack-service:shadowJar
 java -jar modules/api/build/libs/salary-calculator-api-1.0.0-all.jar
@@ -81,10 +91,14 @@ The API reads configuration from environment variables (see `Env` in `Main.java`
 | `SERVER_PORT` | `8080` | HTTP listen port |
 | `RULE_PACK_SERVICE_URL` | empty | Rule-pack-service base URL. Empty = use embedded classpath rule pack |
 | `RULE_PACK_AUDIENCE` | empty | OIDC audience for service-to-service tokens (Cloud Run internal calls) |
-| `GCP_PROJECT_ID` | `salary-calculator-dev` | GCP project for Firestore (user directory + calculation history) |
+| `GCP_PROJECT_ID` | `salary-calculator-dev` | GCP project for Firestore (user directory, calculation history, grants, budget) |
 | `ENABLE_GCP` | auto | When `true`, connects to Firestore. Auto-detected from `GOOGLE_APPLICATION_CREDENTIALS` / `GOOGLE_CLOUD_PROJECT`. Set `false` to force in-memory stores |
 | `APPLE_AUDIENCE` | empty | iOS bundle ID used as the `aud` claim when verifying Apple identity tokens. Leaving this empty disables Sign in with Apple |
 | `SESSION_JWT_SECRET` | (generated) | Base64-encoded (or 32+ raw UTF-8 bytes) HS256 secret for signing our own session JWTs. If unset, a random 32-byte secret is generated at boot — sessions don't survive restart |
+| `FINNHUB_API_KEY` | empty | Finnhub API key for the stock search/quote proxy. Empty = `/v1/stocks/*` returns 503 |
+| `FINNHUB_BASE_URL` | `https://finnhub.io/api/v1` | Finnhub base URL override |
+| `VERTEX_AI_LOCATION` | `global` | Vertex AI location for Gemini calls. Must be `global` for globally-routed models like `gemini-3.1-flash-lite` — a regional value 404s for global-only models |
+| `VERTEX_AI_MODEL` | `gemini-3.1-flash-lite` | Gemini model used for AI budget-plan generation |
 
 ## 📡 API Endpoints
 
@@ -95,7 +109,7 @@ POST /v1/calculate
 When called with a valid `Authorization: Bearer <sessionToken>` (see below), the
 calculation is auto-saved to the caller's history and the response's
 `calculationId` is the Firestore document id. Anonymous calls work identically
-to before — no persistence, no auth required.
+— no persistence, no auth required.
 
 ### Sign in with Apple
 ```bash
@@ -104,7 +118,9 @@ POST /v1/auth/apple
 Body: `{ "identityToken": "<JWT from ASAuthorizationAppleIDProvider>", "nonce": "<raw nonce>", "displayName": "<optional>" }`.
 Returns `{ sessionToken, expiresAt, user: { id, displayName } }`. The
 `sessionToken` is a 30-day HS256 JWT minted by this service — present it as
-`Authorization: Bearer <sessionToken>` on subsequent calls.
+`Authorization: Bearer <sessionToken>` on subsequent calls. Missing/invalid
+tokens on any endpoint below just mean "no `userId`" — the calculator itself
+stays public; auth-required endpoints return `401` explicitly.
 
 ### Calculation History (auth required)
 ```bash
@@ -112,17 +128,60 @@ GET    /v1/calculations?limit=20
 GET    /v1/calculations/{id}
 DELETE /v1/calculations/{id}
 ```
-Newest-first list of saved sessions, full session detail (request + response),
-and hard-delete. Returns `401` when called without a valid session token.
+Newest-first list of saved sessions (denormalized summaries), full session
+detail (request + response), and hard-delete.
 
-### Health Check
+### RSU Grants (auth required)
+```bash
+GET    /v1/grants
+POST   /v1/grants
+PUT    /v1/grants/{id}
+DELETE /v1/grants/{id}
+```
+Sync equity grants used to project future vesting income.
+
+### Household Budget (auth required)
+```bash
+GET    /v1/budget
+PUT    /v1/budget
+DELETE /v1/budget
+```
+Single object per user (savings goals + itemized expenses) — not a list.
+`PUT` replaces the whole thing.
+
+### AI Budget Plan
+```bash
+POST /v1/budget/plan
+```
+Auth-optional (mirrors `/v1/calculate` — a not-yet-saved budget can still get
+a plan preview). Sends goals/expenses/cadence/windfalls to Gemini via Vertex
+AI and returns a structured per-goal contribution strategy + warnings.
+Returns `503` when Vertex AI is unconfigured or unreachable — the iOS client
+falls back to its own deterministic on-device engine.
+
+### Stock Search / Quote (auth required)
+```bash
+GET /v1/stocks/search?q=
+GET /v1/stocks/quote/{symbol}
+```
+Finnhub proxy for RSU grant pricing. Auth-gated to protect the upstream API
+key from anonymous farming. `503` when Finnhub is unconfigured/down; unknown
+symbol returns `404`.
+
+### Account
+```bash
+DELETE /v1/account
+```
+Purges the user's calculation history, grants, and budget.
+
+### Health / Metadata
 ```bash
 GET /v1/health
-```
-
-### List Supported Countries
-```bash
+GET /actuator/health
+GET /actuator/prometheus
 GET /v1/countries
+GET /v1/countries/US/states
+GET /v1/tax-years
 ```
 
 ### API Documentation
@@ -194,7 +253,7 @@ curl -X POST http://localhost:8080/v1/calculate \
 }
 ```
 
-### US Salary Calculation (With Deductions)
+### US Salary Calculation (With Deductions + Roth 401(k))
 
 **Request:**
 ```bash
@@ -210,7 +269,8 @@ curl -X POST http://localhost:8080/v1/calculate \
       "hsa": 3850
     },
     "posttax": {
-      "fixed": 100
+      "fixed": 100,
+      "roth401kPercent": 0.02
     },
     "countryOptions": {
       "US": {
@@ -227,7 +287,7 @@ curl -X POST http://localhost:8080/v1/calculate \
 {
   "calculationId": "c_e5f6g7h8",
   "grossPerCadence": 10000.0,
-  "netPerCadence": 7234.68,
+  "netPerCadence": 7034.68,
   "currency": "USD",
   "rulePackVersion": "US-2025.11.0",
   "lineItems": [
@@ -236,12 +296,16 @@ curl -X POST http://localhost:8080/v1/calculate \
       "amount": 1041.67
     },
     {
+      "name": "401(k)",
+      "amount": 600.0
+    },
+    {
       "name": "Federal Income Tax",
-      "amount": 835.42
+      "amount": 785.0
     },
     {
       "name": "State Income Tax",
-      "amount": 412.56
+      "amount": 388.10
     },
     {
       "name": "Social Security",
@@ -254,6 +318,10 @@ curl -X POST http://localhost:8080/v1/calculate \
     {
       "name": "Post-tax Deductions",
       "amount": 100.0
+    },
+    {
+      "name": "Roth 401(k)",
+      "amount": 200.0
     }
   ],
   "explanation": [
@@ -268,6 +336,12 @@ curl -X POST http://localhost:8080/v1/calculate \
   ]
 }
 ```
+
+Note: `401(k)` (Traditional, `pretax.pensionPercent`) reduces taxable income
+before Federal/State tax is computed. `Roth 401(k)` (`posttax.roth401kPercent`)
+is post-tax federally — it's subtracted from net **after** all taxes, not
+before, and applies only to regular wages (never bonus/commission/RSU
+vesting).
 
 ### UK Salary Calculation (Basic)
 
@@ -345,101 +419,6 @@ curl -X POST http://localhost:8080/v1/calculate \
 }
 ```
 
-### UK Salary Calculation (With Custom Tax Code)
-
-**Request:**
-```bash
-curl -X POST http://localhost:8080/v1/calculate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "country": "UK",
-    "taxYear": 2025,
-    "annualSalary": 60000,
-    "cadence": "MONTHLY",
-    "pretax": {
-      "pensionPercent": 0.05
-    },
-    "countryOptions": {
-      "UK": {
-        "taxCode": "1100L",
-        "scottishResident": false,
-        "niCategory": "A"
-      }
-    }
-  }'
-```
-
-**Response:**
-```json
-{
-  "calculationId": "c_m3n4o5p6",
-  "grossPerCadence": 5000.0,
-  "netPerCadence": 3793.12,
-  "currency": "GBP",
-  "rulePackVersion": "UK-2025.4.0",
-  "lineItems": [
-    {
-      "name": "Gross Salary",
-      "amount": 5000.0
-    },
-    {
-      "name": "Tax-Free Allowance",
-      "amount": -917.0
-    },
-    {
-      "name": "Taxable Income",
-      "amount": 4083.0
-    },
-    {
-      "name": "Income Tax (Basic Rate 20%)",
-      "amount": 816.6
-    },
-    {
-      "name": "Total Income Tax",
-      "amount": 816.6
-    },
-    {
-      "name": "National Insurance (Main Rate 8%)",
-      "amount": 326.64
-    },
-    {
-      "name": "Total National Insurance",
-      "amount": 326.64
-    },
-    {
-      "name": "Employee Pension Contribution",
-      "amount": 250.0
-    },
-    {
-      "name": "Net Take-Home Pay",
-      "amount": 3793.12
-    }
-  ],
-  "explanation": [
-    {
-      "id": "basic_rate_tax",
-      "text": "Basic rate (20%) on £4083.00"
-    },
-    {
-      "id": "ni_main_rate",
-      "text": "8% rate on £4083.00 (between £1047.50 and £4189.17)"
-    },
-    {
-      "id": "pension_contribution",
-      "text": "Employee contribution: 5.0% of gross salary (£250.00). Employer minimum contribution: 3% (£150.00)"
-    },
-    {
-      "id": "personal_allowance",
-      "text": "Full personal allowance of £11000 applied"
-    },
-    {
-      "id": "tax_code",
-      "text": "Tax code 1100L used for calculation"
-    }
-  ]
-}
-```
-
 ### Get Supported Countries
 
 **Request:**
@@ -489,10 +468,10 @@ curl http://localhost:8080/v1/health
 |-------|------|---------|-------------|
 | `cadence` | string | ANNUAL | Pay frequency: ANNUAL, SEMIANNUAL, QUARTERLY, MONTHLY, SEMIMONTHLY, BIWEEKLY, WEEKLY, DAILY |
 | `bonus` | number | 0.0 | Annual bonus / supplemental wages (US: flat 22% federal withholding) |
-| `earnings` | object | null | Structured earnings (`salary` or `hourly` + bonus/commission). Alternative to `annualSalary` |
+| `earnings` | object | null | Structured earnings (`salary` or `hourly` + bonus/commission/RSU vesting, dated/recurring bonus). Alternative to `annualSalary` |
 | `payDate` | string | null | Pay date (ISO-8601 yyyy-MM-dd). Informational only |
 | `pretax.percent` | number | 0.0 | Percentage-based pre-tax deduction (0-1) |
-| `pretax.pensionPercent` | number | 0.0 | Pension / 401(k) contribution percent (0-1) |
+| `pretax.pensionPercent` | number | 0.0 | Traditional pension / 401(k) contribution percent (0-1) — pre-tax |
 | `pretax.fixed` | number | 0.0 | Fixed pre-tax deduction (catch-all); use `customDeductions` for named items |
 | `pretax.hsa` | number | 0.0 | HSA contribution (US only) |
 | `pretax.medical` | number | 0.0 | Annual medical insurance premium (US only) |
@@ -502,9 +481,9 @@ curl http://localhost:8080/v1/health
 | `pretax.dependentCareFsa` | number | 0.0 | Annual Dependent Care FSA contribution (US only, separate $5k IRS cap) |
 | `pretax.customDeductions` | array | `[]` | Named custom pre-tax deductions: `[{ "name": "...", "amount": ... }]` |
 | `posttax.fixed` | number | 0.0 | Fixed post-tax deduction amount |
-| `posttax.roth401kPercent` | number | 0.0 | Roth 401(k) employee contribution percent of regular wages (0-1, US only) |
+| `posttax.roth401kPercent` | number | 0.0 | Roth 401(k) employee contribution percent of regular wages (0-1, US only). Post-tax federally, subtracted from net after all taxes |
 | `posttax.studentLoanPlan` | string | null | Student loan plan: PLAN1, PLAN2, POSTGRAD (UK only) |
-| `countryOptions.US.allowances` | integer | 0 | Number of allowances (legacy / pre-2020 W-4) |
+| `countryOptions.US.allowances` | integer | 0 | Number of allowances (legacy / pre-2020 W-4, used when `w4.useOldW4` is true) |
 | `countryOptions.US.w4` | object | null | Modern W-4 fields (2020+) — see W-4 Schema below |
 | `countryOptions.UK.taxCode` | string | "1257L" | UK tax code |
 | `countryOptions.UK.scottishResident` | boolean | false | Scottish resident flag |
@@ -514,28 +493,28 @@ curl http://localhost:8080/v1/health
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `useOldW4` | boolean | false | Use 2019-or-earlier W-4 (allowances-based) instead of the modern W-4 |
-| `dependentsAmount` | number | 0.0 | Step 3 dependents credit ($2000/qualifying child + $500/other dependent) |
-| `otherIncome` | number | 0.0 | Step 4(a) — annual non-job income |
-| `itemizedDeductions` | number | 0.0 | Step 4(b) — itemized deductions (overrides standard deduction if greater) |
-| `additionalWithholding` | number | 0.0 | Step 4(c) — additional federal withholding **per pay period** |
+| `useOldW4` | boolean | false | Use 2019-or-earlier W-4 (allowances-based, subtracts `allowances × withholdingAllowance` from taxable income) instead of the modern W-4 |
+| `dependentsAmount` | number | 0.0 | Step 3 dependents credit ($2000/qualifying child + $500/other dependent). Modern W-4 only |
+| `otherIncome` | number | 0.0 | Step 4(a) — annual non-job income. Modern W-4 only |
+| `itemizedDeductions` | number | 0.0 | Step 4(b) — itemized deductions (overrides standard deduction if greater). Modern W-4 only |
+| `additionalWithholding` | number | 0.0 | Step 4(c) — additional federal withholding **per pay period**. Both W-4 paths |
 | `exemptFederal` | boolean | false | Exempt from federal income tax withholding |
 | `exemptSocialSecurity` | boolean | false | Exempt from Social Security tax |
 | `exemptMedicare` | boolean | false | Exempt from Medicare tax (also disables additional Medicare surtax) |
 
 ## 🧪 Testing
 
-See [TESTING.md](TESTING.md) for comprehensive testing documentation.
+See [TESTING.md](TESTING.md) for full testing documentation.
 
 ```bash
-# Run all tests
-./gradlew test integrationTest
-
-# Run only unit tests
+# Run all unit tests, all modules
 ./gradlew test
 
-# Run only integration tests
-./gradlew integrationTest
+# Run tests for one module
+./gradlew :modules:calculator:test
+
+# Full quality gate — tests, checkstyle, spotbugs, JaCoCo ≥80% coverage
+./gradlew build
 ```
 
 ## 🔧 Development
@@ -547,23 +526,24 @@ See [TESTING.md](TESTING.md) for comprehensive testing documentation.
 3. Create rule pack JSON in `modules/rules-registry/src/main/resources/rulepacks/`
 4. Register it: add `new YourCalculator(...)` to the `calculators` list wired into `CalculatorRegistry` in `modules/api/src/main/java/app/salary/api/Main.java`
 
-See existing calculators (USCalculator, UKCalculator) for examples.
+See existing calculators (`USCalculator`, `UKCalculator`) for examples.
 
 ## 📊 Monitoring
 
 - Health endpoint: `GET /v1/health` (also `GET /actuator/health`)
 - Prometheus metrics: `GET /actuator/prometheus`
 - Optional Prometheus + Grafana stack: `docker compose --profile monitoring up`
+- `X-Request-Id` correlation header, propagated across service-to-service calls, tied into every log line via SLF4J/Logback MDC
 
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes with tests
-4. Ensure all tests pass: `./gradlew test integrationTest`
+4. Ensure the full gate passes: `./gradlew build`
 5. Submit a pull request
 
-All PRs are automatically validated via GitHub Actions CI/CD pipeline.
+All PRs are automatically validated via GitHub Actions (tests, Checkstyle, SpotBugs, SonarQube Cloud).
 
 ## 📄 License
 

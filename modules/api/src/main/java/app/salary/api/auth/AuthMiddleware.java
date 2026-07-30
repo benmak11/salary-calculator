@@ -2,8 +2,10 @@ package app.salary.api.auth;
 
 import app.salary.common.constants.ApiConstants;
 import io.javalin.http.Context;
+import io.javalin.http.HttpStatus;
 import org.slf4j.MDC;
 
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -38,5 +40,20 @@ public class AuthMiddleware {
     public static Optional<String> currentUserId(Context ctx) {
         Object v = ctx.attribute(ATTR_USER_ID);
         return v == null ? Optional.empty() : Optional.of(v.toString());
+    }
+
+    /**
+     * Enforces auth for endpoints that require it: on success, MDCs the user id and
+     * returns it; on failure, writes the 401 response body and returns empty. Callers
+     * return immediately when the result is empty.
+     */
+    public static Optional<String> requireUser(Context ctx) {
+        Optional<String> userId = currentUserId(ctx);
+        if (userId.isEmpty()) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of(ApiConstants.ERROR, "Authentication required"));
+            return Optional.empty();
+        }
+        MDC.put(ApiConstants.MDC_USER_ID, userId.get());
+        return userId;
     }
 }
