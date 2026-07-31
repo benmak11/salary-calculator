@@ -36,7 +36,7 @@ function InsightsBudgetCTACard({ onStart }) {
         Turn this into a plan
       </div>
       <div style={{ fontSize: 13.5, color: 'var(--inc-textDim)', lineHeight: '20px', marginBottom: 16 }}>
-        Add your expenses and savings goals — we'll build a paycheck-by-paycheck budget.
+        Add your expenses and savings goals. We'll build a paycheck-by-paycheck budget.
       </div>
       <button onClick={onStart} style={{
         background: 'var(--inc-sage)', color: 'white', border: 'none', cursor: 'pointer',
@@ -172,7 +172,7 @@ function BudgetPaychecksTab({ plan }) {
   return (
     <div style={{ padding: '0 0 100px' }}>
       <div style={{ padding: '0 16px 14px', fontSize: 13, color: 'var(--inc-textDim)', lineHeight: '19px' }}>
-        Some paychecks run tighter than others — rent lands the 1st of each month, and March/June carry your bonus and RSU vest.
+        Some paychecks run tighter than others. Rent lands the 1st of each month, and March/June carry your bonus and RSU vest.
       </div>
       <div style={{ display: 'flex', gap: 12, overflowX: 'auto', padding: '0 16px 4px' }}>
         {plan.periods.map(p => <PaycheckCard key={p.index} p={p} todayIdx={plan.todayIdx} />)}

@@ -87,7 +87,7 @@ function RSUEquityCard({ rsu }) {
         ) : (
           <div>
             <B2MoneyField
-              label={`Override — ${CURRENT_TAX_YEAR} RSU value`}
+              label={`Override: ${CURRENT_TAX_YEAR} RSU value`}
               value={rsu.manualOverride}
               onChange={rsu.setManualOverride}
               placeholder={String(Math.round(s.total))}
@@ -150,7 +150,7 @@ function RSUSupplementalCard({ bonus = 0, bonusDate = '', commission = 0, rsuVes
 
       <div style={{ marginTop: 12, fontSize: 11.5, color: 'var(--inc-textMute)', lineHeight: '16px' }}>
         Estimates value all {CURRENT_TAX_YEAR} vests at today's price. Actual tax withholding happens
-        at each vest at that day's price. Excludes state tax — folded into the main state line.
+        at each vest at that day's price. Excludes state tax, folded into the main state line.
       </div>
     </B2Card>
   );

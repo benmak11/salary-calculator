@@ -24,7 +24,7 @@ function BudgetConsentSheet({ onAllow, onNotNow }) {
           Building your plan takes a little help
         </div>
         <div style={{ fontSize: 13.5, color: 'var(--inc-textDim)', textAlign: 'center', lineHeight: '20px', maxWidth: 300, margin: '0 auto 26px' }}>
-          To put together a paycheck-by-paycheck plan, we send your financial inputs — including the amounts you've typed in — to Google's AI. Nothing is shared beyond generating this plan.
+          To put together a paycheck-by-paycheck plan, we send your financial inputs (including the amounts you've typed in) to Google's AI. Nothing is shared beyond generating this plan.
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <button onClick={onAllow} style={{
