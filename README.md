@@ -6,22 +6,22 @@ to Cloud Run as two services (`api` + `rule-pack-service`).
 
 ## 🌟 Features
 
-- 🌍 **Multi-country support** (US — 40+ states, UK — easily extensible)
+- 🌍 **Multi-country support** (US 40+ states, UK easily extensible)
 - 💰 **Multiple pay cadences** (annual, semiannual, quarterly, monthly, semimonthly, biweekly, weekly, daily)
 - 📊 **Detailed tax breakdown** by category (earnings / federal / FICA / state / pre-tax benefit / retirement / post-tax / net)
-- 🇺🇸 **Modern + legacy US W-4 support** — post-2020 (dependents credit, other income, itemized deductions, additional withholding) and pre-2020 allowances-based withholding, gated per-request
+- 🇺🇸 **Modern + legacy US W-4 support**: post-2020 (dependents credit, other income, itemized deductions, additional withholding) and pre-2020 allowances-based withholding, gated per-request
 - 🩺 **FSA / HSA / Traditional + Roth 401(k) / per-benefit premiums** (medical, dental, vision) modeled as discrete line items
 - 💵 **Bonus, commission, and RSU vesting** as structured, dated supplemental income — taxed at the flat IRS supplemental rate, broken out separately in the response
-- 🔐 **Sign in with Apple** — mints a 30-day session JWT; calculation history, RSU grants, and household budget are all saved per-user in Firestore
+- 🔐 **Sign in with Apple**: mints a 30-day session JWT; calculation history, RSU grants, and household budget are all saved per-user in Firestore
 - 📈 **Stock quote proxy** (Finnhub) for RSU grant pricing, auth-gated to protect the API key
-- 🤖 **AI-generated budget plans** — Gemini (Vertex AI) suggests per-goal savings contributions, verified against a deterministic on-device engine on the client
+- 🤖 **AI-generated budget plans**: Gemini (Vertex AI) suggests per-goal savings contributions, verified against a deterministic on-device engine on the client
 - 📝 **Human-readable explanations** for each calculation
 - 🔄 **Pluggable** country calculators (registered explicitly in `Main.java`, no reflection/DI framework)
 - 🐳 **Docker ready**, 📈 **Production monitoring** (Prometheus, health checks)
 
 ## 🏗️ Architecture
 
-Hand-wired constructor injection throughout — **no Spring, no DI framework**.
+Hand-wired constructor injection throughout || **no Spring, no DI framework**.
 Everything is composed in `Main.java`.
 
 | Module | Responsibility |
@@ -153,10 +153,10 @@ Single object per user (savings goals + itemized expenses) — not a list.
 ```bash
 POST /v1/budget/plan
 ```
-Auth-optional (mirrors `/v1/calculate` — a not-yet-saved budget can still get
+Auth-optional (mirrors `/v1/calculate` | a not-yet-saved budget can still get
 a plan preview). Sends goals/expenses/cadence/windfalls to Gemini via Vertex
 AI and returns a structured per-goal contribution strategy + warnings.
-Returns `503` when Vertex AI is unconfigured or unreachable — the iOS client
+Returns `503` when Vertex AI is unconfigured or unreachable. The iOS client
 falls back to its own deterministic on-device engine.
 
 ### Stock Search / Quote (auth required)
@@ -339,7 +339,7 @@ curl -X POST http://localhost:8080/v1/calculate \
 
 Note: `401(k)` (Traditional, `pretax.pensionPercent`) reduces taxable income
 before Federal/State tax is computed. `Roth 401(k)` (`posttax.roth401kPercent`)
-is post-tax federally — it's subtracted from net **after** all taxes, not
+is post-tax federally. It's subtracted from net **after** all taxes, not
 before, and applies only to regular wages (never bonus/commission/RSU
 vesting).
 

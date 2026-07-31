@@ -320,7 +320,7 @@ function RSUGrantForm({ rsu }) {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--inc-sage)" strokeWidth="2"><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" /></svg>
         } title="Vesting schedule" />
         {SCHEDULE_PRESETS.map(p => (
-          <B2Radio key={p.id} label={`${p.label} — ${p.sub}`} checked={presetId === p.id} onClick={() => setPresetId(p.id)} />
+          <B2Radio key={p.id} label={`${p.label}, ${p.sub}`} checked={presetId === p.id} onClick={() => setPresetId(p.id)} />
         ))}
         {presetId === 'custom' && (
           <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>

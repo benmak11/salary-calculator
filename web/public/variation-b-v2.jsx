@@ -367,7 +367,7 @@ function B2BonusDateRow({ value, onChange }) {
       </div>
       {future && (
         <div style={{ fontSize: 11.5, color: B2.textMute, lineHeight: '16px', marginTop: 8 }}>
-          Lands in {year} — shown in your yearly outlook, not this year's paycheck.
+          Lands in {year}. Shown in your yearly outlook, not this year's paycheck.
         </div>
       )}
     </div>

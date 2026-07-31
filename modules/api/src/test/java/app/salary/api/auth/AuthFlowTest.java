@@ -37,6 +37,8 @@ class AuthFlowTest {
 
     private static final String ISSUER = "https://test.local/apple";
     private static final String AUDIENCE = "com.benmakusha.incomatic";
+    private static final String GOOGLE_ISSUER = "https://test.local/google";
+    private static final String GOOGLE_AUDIENCE = "test-client-id.apps.googleusercontent.com";
     private static final String KID = "k1";
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -77,12 +79,27 @@ class AuthFlowTest {
         return HexFormat.of().formatHex(md.digest(s.getBytes(StandardCharsets.UTF_8)));
     }
 
+    private static String signGoogleToken(String sub) {
+        return JWT.create()
+                .withKeyId(KID)
+                .withIssuer(GOOGLE_ISSUER)
+                .withAudience(GOOGLE_AUDIENCE)
+                .withSubject(sub)
+                .withExpiresAt(new Date(System.currentTimeMillis() + 60_000))
+                .withIssuedAt(new Date())
+                .withClaim("name", "Ben Makusha")
+                .sign(Algorithm.RSA256(publicKey, privateKey));
+    }
+
     private Javalin app() {
-        AppleIdentityVerifier verifier = new AppleIdentityVerifier(ISSUER, AUDIENCE, jwks);
+        AppleIdentityVerifier appleVerifier = new AppleIdentityVerifier(ISSUER, AUDIENCE, jwks);
+        GoogleIdentityVerifier googleVerifier =
+                new GoogleIdentityVerifier(new String[] {GOOGLE_ISSUER}, GOOGLE_AUDIENCE, jwks);
         SessionTokenService sessionTokens = new SessionTokenService(sessionSecret());
         UserDirectory users = new InMemoryUserDirectory();
         AuthMiddleware middleware = new AuthMiddleware(sessionTokens);
-        AuthController controller = new AuthController(verifier, sessionTokens, users, new RequestValidator());
+        AuthController controller =
+                new AuthController(appleVerifier, googleVerifier, sessionTokens, users, new RequestValidator());
 
         return Javalin.create(config -> {
             config.jsonMapper(new JavalinJackson(MAPPER, false));
@@ -138,6 +155,46 @@ class AuthFlowTest {
     void signInWith400OnMissingFields() {
         JavalinTest.test(app(), (server, client) -> {
             var resp = client.post("/v1/auth/apple", Map.of());
+            assertEquals(400, resp.code());
+        });
+    }
+
+    @Test
+    void googleSignInIssuesTokenThatTheMiddlewareThenAccepts() {
+        String idToken = signGoogleToken("109876543210987654321");
+
+        JavalinTest.test(app(), (server, client) -> {
+            String body = MAPPER.writeValueAsString(Map.of("idToken", idToken));
+            var resp = client.post("/v1/auth/google", body);
+            assertEquals(200, resp.code());
+            JsonNode response = MAPPER.readTree(resp.body().string());
+            String session = response.get("sessionToken").asText();
+            assertNotEquals("", session);
+            assertEquals("109876543210987654321", response.get("user").get("id").asText());
+            // No displayName supplied by the client, so it falls back to the token's name claim.
+            assertEquals("Ben Makusha", response.get("user").get("displayName").asText());
+
+            var who = client.get("/_probe/whoami", req ->
+                    req.header("Authorization", "Bearer " + session));
+            assertEquals(200, who.code());
+            JsonNode whoBody = MAPPER.readTree(who.body().string());
+            assertEquals("109876543210987654321", whoBody.get("userId").asText());
+        });
+    }
+
+    @Test
+    void googleSignInWith401OnInvalidIdentityToken() {
+        JavalinTest.test(app(), (server, client) -> {
+            String body = MAPPER.writeValueAsString(Map.of("idToken", "this-is-not-a-jwt"));
+            var resp = client.post("/v1/auth/google", body);
+            assertEquals(401, resp.code());
+        });
+    }
+
+    @Test
+    void googleSignInWith400OnMissingFields() {
+        JavalinTest.test(app(), (server, client) -> {
+            var resp = client.post("/v1/auth/google", Map.of());
             assertEquals(400, resp.code());
         });
     }

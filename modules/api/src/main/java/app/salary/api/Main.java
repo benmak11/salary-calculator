@@ -4,6 +4,7 @@ import app.salary.api.auth.AppleIdentityVerifier;
 import app.salary.api.auth.AuthController;
 import app.salary.api.controller.AccountController;
 import app.salary.api.auth.AuthMiddleware;
+import app.salary.api.auth.GoogleIdentityVerifier;
 import app.salary.api.auth.SessionTokenService;
 import app.salary.api.client.FinnhubStockClient;
 import app.salary.api.client.GenerativeAiClient;
@@ -91,6 +92,7 @@ public class Main {
         String projectId = Env.stringValue("GCP_PROJECT_ID", "salary-calculator-dev");
         boolean enableGcp = Env.boolValue(detectGcpAvailable());
         String appleAudience = Env.stringValue("APPLE_AUDIENCE", "");
+        String googleAudience = Env.stringValue("GOOGLE_AUDIENCE", "");
         String sessionSecretEnv = Env.stringValue("SESSION_JWT_SECRET", "");
         String finnhubApiKey = Env.stringValue("FINNHUB_API_KEY", "");
         String finnhubBaseUrl = Env.stringValue("FINNHUB_BASE_URL", "https://finnhub.io/api/v1");
@@ -148,7 +150,7 @@ public class Main {
         SessionTokenService sessionTokens = buildSessionTokens(sessionSecretEnv);
         AuthMiddleware authMiddleware = new AuthMiddleware(sessionTokens);
         AuthController authController = buildAuthController(
-                appleAudience, sessionSecretEnv, sessionTokens, userDirectory, requestValidator);
+                appleAudience, googleAudience, sessionSecretEnv, sessionTokens, userDirectory, requestValidator);
 
         CalculationHistoryController historyController = new CalculationHistoryController(calculationStore);
         AccountController accountController =
@@ -334,17 +336,28 @@ public class Main {
                 : new InMemoryBudgetStore();
     }
 
-    private static AuthController buildAuthController(String appleAudience, String sessionSecretEnv,
+    private static AuthController buildAuthController(String appleAudience, String googleAudience,
+                                                        String sessionSecretEnv,
                                                         SessionTokenService sessionTokens,
                                                         UserDirectory userDirectory,
                                                         RequestValidator requestValidator) {
+        AppleIdentityVerifier appleVerifier = null;
         if (appleAudience.isBlank()) {
             log.warn("Sign in with Apple disabled (APPLE_AUDIENCE=<unset>, SESSION_JWT_SECRET configured: {})",
                     !sessionSecretEnv.isBlank());
-            return null;
+        } else {
+            appleVerifier = new AppleIdentityVerifier(appleAudience);
         }
-        AppleIdentityVerifier appleVerifier = new AppleIdentityVerifier(appleAudience);
-        return new AuthController(appleVerifier, sessionTokens, userDirectory, requestValidator);
+
+        GoogleIdentityVerifier googleVerifier = null;
+        if (googleAudience.isBlank()) {
+            log.warn("Sign in with Google disabled (GOOGLE_AUDIENCE=<unset>, SESSION_JWT_SECRET configured: {})",
+                    !sessionSecretEnv.isBlank());
+        } else {
+            googleVerifier = new GoogleIdentityVerifier(googleAudience);
+        }
+
+        return new AuthController(appleVerifier, googleVerifier, sessionTokens, userDirectory, requestValidator);
     }
 
     private static SessionTokenService buildSessionTokens(String secretEnv) {

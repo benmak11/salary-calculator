@@ -67,7 +67,7 @@ function BudgetGoalsScreen({ goals, onAddGoal, savedByGoal = {} }) {
       <AppSectionHeader title="What are you saving for?" />
       <div style={{ padding: '0 0 16px' }}>
         <div style={{ padding: '0 26px 14px', fontSize: 13.5, color: 'var(--inc-textDim)', lineHeight: '20px' }}>
-          Pick as many as you'd like — there's no limit on goals.
+          Pick as many as you'd like, there's no limit on goals.
         </div>
         <BudgetGoalChips selectedTypes={selected} onToggle={toggle} />
       </div>
@@ -78,7 +78,7 @@ function BudgetGoalsScreen({ goals, onAddGoal, savedByGoal = {} }) {
               Add your first goal
             </div>
             <div style={{ fontSize: 13.5, color: 'var(--inc-textDim)', lineHeight: '20px', marginBottom: 20 }}>
-              Tap a category above, then set an amount — we'll fold it into your paycheck plan.
+              Tap a category above, then set an amount. We'll fold it into your paycheck plan.
             </div>
             <button onClick={onAddGoal} style={{
               background: 'var(--inc-sage)', color: 'white', border: 'none', cursor: 'pointer',

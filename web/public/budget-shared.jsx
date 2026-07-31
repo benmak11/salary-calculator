@@ -184,7 +184,7 @@ function buildBudgetPlan() {
   const wantsTotal = periods.reduce((s, p) => s + p.wants, 0) / 26;
   const savingsTotal = periods.reduce((s, p) => s + p.savings, 0) / 26;
 
-  const aiRationale = `You've got room to fund both goals. I front-loaded the emergency fund and routed most of your June RSU vest to it — at this pace you'll hit your ${fmtMoney(emergency.target, { cents: false })} cushion by ${fmtMonYear(emergencyProj.etaDate)}, and Japan is ${japanBehindMonths >= 1 ? `about ${japanBehindMonths} month${japanBehindMonths === 1 ? '' : 's'} behind` : 'on track for'} your ${fmtMonYear(japanTargetDate)} date.`;
+  const aiRationale = `You've got room to fund both goals. I front-loaded the emergency fund and routed most of your June RSU vest to it. At this pace you'll hit your ${fmtMoney(emergency.target, { cents: false })} cushion by ${fmtMonYear(emergencyProj.etaDate)}, and Japan is ${japanBehindMonths >= 1 ? `about ${japanBehindMonths} month${japanBehindMonths === 1 ? '' : 's'} behind` : 'on track for'} your ${fmtMonYear(japanTargetDate)} date.`;
 
   // Yearly outlook — 3 years, carrying cumulative goal progress forward.
   // Once a goal is met its share of the contribution flows into surplus

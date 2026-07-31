@@ -55,8 +55,8 @@ function RSUYearlyOutlook({ grants, baseAnnual, bonus, defaultOpen = false }) {
       {open && (
         <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--inc-hairline)' }}>
           <div style={{ fontSize: 11.5, color: 'var(--inc-textMute)', lineHeight: '16px', marginBottom: 14 }}>
-            Figures are gross — before taxes and deductions. Base pay held flat at {fmtMoney(baseAnnual, { cents: false })}/yr.
-            Bonus shown once, in its payout year. RSU value uses today's price for every future vest — actual value will differ.
+            Figures are gross, before taxes and deductions. Base pay held flat at {fmtMoney(baseAnnual, { cents: false })}/yr.
+            Bonus shown once, in its payout year. RSU value uses today's price for every future vest. Actual value will differ.
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {rows.map(r => (
