@@ -22,14 +22,27 @@ class AuthControllerTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     /** Returns a canned verified identity (incl. an email) without touching Apple's JWKS. */
-    private static final class StubVerifier extends AppleIdentityVerifier {
+    private static final class StubAppleVerifier extends AppleIdentityVerifier {
         private final VerifiedAppleIdentity identity;
-        StubVerifier(VerifiedAppleIdentity identity) {
+        StubAppleVerifier(VerifiedAppleIdentity identity) {
             super("test-audience");   // JWKS is fetched lazily on verify(), which we override
             this.identity = identity;
         }
         @Override
         public VerifiedAppleIdentity verify(String identityToken, String rawNonce) {
+            return identity;
+        }
+    }
+
+    /** Returns a canned verified identity (incl. an email) without touching Google's JWKS. */
+    private static final class StubGoogleVerifier extends GoogleIdentityVerifier {
+        private final VerifiedGoogleIdentity identity;
+        StubGoogleVerifier(VerifiedGoogleIdentity identity) {
+            super("test-audience");   // JWKS is fetched lazily on verify(), which we override
+            this.identity = identity;
+        }
+        @Override
+        public VerifiedGoogleIdentity verify(String idToken) {
             return identity;
         }
     }
@@ -62,11 +75,11 @@ class AuthControllerTest {
         }
     }
 
-    private Javalin app(AppleIdentityVerifier verifier, UserDirectory users) {
+    private Javalin app(AppleIdentityVerifier appleVerifier, GoogleIdentityVerifier googleVerifier, UserDirectory users) {
         byte[] secret = new byte[32];
         for (int i = 0; i < secret.length; i++) secret[i] = (byte) i;
         SessionTokenService tokens = new SessionTokenService(secret);
-        AuthController controller = new AuthController(verifier, tokens, users, new RequestValidator());
+        AuthController controller = new AuthController(appleVerifier, googleVerifier, tokens, users, new RequestValidator());
         return Javalin.create(config -> {
             config.jsonMapper(new JavalinJackson(MAPPER, false));
             config.startup.showJavalinBanner = false;
@@ -81,7 +94,7 @@ class AuthControllerTest {
                 new VerifiedAppleIdentity("apple-sub-123", "leak@example.com", true);
         RecordingUserDirectory users = new RecordingUserDirectory();
 
-        JavalinTest.test(app(new StubVerifier(identity), users), (server, client) -> {
+        JavalinTest.test(app(new StubAppleVerifier(identity), null, users), (server, client) -> {
             var resp = client.post("/v1/auth/apple", Map.of(
                     "identityToken", "tok",
                     "nonce", "n",
@@ -102,6 +115,31 @@ class AuthControllerTest {
         // change re-introduces email storage, this spy won't compile — a deliberate tripwire.
         assertTrue(users.upserted);
         assertEquals("apple-sub-123", users.userId);
+        assertEquals("Alex Carter", users.displayName);
+    }
+
+    @Test
+    void googleSignIn_persistsIdAndDisplayName_butNeverTheEmail() {
+        // Google's verified identity DOES carry an email here...
+        VerifiedGoogleIdentity identity =
+                new VerifiedGoogleIdentity("google-sub-456", "leak@example.com", true, "Alex Carter");
+        RecordingUserDirectory users = new RecordingUserDirectory();
+
+        JavalinTest.test(app(null, new StubGoogleVerifier(identity), users), (server, client) -> {
+            var resp = client.post("/v1/auth/google", Map.of("idToken", "tok"));
+            assertEquals(200, resp.code());
+
+            JsonNode json = MAPPER.readTree(resp.body().string());
+            assertNotNull(json.get("sessionToken"));
+            assertEquals("google-sub-456", json.get("user").get("id").asText());
+            // No displayName supplied by the client, so it falls back to the token's name claim.
+            assertEquals("Alex Carter", json.get("user").get("displayName").asText());
+            assertFalse(json.toString().contains("leak@example.com"),
+                    "sign-in response must not include the Google email");
+        });
+
+        assertTrue(users.upserted);
+        assertEquals("google-sub-456", users.userId);
         assertEquals("Alex Carter", users.displayName);
     }
 }
