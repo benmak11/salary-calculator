@@ -1,0 +1,14 @@
+# Incomatic marketing site — static nginx container.
+# Fully decoupled from the Gradle/Java build: no compile step, just the
+# static HTML/CSS/JSX prototype served as-is (Babel-standalone transpiles
+# the JSX client-side, matching the design as authored).
+
+FROM nginx:1.27-alpine
+
+COPY web/nginx.conf /etc/nginx/nginx.conf
+COPY web/public/ /usr/share/nginx/html/
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/healthz || exit 1

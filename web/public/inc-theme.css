@@ -1,0 +1,96 @@
+/* ───────────────────────────────────────────────────────────────
+   Incomatic — theme tokens (light + dark)
+   ---------------------------------------------------------------
+   Every color in the prototype resolves to one of these CSS custom
+   properties. The B2 / PAL palette objects in the JSX emit
+   `var(--inc-*)` strings, so a subtree's theme is decided purely by
+   which class sits on an ancestor:
+
+     <div class="inc-theme-light"> … light app … </div>
+     <div class="inc-theme-dark">  … dark app  … </div>
+
+   :root defaults to LIGHT, so any page that only links this file
+   (and sets no class) renders exactly as before.
+
+   Dark mode = true iOS-style graphite: #000 grouped base, #1C1C1E
+   elevated cards, brightened sage accent for contrast on dark.
+   ─────────────────────────────────────────────────────────────── */
+
+:root,
+.inc-theme-light {
+  /* surfaces */
+  --inc-bg:            #F5F1EA;   /* app background — warm cream      */
+  --inc-surface:       #FFFFFF;   /* card / sheet                     */
+  --inc-surfaceWarm:   #FBF6EE;   /* alt warm surface                 */
+  /* text */
+  --inc-text:          #1F2A2A;   /* primary text, headlines          */
+  --inc-textDim:       #5A6868;   /* body & secondary text            */
+  --inc-textMute:      #94A09E;   /* labels, placeholders, inactive   */
+  /* accent — sage */
+  --inc-sage:          #5F8C7C;   /* primary accent                   */
+  --inc-sageDeep:      #3F6B5C;   /* emphasis numerals, hover         */
+  --inc-sageSoft:      #D7E4DE;   /* completed step bg, soft borders  */
+  --inc-sageBg:        #EEF5F1;   /* sage-tinted surfaces             */
+  /* secondary accents */
+  --inc-blush:         #E89B7D;   /* informational accent             */
+  --inc-blushBg:       #FBE9DE;   /* informational surface            */
+  --inc-gold:          #E4C77A;   /* benefits wedge                   */
+  --inc-red:           #D93A3A;   /* destructive                      */
+  --inc-redBg:         #FBEAEA;   /* destructive surface              */
+  /* lines */
+  --inc-hairline:      rgba(31,42,42,0.08);
+  --inc-hairlineStrong:rgba(31,42,42,0.14);
+  --inc-cardBorder:    rgba(31,42,42,0.00);  /* transparent in light  */
+  /* controls */
+  --inc-track:         #E2E5E3;   /* toggle off track                 */
+  --inc-disabled:      #C4CCCA;   /* disabled button bg               */
+  --inc-donutTrack:    rgba(0,0,0,0.05);
+  --inc-barBg:         rgba(245,241,234,0.88); /* translucent tab bar */
+  --inc-btnSolid:      #1F2A2A;   /* dark filled secondary button     */
+  --inc-btnSolidText:  #FFFFFF;
+  --inc-toastBg:       #1F2A2A;
+  --inc-toastText:     #FFFFFF;
+  /* apple system auth dialog (adapts like the real one) */
+  --inc-overlayBg:     rgba(248,248,250,0.92);
+  --inc-overlayText:   #000000;
+  --inc-overlaySub:    rgba(60,60,67,0.70);
+}
+
+.inc-theme-dark {
+  /* surfaces */
+  --inc-bg:            #000000;
+  --inc-surface:       #1C1C1E;
+  --inc-surfaceWarm:   #242426;
+  /* text */
+  --inc-text:          #FFFFFF;
+  --inc-textDim:       rgba(235,235,245,0.60);
+  --inc-textMute:      rgba(235,235,245,0.42);
+  /* accent — sage, brightened for contrast on dark */
+  --inc-sage:          #7FB29F;
+  --inc-sageDeep:      #A6D8C5;
+  --inc-sageSoft:      rgba(127,178,159,0.40);
+  --inc-sageBg:        rgba(127,178,159,0.15);
+  /* secondary accents */
+  --inc-blush:         #EBA890;
+  --inc-blushBg:       rgba(232,155,125,0.15);
+  --inc-gold:          #E8CF86;
+  --inc-red:           #FF6961;
+  --inc-redBg:         rgba(255,105,97,0.15);
+  /* lines */
+  --inc-hairline:      rgba(255,255,255,0.09);
+  --inc-hairlineStrong:rgba(255,255,255,0.18);
+  --inc-cardBorder:    rgba(255,255,255,0.07);  /* gives cards an edge */
+  /* controls */
+  --inc-track:         #39393D;
+  --inc-disabled:      #2C2C2E;
+  --inc-donutTrack:    rgba(255,255,255,0.08);
+  --inc-barBg:         rgba(18,18,20,0.80);
+  --inc-btnSolid:      #2C2C2E;
+  --inc-btnSolidText:  #FFFFFF;
+  --inc-toastBg:       #2C2C2E;
+  --inc-toastText:     #FFFFFF;
+  /* apple system auth dialog — dark glass */
+  --inc-overlayBg:     rgba(44,44,46,0.92);
+  --inc-overlayText:   #FFFFFF;
+  --inc-overlaySub:    rgba(235,235,245,0.60);
+}
