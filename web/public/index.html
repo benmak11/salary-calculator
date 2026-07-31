@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Incomatic — See what actually lands in your bank account</title>
+<meta name="description" content="Incomatic is a US take-home pay calculator for iOS. Per-paycheck breakdowns, RSU tracking, and AI budgeting.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="inc-theme.css">
+<style>
+:root{--site-max:1120px;--site-pad:28px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--inc-bg);color:var(--inc-text);font-family:'Inter',-apple-system,system-ui,sans-serif;-webkit-font-smoothing:antialiased;transition:background .3s ease,color .3s ease}
+.wrap{max-width:var(--site-max);margin:0 auto;padding:0 var(--site-pad)}
+h1,h2,h3,.serif{font-family:'Fraunces',Georgia,serif;font-weight:500;letter-spacing:-.02em;margin:0}
+p{margin:0;text-wrap:pretty}
+a{color:var(--inc-sageDeep);text-decoration:none}
+a:hover{color:var(--inc-sage);text-decoration:underline}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--inc-sage)}
+/* nav */
+.nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(18px);background:var(--inc-barBg);border-bottom:1px solid var(--inc-hairline)}
+.nav-in{max-width:var(--site-max);margin:0 auto;padding:14px var(--site-pad);display:flex;align-items:center;gap:26px}
+.mark{font-family:'Fraunces',serif;font-size:21px;font-weight:500;letter-spacing:-.03em;color:var(--inc-text);display:flex;align-items:center;gap:9px}
+.mark-dot{width:22px;height:22px;border-radius:7px;background:var(--inc-sage);display:grid;place-items:center;color:#fff;font-family:'Inter';font-size:12px;font-weight:800}
+.nav-links{margin-left:auto;display:flex;align-items:center;gap:24px}
+.nav-links a{font-size:13.5px;font-weight:600;color:var(--inc-textDim);text-decoration:none}
+.nav-links a:hover{color:var(--inc-text);text-decoration:none}
+.theme-btn{width:34px;height:34px;border-radius:50%;border:1px solid var(--inc-hairlineStrong);background:var(--inc-surface);color:var(--inc-textDim);cursor:pointer;display:grid;place-items:center}
+.theme-btn:hover{color:var(--inc-text)}
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;border:none;cursor:pointer;font-family:inherit;font-weight:700;border-radius:14px;padding:14px 22px;font-size:14.5px;text-decoration:none}
+.btn:hover{text-decoration:none}
+.btn-primary{background:var(--inc-sage);color:#fff;box-shadow:0 2px 10px rgba(95,140,124,.28)}
+.btn-primary:hover{background:var(--inc-sageDeep);color:#fff}
+.btn-ghost{background:var(--inc-surface);color:var(--inc-text);border:1px solid var(--inc-hairlineStrong)}
+.btn-ghost:hover{color:var(--inc-text)}
+.btn-store{background:var(--inc-btnSolid);color:var(--inc-btnSolidText);padding:12px 20px}
+.btn-store:hover{color:var(--inc-btnSolidText);opacity:.9}
+.btn-store .sub{font-size:9.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;opacity:.72;display:block;line-height:1.1}
+.btn-store .main{font-size:15.5px;font-weight:700;line-height:1.2}
+/* hero */
+.hero{padding:72px 0 40px}
+.hero-grid{display:grid;grid-template-columns:1fr 400px;gap:48px;align-items:center}
+.hero h1{font-size:clamp(38px,5vw,60px);line-height:1.03}
+.hero-sub{font-size:17px;line-height:1.6;color:var(--inc-textDim);max-width:44ch;margin-top:20px}
+.dl-row{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-top:32px}
+.qr-plaque{background:#fff;border-radius:16px;padding:10px;box-shadow:0 2px 12px rgba(31,42,42,.12);display:grid;place-items:center}
+.qr-plaque svg,.qr-plaque img{display:block;width:100%;height:100%}
+.qr-note{font-size:12px;color:var(--inc-textMute);line-height:1.45}
+.hero-stats{display:flex;gap:30px;margin-top:38px;padding-top:26px;border-top:1px solid var(--inc-hairline)}
+.hero-stats div span{display:block}
+.stat-n{font-family:'Fraunces',serif;font-size:25px;color:var(--inc-text)}
+.stat-l{font-size:11.5px;color:var(--inc-textMute);font-weight:600;margin-top:3px}
+/* sections */
+section{scroll-margin-top:76px}
+.sec-head{max-width:640px;margin-bottom:34px}
+.sec-head h2{font-size:clamp(27px,3.4vw,38px);line-height:1.12;margin-top:12px}
+.sec-head p{font-size:15.5px;line-height:1.6;color:var(--inc-textDim);margin-top:14px}
+.band{padding:74px 0;border-top:1px solid var(--inc-hairline)}
+/* gallery */
+.gal{display:flex;gap:26px;overflow-x:auto;padding:4px 0 26px;scroll-snap-type:x mandatory}
+.gal::-webkit-scrollbar{height:6px}
+.gal::-webkit-scrollbar-thumb{background:var(--inc-hairlineStrong);border-radius:3px}
+.gal-item{scroll-snap-align:start;flex-shrink:0;width:242px}
+.dev-slot{border-radius:30px;background:var(--inc-surfaceWarm);border:1px solid var(--inc-hairline)}
+.dev-slot.mounted{background:none;border:none}
+.gal-cap{margin-top:16px}
+.gal-cap b{display:block;font-size:14.5px;color:var(--inc-text)}
+.gal-cap span{display:block;font-size:12.5px;color:var(--inc-textDim);line-height:1.5;margin-top:4px}
+/* features */
+.feat{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.card{background:var(--inc-surface);border:1px solid var(--inc-cardBorder);border-radius:20px;padding:24px}
+.card .ico{width:38px;height:38px;border-radius:12px;background:var(--inc-sageBg);display:grid;place-items:center;margin-bottom:14px}
+.card h3{font-size:17px;margin-bottom:7px}
+.card p{font-size:13.5px;line-height:1.55;color:var(--inc-textDim)}
+/* download band */
+.dl-band{background:var(--inc-sageBg);border-radius:28px;padding:48px;display:grid;grid-template-columns:1fr auto;gap:44px;align-items:center;border:1px solid var(--inc-sageSoft)}
+.dl-band h2{font-size:clamp(26px,3.2vw,34px);line-height:1.14}
+.dl-band p{font-size:15px;line-height:1.6;color:var(--inc-textDim);margin-top:12px;max-width:42ch}
+.soon{display:inline-flex;align-items:center;gap:7px;margin-top:18px;font-size:12.5px;font-weight:600;color:var(--inc-textDim);background:var(--inc-surface);border:1px solid var(--inc-hairline);border-radius:999px;padding:7px 14px}
+/* floating scan bar */
+.scanbar{position:fixed;bottom:22px;left:50%;transform:translate(-50%,140%);z-index:60;display:flex;align-items:center;gap:16px;padding:12px 18px 12px 12px;border-radius:20px;background:var(--inc-barBg);backdrop-filter:blur(22px);border:1px solid var(--inc-hairlineStrong);box-shadow:0 10px 34px rgba(31,42,42,.18);transition:transform .38s cubic-bezier(.32,.72,0,1),opacity .3s;opacity:0}
+.scanbar.on{transform:translate(-50%,0);opacity:1}
+.scanbar .t b{display:block;font-size:13.5px;color:var(--inc-text)}
+.scanbar .t span{display:block;font-size:11.5px;color:var(--inc-textMute);margin-top:2px}
+/* privacy */
+.policy{max-width:760px}
+.policy .updated{font-size:12.5px;color:var(--inc-textMute);margin-top:10px}
+.policy h3{font-family:'Fraunces',serif;font-size:22px;margin:38px 0 12px;padding-top:22px;border-top:1px solid var(--inc-hairline)}
+.policy h4{font-size:14px;font-weight:700;margin:22px 0 7px;color:var(--inc-text)}
+.policy p{font-size:14.5px;line-height:1.68;color:var(--inc-textDim);margin-bottom:13px}
+.policy ul{margin:0 0 14px;padding-left:20px}
+.policy li{font-size:14.5px;line-height:1.68;color:var(--inc-textDim);margin-bottom:10px}
+.policy strong{color:var(--inc-text);font-weight:700}
+.policy-toc{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.policy-toc a{font-size:12.5px;font-weight:600;padding:7px 13px;border-radius:999px;background:var(--inc-surface);border:1px solid var(--inc-hairline);color:var(--inc-textDim);text-decoration:none}
+.policy-toc a:hover{color:var(--inc-text);border-color:var(--inc-hairlineStrong);text-decoration:none}
+/* footer */
+footer{border-top:1px solid var(--inc-hairline);padding:40px 0 56px;margin-top:20px}
+.foot{display:flex;flex-wrap:wrap;gap:20px;align-items:center;justify-content:space-between}
+.foot p{font-size:12.5px;color:var(--inc-textMute);line-height:1.6}
+.foot-links{display:flex;gap:20px}
+.foot-links a{font-size:12.5px;font-weight:600;color:var(--inc-textDim);text-decoration:none}
+@media(max-width:940px){.hero-grid{grid-template-columns:1fr;gap:36px}.feat{grid-template-columns:1fr 1fr}.dl-band{grid-template-columns:1fr;padding:34px}.nav-links a[data-hide]{display:none}}
+@media(max-width:620px){.feat{grid-template-columns:1fr}.hero{padding:44px 0 26px}.band{padding:52px 0}.scanbar{display:none}}
+</style>
+</head>
+<body class="inc-theme-light">
+<nav class="nav">
+  <div class="nav-in">
+    <div class="mark"><span class="mark-dot">$</span>Incomatic</div>
+    <div class="nav-links">
+      <a href="#screens" data-hide>Screens</a>
+      <a href="#features" data-hide>Features</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#download">Download</a>
+      <button class="theme-btn" id="themeBtn" aria-label="Toggle dark mode">
+        <svg id="themeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<header class="hero wrap">
+  <div class="hero-grid">
+    <div>
+      <div class="eyebrow">Take-home pay, for iOS</div>
+      <h1>See what actually lands in your bank account.</h1>
+      <p class="hero-sub">Enter your earnings, withholding, and benefits — Incomatic returns a per-paycheck breakdown of every tax, deduction, and contribution, then turns it into a budget you can actually follow.</p>
+      <div class="dl-row">
+        <a class="btn btn-store" id="storeBtn" href="#download">
+          <svg width="20" height="20" viewBox="0 0 17 17" fill="currentColor"><path d="M11.6 2.6c.6-.7 1-1.7 1-2.6-.9 0-2 .6-2.6 1.3-.6.6-1.1 1.6-1 2.5.9.1 2-.5 2.6-1.2zM14.3 12c-.4.9-.6 1.3-1 2-.6 1-1.5 2.3-2.5 2.3-.9 0-1.1-.6-2.3-.6-1.2 0-1.5.6-2.4.6-1 0-1.7-1-2.4-2C2 11.5 1.5 8 3 6c.8-1.2 2-2 3.4-2 1 0 2 .6 2.6.6.6 0 1.7-.7 3-.6.5 0 2 .2 3 1.5-2.6 1.5-2.2 5-.7 6.5z"/></svg>
+          <span><span class="sub">Download on the</span><span class="main">App Store</span></span>
+        </a>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="qr-plaque" style="width:86px;height:86px"><div id="qrHero" style="width:100%;height:100%"></div></div>
+          <p class="qr-note">Point your camera<br>at the code to install</p>
+        </div>
+      </div>
+      <div class="hero-stats">
+        <div><span class="stat-n">50 + DC</span><span class="stat-l">States supported</span></div>
+        <div><span class="stat-n">8</span><span class="stat-l">Pay frequencies</span></div>
+        <div><span class="stat-n">0</span><span class="stat-l">Trackers or ad SDKs</span></div>
+      </div>
+    </div>
+    <div id="heroDevice" style="justify-self:center"></div>
+  </div>
+</header>
+
+<section id="screens" class="band">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Inside the app</div>
+      <h2>Four steps in, a full picture out.</h2>
+      <p>Live screens from the current build — the guided calculator, the Insights breakdown, saved history, and the AI budget plan.</p>
+    </div>
+    <div class="gal">
+      <div class="gal-item"><div id="galCalculator"></div><div class="gal-cap"><b>Calculator</b><span>Earnings · Federal · State · Benefits, with net pay updating as you type.</span></div></div>
+      <div class="gal-item"><div id="galInsights"></div><div class="gal-cap"><b>Insights</b><span>Where gross pay goes, plus a yearly outlook for bonus and RSU vests.</span></div></div>
+      <div class="gal-item"><div id="galBudget"></div><div class="gal-cap"><b>Budget · Overview</b><span>Needs / Wants / Savings per paycheck, with the plan's reasoning.</span></div></div>
+      <div class="gal-item"><div id="galPaychecks"></div><div class="gal-cap"><b>Budget · Paychecks</b><span>Every payday for the year — rent weeks, bonus and vest spikes.</span></div></div>
+      <div class="gal-item"><div id="galHistory"></div><div class="gal-cap"><b>History</b><span>Sign in with Apple to save calculations and revisit the detail.</span></div></div>
+    </div>
+  </div>
+</section>
+
+<section id="features" class="band">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Features</div>
+      <h2>Built for the parts of payroll nobody explains.</h2>
+    </div>
+    <div class="feat">
+      <div class="card">
+        <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--inc-sage)" stroke-width="2" stroke-linecap="round"><rect x="4" y="2" width="16" height="20" rx="3"/><path d="M8 7h8M8 12h3M8 16h3M15 12v4"/></svg></div>
+        <h3>Real withholding math</h3>
+        <p>Federal (modern or legacy W-4), state and county tax, FICA, pre-tax benefits, and Traditional vs. Roth 401(k) handled correctly.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--inc-sage)" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 5h6v6"/></svg></div>
+        <h3>Bonus, commission &amp; RSUs</h3>
+        <p>Dated bonuses and vesting schedules get their own supplemental withholding, then roll into a yearly earnings outlook.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--inc-sage)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 12V7M12 12l4 2.5"/></svg></div>
+        <h3>Paycheck-by-paycheck budget</h3>
+        <p>Add expenses and savings goals and get a plan for all 26 paydays — including which ones are tight and which carry a windfall.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--inc-sage)" stroke-width="2" stroke-linecap="round"><path d="M12 2l8 4v6c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6l8-4z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <h3>Private by default</h3>
+        <p>No analytics SDKs, no ad networks, no trackers. Dollar amounts never hit our logs, and the calculator works fully without an account.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--inc-sage)" stroke-width="2" stroke-linecap="round"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1116 0z"/><circle cx="12" cy="10" r="2.5"/></svg></div>
+        <h3>Knows your state</h3>
+        <p>Optional location access pre-fills your work state — decline it and pick from all 50 states and DC by hand.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--inc-sage)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M9 11h6M9.5 14.5h5"/></svg></div>
+        <h3>Sign in with Apple</h3>
+        <p>Optional, and email-free — we never store your address. It only exists to sync history, grants, and your budget across devices.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="download" class="band">
+  <div class="wrap">
+    <div class="dl-band">
+      <div>
+        <div class="eyebrow">Get the app</div>
+        <h2>Scan, install, and know your number before payday.</h2>
+        <p>Requires iOS 18.6 or later. Free to use, no account needed to calculate.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:26px">
+          <a class="btn btn-store" href="#download" id="storeBtn2">
+            <svg width="20" height="20" viewBox="0 0 17 17" fill="currentColor"><path d="M11.6 2.6c.6-.7 1-1.7 1-2.6-.9 0-2 .6-2.6 1.3-.6.6-1.1 1.6-1 2.5.9.1 2-.5 2.6-1.2zM14.3 12c-.4.9-.6 1.3-1 2-.6 1-1.5 2.3-2.5 2.3-.9 0-1.1-.6-2.3-.6-1.2 0-1.5.6-2.4.6-1 0-1.7-1-2.4-2C2 11.5 1.5 8 3 6c.8-1.2 2-2 3.4-2 1 0 2 .6 2.6.6.6 0 1.7-.7 3-.6.5 0 2 .2 3 1.5-2.6 1.5-2.2 5-.7 6.5z"/></svg>
+            <span><span class="sub">Download on the</span><span class="main">App Store</span></span>
+          </a>
+        </div>
+        <div class="soon">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          Android — coming later
+        </div>
+      </div>
+      <div style="text-align:center">
+        <div class="qr-plaque" style="width:196px;height:196px"><div id="qrMain" style="width:100%;height:100%"></div></div>
+        <p class="qr-note" style="margin-top:12px">Scan with your iPhone camera</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="privacy" class="band">
+  <div class="wrap">
+    <div class="policy">
+      <div class="eyebrow">Legal</div>
+      <h2 style="font-size:clamp(27px,3.4vw,38px);line-height:1.12;margin-top:12px">Privacy Policy</h2>
+      <p class="updated">Last updated: July 29, 2026</p>
+      <div class="policy-toc">
+        <a href="#p-collect">What we collect</a>
+        <a href="#p-ai">Budgeting &amp; AI</a>
+        <a href="#p-not">What we don't</a>
+        <a href="#p-use">How it's used</a>
+        <a href="#p-share">Sharing</a>
+        <a href="#p-security">Security</a>
+        <a href="#p-choices">Your choices</a>
+        <a href="#p-contact">Contact</a>
+      </div>
+      <p style="margin-top:26px">Incomatic ("the app," "we," "our") is a take-home pay calculator for iOS. This policy explains what information the app collects, how it's used, and your choices.</p>
+
+      <h3 id="p-collect">Information We Collect</h3>
+      <h4>Location</h4>
+      <p>Incomatic requests access to your device's location, with your permission, solely to detect your work state and pre-fill it in the calculator. Location data is used momentarily on your device to determine your state and is not stored, logged, or transmitted to our servers beyond what's needed to complete that lookup. You can decline location access and select your state manually instead.</p>
+      <h4>Financial and payroll information you enter</h4>
+      <p>To calculate your take-home pay, the app sends the figures you provide — earnings, pay frequency, filing status, W-4 details, state/county, pre-tax benefit elections, and retirement contribution percentages — to our calculation backend so it can compute your paycheck breakdown and return it to the app.</p>
+      <ul>
+        <li>If you are <strong>not signed in</strong>, the calculation is processed to produce your result and is <strong>not</strong> saved to any personal history. Our server logs record only non-identifying metadata about a request — such as the country, state, tax year, and pay frequency, and whether a bonus or hourly input was included — and deliberately <strong>do not</strong> record the salary or dollar amounts you enter, or the full contents of your request.</li>
+        <li>If you <strong>sign in</strong> (see "Account information"), the calculation you run — the inputs and the computed results — is saved to your private calculation history so you can revisit it later. You can delete any saved calculation from within the app at any time.</li>
+      </ul>
+      <h4>Account information</h4>
+      <p>Signing in is <strong>optional</strong> and is used only to save and sync your calculation history; the calculator is fully usable without an account. Incomatic uses <strong>Sign in with Apple</strong>, so we never receive or handle your Apple password. When you sign in, our backend stores a record for your account containing your Apple user identifier, the display name you choose to share (Apple provides this only on your first sign-in), and account timestamps (when the account was created and last used). <strong>We do not store your email address</strong> — Sign in with Apple lets you keep it private (including via Apple's "Hide My Email" relay), and our backend does not retain it. Your saved calculations are stored privately against your Apple user identifier and are only accessible when you are signed in.</p>
+
+      <h4>Budget goals and expenses</h4>
+      <p>If you choose to build a budget, the app collects the savings goals and expenses you enter — name, amount, cadence, category, and any target date — along with the take-home figures from your calculation, so it can produce a paycheck-by-paycheck plan. This information is stored against your account like your calculation history, and you can edit or delete it in the app at any time. Generating a plan requires an <strong>AI service operated by Google</strong>; see "Budgeting and AI" below.</p>
+
+      <h3 id="p-ai">Budgeting and AI</h3>
+      <p>Incomatic's budgeting feature uses <strong>Google's generative AI (Gemini)</strong> to draft your plan. To do that, the values you have entered — your take-home pay, your expenses, and your savings goals, <strong>including the amounts you typed in</strong> — are sent to Google's AI service through our backend. Your name, email, and Apple user identifier are <strong>not</strong> included.</p>
+      <ul>
+        <li>This only happens if you <strong>explicitly allow it</strong>. Before anything is sent, the app shows a consent step describing this in plain language; if you choose "Not now," no budget data is sent to Google and the feature is not used.</li>
+        <li>The AI's plan is checked against a deterministic budgeting engine that runs on your device, which also serves as a fallback if the AI service is unavailable.</li>
+        <li>Google's handling of the data it receives is governed by Google's own terms and privacy policy for its AI services. We do not permit this data to be used to train Google's models.</li>
+        <li>Every other part of Incomatic — the calculator, Insights, history, and RSU tracking — works without any AI service, and none of your data is sent to Google for those features.</li>
+      </ul>
+
+      <h3 id="p-not">Information We Do Not Collect</h3>
+      <p>Incomatic does not use third-party analytics SDKs, advertising networks, or tracking technologies. We do not collect your contact list or device advertising identifiers, and we do not sell or share your information with third parties for marketing purposes.</p>
+
+      <h3 id="p-use">How Information Is Used</h3>
+      <p>Financial figures you enter are used exclusively to generate the paycheck breakdown displayed in the app and, if you are signed in, to save that breakdown to your personal history. Budget goals and expenses are used exclusively to build and display your budget plan, including the AI generation step you consent to. Location is used exclusively to pre-fill your work state. Account information is used exclusively to authenticate you and associate your saved calculations with your account.</p>
+
+      <h3 id="p-share">Data Sharing</h3>
+      <p>We do not sell your data. Your inputs are transmitted to our own calculation backend over an encrypted (HTTPS) connection. The one exception is the budgeting feature: with your explicit consent, your budget figures are sent to Google's AI service to generate your plan, as described in "Budgeting and AI" above. Sign in with Apple is provided by Apple; your use of it is also governed by Apple's privacy policy.</p>
+
+      <h3 id="p-security">Data Security</h3>
+      <p>All communication between the app and our backend is encrypted in transit via HTTPS. In addition, the salary and dollar amounts you enter are never written to our server logs, and — when you are not signed in — your requests are not associated with any persistent user identifier. Saved calculations are stored privately and are only returned to your own authenticated account.</p>
+
+      <h3 id="p-children">Children's Privacy</h3>
+      <p>Incomatic is not directed at children under 13, and we do not knowingly collect information from children under 13.</p>
+
+      <h3 id="p-choices">Your Choices</h3>
+      <ul>
+        <li>You can deny or revoke location permission at any time in iOS Settings; the app will fall back to manual state selection.</li>
+        <li>You can use the calculator without signing in, in which case no calculations or account data are stored.</li>
+        <li>You can decline the budgeting consent step, or simply not use budgeting — the rest of the app is unaffected and nothing is sent to Google's AI. Deleting a goal or expense removes it from our backend.</li>
+        <li>If you have signed in, you can delete individual saved calculations at any time from the History screen, which removes them from our backend.</li>
+        <li>You can permanently delete your account at any time from the account screen (tap your profile, then <strong>Delete Account</strong>). This erases your account record and all of your saved calculations from our backend and cannot be undone.</li>
+      </ul>
+
+      <h3 id="p-changes">Changes to This Policy</h3>
+      <p>We may update this policy as the app's features change. The "Last updated" date above will reflect the most recent revision.</p>
+
+      <h3 id="p-contact">Contact</h3>
+      <p>Questions about this policy or Incomatic's data practices can be sent to <a href="mailto:btmakusha@gmail.com">btmakusha@gmail.com</a>.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot">
+    <div>
+      <div class="mark" style="font-size:18px"><span class="mark-dot" style="width:20px;height:20px;font-size:11px">$</span>Incomatic</div>
+      <p style="margin-top:10px">A US take-home pay calculator for iOS.<br>© <span id="yr"></span> Incomatic. Not tax advice.</p>
+    </div>
+    <div class="foot-links">
+      <a href="#privacy">Privacy Policy</a>
+      <a href="#download">Download</a>
+      <a href="mailto:btmakusha@gmail.com">Contact</a>
+    </div>
+  </div>
+</footer>
+
+<div class="scanbar" id="scanbar">
+  <div class="qr-plaque" style="width:58px;height:58px;padding:6px;box-shadow:none"><div id="qrBar" style="width:100%;height:100%"></div></div>
+  <div class="t"><b>Scan to download</b><span>iPhone · iOS 18.6+</span></div>
+  <a class="btn btn-primary" style="padding:11px 18px;font-size:13.5px" href="#download">Get the app</a>
+</div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel" src="variation-b-v2.jsx"></script>
+<script type="text/babel" src="nav-directions.jsx"></script>
+<script type="text/babel" src="history-shared.jsx"></script>
+<script type="text/babel" src="rsu-shared.jsx"></script>
+<script type="text/babel" src="rsu-cards.jsx"></script>
+<script type="text/babel" src="rsu-outlook.jsx"></script>
+<script type="text/babel" src="rsu-grants.jsx"></script>
+<script type="text/babel" src="budget-shared.jsx"></script>
+<script type="text/babel" src="budget-consent.jsx"></script>
+<script type="text/babel" src="budget-goals.jsx"></script>
+<script type="text/babel" src="budget-expenses.jsx"></script>
+<script type="text/babel" src="budget-plan.jsx"></script>
+<script type="text/babel" src="site-app-views.jsx"></script>
+<script type="text/babel">
+// Real App Store listing — the QR codes and both store buttons read from this.
+const APP_STORE_URL = 'https://apps.apple.com/us/app/incomatic/id6778857123';
+
+document.getElementById('yr').textContent = new Date().getFullYear();
+
+// ── QR codes ───────────────────────────────────────────────────
+function drawQR(el, px) {
+  if (!el) return;
+  if (typeof qrcode !== 'function') { el.style.background = 'var(--inc-hairline)'; el.style.borderRadius = '8px'; return; }
+  const qr = qrcode(0, 'M');
+  qr.addData(APP_STORE_URL);
+  qr.make();
+  el.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+  const svg = el.querySelector('svg');
+  if (svg) { svg.setAttribute('width', px); svg.setAttribute('height', px); svg.style.display = 'block'; }
+}
+drawQR(document.getElementById('qrHero'), 66);
+drawQR(document.getElementById('qrMain'), 176);
+drawQR(document.getElementById('qrBar'), 46);
+
+// ── Device frames ──────────────────────────────────────────────
+// Each device is a full prototype tree, so they are mounted lazily: the hero
+// renders immediately, the five gallery devices only once they scroll near
+// the viewport. The theme toggle then re-renders only what is actually
+// mounted instead of all six.
+const MOUNTS = [
+  { id: 'heroDevice', kind: null, scale: 0.92, eager: true },
+  { id: 'galCalculator', kind: 'calculator', scale: 0.62 },
+  { id: 'galInsights', kind: 'insights', scale: 0.62 },
+  { id: 'galBudget', kind: 'budget', scale: 0.62 },
+  { id: 'galPaychecks', kind: 'paychecks', scale: 0.62 },
+  { id: 'galHistory', kind: 'history', scale: 0.62 },
+];
+const devices = MOUNTS.map(m => {
+  const node = document.getElementById(m.id);
+  if (!node) return null;
+  // Reserve the final footprint up front so lazy mounting never shifts layout.
+  node.className = 'dev-slot';
+  node.style.width = Math.round(390 * m.scale) + 'px';
+  node.style.height = Math.round(844 * m.scale) + 'px';
+  return { ...m, node, root: null };
+}).filter(Boolean);
+
+function paint(d, dark) {
+  if (!d.root) { d.root = ReactDOM.createRoot(d.node); d.node.classList.add('mounted'); }
+  d.root.render(
+    <SiteDevice scale={d.scale} dark={dark}>
+      {d.kind === null ? <SiteAppDemo /> : <SiteGalleryScreen kind={d.kind} />}
+    </SiteDevice>
+  );
+}
+function renderDevices(dark) { devices.forEach(d => { if (d.root) paint(d, dark); }); }
+
+const lazyIO = new IntersectionObserver((entries, obs) => {
+  entries.forEach(e => {
+    if (!e.isIntersecting) return;
+    const d = devices.find(x => x.node === e.target);
+    if (d && !d.root) paint(d, siteDark);
+    obs.unobserve(e.target);
+  });
+}, { rootMargin: '300px' });
+
+// ── Theme ──────────────────────────────────────────────────────
+const SUN = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
+const MOON = '<path d="M21 12.8A8.5 8.5 0 1111.2 3a6.5 6.5 0 009.8 9.8z"/>';
+function applyTheme(dark) {
+  document.body.className = dark ? 'inc-theme-dark' : 'inc-theme-light';
+  document.getElementById('themeIcon').innerHTML = dark ? MOON : SUN;
+  try { localStorage.setItem('inc-site-theme', dark ? 'dark' : 'light'); } catch (e) {}
+  renderDevices(dark);
+}
+let siteDark = false;
+try { siteDark = localStorage.getItem('inc-site-theme') === 'dark'; } catch (e) {}
+applyTheme(siteDark);
+devices.forEach(d => { if (d.eager) paint(d, siteDark); else lazyIO.observe(d.node); });
+document.getElementById('themeBtn').addEventListener('click', () => { siteDark = !siteDark; applyTheme(siteDark); });
+
+// ── Floating scan bar: after the hero, hidden over the download band ──
+const scanbar = document.getElementById('scanbar');
+const dlSection = document.getElementById('download');
+let pastHero = false, overDownload = false;
+const sync = () => scanbar.classList.toggle('on', pastHero && !overDownload);
+new IntersectionObserver(([e]) => { pastHero = !e.isIntersecting; sync(); }, { threshold: 0 })
+  .observe(document.querySelector('.hero'));
+new IntersectionObserver(([e]) => { overDownload = e.isIntersecting; sync(); }, { threshold: 0.15 })
+  .observe(dlSection);
+
+document.querySelectorAll('#storeBtn, #storeBtn2').forEach(b => { b.setAttribute('href', APP_STORE_URL); b.setAttribute('target', '_blank'); b.setAttribute('rel', 'noopener'); });
+
+// ── Clean /privacy path: nginx serves this same index.html there, so land
+// on the privacy section instead of the top of the page. ──
+if (location.pathname === '/privacy') {
+  document.getElementById('privacy').scrollIntoView();
+}
+</script>
+</body>
+</html>

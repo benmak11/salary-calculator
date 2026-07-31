@@ -47,3 +47,4 @@ docker-compose.override.yml
 
 # Context
 CLAUDE.md
+web/README.md
