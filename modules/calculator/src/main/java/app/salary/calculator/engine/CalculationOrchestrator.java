@@ -81,17 +81,26 @@ public class CalculationOrchestrator {
         response.setRulePackVersion(result.getRulePackVersion());
         response.setCurrency(result.getCurrency());
 
-        // Convert to requested cadence
+        // Convert to requested cadence. grossPerCadence/netPerCadence are the
+        // regular-wages-only (salary+OT+DT) headline — bonus/commission/RSU
+        // are lump-sum, not recurring per paycheck, so they're excluded here
+        // and represented annually via `supplemental` instead. Falls back to
+        // the blended annual fields when a calculator (e.g. UK, which has no
+        // supplemental-income concept) never sets the regular-only ones.
         int periodsPerYear = request.getCadence().getPeriodsPerYear();
-        response.setGrossPerCadence(result.getGrossAnnual() / periodsPerYear);
-        response.setNetPerCadence(result.getNetAnnual() / periodsPerYear);
+        double perCadenceGrossAnnual = result.getRegularGrossAnnual() != null
+                ? result.getRegularGrossAnnual() : result.getGrossAnnual();
+        double perCadenceNetAnnual = result.getRegularNetAnnual() != null
+                ? result.getRegularNetAnnual() : result.getNetAnnual();
+        response.setGrossPerCadence(perCadenceGrossAnnual / periodsPerYear);
+        response.setNetPerCadence(perCadenceNetAnnual / periodsPerYear);
 
         double baseSalary = result.getBaseSalaryAnnual() != null
                 ? result.getBaseSalaryAnnual()
                 : result.getGrossAnnual();
-        double bonus = result.getBonusAnnual() != null ? result.getBonusAnnual() : 0.0;
         response.setBaseSalaryPerCadence(baseSalary / periodsPerYear);
-        response.setBonusPerCadence(bonus / periodsPerYear);
+        // Bonus/commission/RSU are lump-sum, not per-cadence — see `supplemental`.
+        response.setBonusPerCadence(0.0);
 
         // Supplemental slice stays annual (lump-sum-shaped) — see SupplementalBreakdown javadoc
         response.setSupplemental(result.getSupplemental());

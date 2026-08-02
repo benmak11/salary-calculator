@@ -17,6 +17,10 @@ public class CalculationResult {
     private Double baseSalaryAnnual;
     private Double bonusAnnual = 0.0;
     private Double netAnnual;
+    /** Annual regular wages only (salary + OT + DT, no bonus/commission/RSU) — drives the per-cadence headline. */
+    private Double regularGrossAnnual;
+    /** Net of {@link #regularGrossAnnual} after regular-wages-only tax — drives the per-cadence headline. */
+    private Double regularNetAnnual;
     private String currency;
     private SupplementalBreakdown supplemental;
     private List<LineItem> lineItems = new ArrayList<>();

@@ -57,15 +57,8 @@ public class USCalculator implements CountryCalculator {
         if (input.getDoubleTimeAnnual() != null && input.getDoubleTimeAnnual() > 0) {
             result.addLineItem("Double Time", input.getDoubleTimeAnnual(), LineItemCategory.EARNINGS);
         }
-        if (input.getBonusAnnual() != null && input.getBonusAnnual() > 0) {
-            result.addLineItem("Bonus", input.getBonusAnnual(), LineItemCategory.EARNINGS);
-        }
-        if (input.getCommissionAnnual() != null && input.getCommissionAnnual() > 0) {
-            result.addLineItem("Commission", input.getCommissionAnnual(), LineItemCategory.EARNINGS);
-        }
-        if (input.getRsuVestingAnnual() != null && input.getRsuVestingAnnual() > 0) {
-            result.addLineItem("RSU Vesting", input.getRsuVestingAnnual(), LineItemCategory.EARNINGS);
-        }
+        // Bonus/commission/RSU are lump-sum, not per-paycheck earnings — they're
+        // represented annually via `supplemental` below, not as line items here.
         if (input.getBonusDeferredToYear() != null) {
             result.addExplanation("bonus_deferred",
                     "Bonus lands in " + input.getBonusDeferredToYear()
@@ -121,6 +114,7 @@ public class USCalculator implements CountryCalculator {
         // ── Federal income tax ────────────────────────────────────────────────
         double federalTax = 0.0;
         double supplementalFederalTax = 0.0;
+        double regularFederalTax = 0.0;
         if (!Boolean.TRUE.equals(w4.getExemptFederal())) {
             federalTax = calculateFederalRegular(input, regularWages, totalPretaxDeductions, w4, rules);
             // W-4 step 3: dependents credit reduces withholding (modern W-4 only)
@@ -133,6 +127,9 @@ public class USCalculator implements CountryCalculator {
             if (additional > 0) {
                 federalTax += additional * input.getPayCadence().getPeriodsPerYear();
             }
+            // Federal tax on regular wages alone, before supplemental's flat-rate tax
+            // is added on top — feeds the per-cadence headline (see regularNetAnnual below).
+            regularFederalTax = federalTax;
             // Supplemental withholding on bonus + commission + RSU vesting
             if (supplementalAnnual > 0) {
                 supplementalFederalTax = supplementalAnnual * rules.getFederal().getSupplementalWithholdingRate();
@@ -185,6 +182,25 @@ public class USCalculator implements CountryCalculator {
             result.addExplanation("medicare_exempt", "Filer exempt from Medicare tax");
         }
 
+        // ── Regular-wages-only tax (drives the per-cadence headline) ──────────
+        // Bonus/commission/RSU are lump-sum, not recurring per paycheck, so
+        // grossPerCadence/netPerCadence must be computed off regular wages
+        // alone, not the blended annual gross. Reuses the same tax helpers
+        // above with regularWages in place of grossAnnual; when there's no
+        // supplemental income the two are identical, so skip the redundant
+        // recomputation (and a possible duplicate "no state rules" warning).
+        double regularStateTax = stateTax;
+        double regularSocialSecurity = socialSecurity;
+        double regularMedicare = medicare;
+        if (supplementalAnnual > 0) {
+            double regularStateTaxable = Math.max(0, regularWages - totalPretaxDeductions);
+            regularStateTax = calculateStateTax(input, regularStateTaxable, rules);
+            regularSocialSecurity = Boolean.TRUE.equals(w4.getExemptSocialSecurity())
+                    ? 0.0 : calculateSocialSecurity(regularWages, rules);
+            regularMedicare = Boolean.TRUE.equals(w4.getExemptMedicare())
+                    ? 0.0 : calculateMedicare(regularWages, rules);
+        }
+
         // ── Supplemental income tax slice (bonus + commission + RSU vesting) ──
         // Attribution of the totals above, not additional tax: supplemental wages
         // stack on top of regular wages for the SS cap and Medicare threshold.
@@ -214,6 +230,17 @@ public class USCalculator implements CountryCalculator {
                 - posttaxFixed
                 - roth401k;
         result.setNetAnnual(netAnnual);
+
+        double regularNetAnnual = regularWages
+                - totalPretaxDeductions
+                - regularFederalTax
+                - regularStateTax
+                - regularSocialSecurity
+                - regularMedicare
+                - posttaxFixed
+                - roth401k;
+        result.setRegularGrossAnnual(regularWages);
+        result.setRegularNetAnnual(regularNetAnnual);
 
         return result;
     }
