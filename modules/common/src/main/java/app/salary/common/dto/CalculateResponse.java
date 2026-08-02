@@ -12,13 +12,16 @@ import java.util.List;
 @Setter
 @Getter
 public class CalculateResponse {
-    @Schema(description = "Gross pay per payment period (base + bonus)", example = "100000.0")
+    @Schema(description = "Regular gross pay per payment period (salary/overtime/double-time only; "
+            + "bonus, commission, and RSU vesting are lump-sum and excluded — see `supplemental`)",
+            example = "100000.0")
     private Double grossPerCadence;
 
     @Schema(description = "Base salary component per payment period", example = "92307.69")
     private Double baseSalaryPerCadence;
 
-    @Schema(description = "Bonus component per payment period", example = "7692.31")
+    @Schema(description = "Always 0.0 — bonus/commission/RSU are lump-sum, not per-cadence; "
+            + "see `supplemental` for the annual breakdown", example = "0.0")
     private Double bonusPerCadence;
 
     @Schema(description = "Net take-home pay per payment period", example = "72556.15")

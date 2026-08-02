@@ -162,6 +162,42 @@ class CalculationOrchestratorTest {
     }
 
     @Test
+    void calculate_withRegularAnnualFields_shouldPreferThemOverBlendedAnnual() {
+        CalculateRequest request = createTestRequest();
+        request.setCadence(PayCadence.MONTHLY);
+        RulePack rulePack = new RulePack();
+        CalculationResult result = createTestResult();
+        // Blended (grossAnnual/netAnnual) includes a lump sum; regular*Annual excludes it.
+        result.setRegularGrossAnnual(44000.0);
+        result.setRegularNetAnnual(36000.0);
+
+        when(rulesRegistry.getRulePack("UK", 2025)).thenReturn(rulePack);
+        when(calculatorRegistry.getCalculator(Country.UK, 2025)).thenReturn(countryCalculator);
+        when(countryCalculator.calculate(any(), eq(rulePack))).thenReturn(result);
+
+        CalculateResponse response = orchestrator.calculate(request);
+
+        assertEquals(44000.0 / 12, response.getGrossPerCadence(), 0.01);
+        assertEquals(36000.0 / 12, response.getNetPerCadence(), 0.01);
+    }
+
+    @Test
+    void calculate_shouldAlwaysSetBonusPerCadenceToZero() {
+        CalculateRequest request = createTestRequest();
+        RulePack rulePack = new RulePack();
+        CalculationResult result = createTestResult();
+        result.setBonusAnnual(12000.0);
+
+        when(rulesRegistry.getRulePack("UK", 2025)).thenReturn(rulePack);
+        when(calculatorRegistry.getCalculator(Country.UK, 2025)).thenReturn(countryCalculator);
+        when(countryCalculator.calculate(any(), eq(rulePack))).thenReturn(result);
+
+        CalculateResponse response = orchestrator.calculate(request);
+
+        assertEquals(0.0, response.getBonusPerCadence(), 0.01);
+    }
+
+    @Test
     void calculate_shouldIncludeLineItemsAdjustedForCadence() {
         CalculateRequest request = createTestRequest();
         request.setCadence(PayCadence.MONTHLY);

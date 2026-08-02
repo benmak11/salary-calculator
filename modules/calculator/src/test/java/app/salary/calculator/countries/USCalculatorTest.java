@@ -433,7 +433,9 @@ class USCalculatorTest {
     }
 
     @Test
-    void calculate_withBonusAndCommission_shouldEmitSeparateEarningsLineItems() {
+    void calculate_withBonusAndCommission_shouldNotEmitLineItemsForThem() {
+        // Bonus/commission are lump-sum, not per-paycheck earnings — they're
+        // represented annually via `supplemental`, not as line items.
         input.setAnnualGross(115000.0);
         input.setSalaryAnnual(100000.0);
         input.setBonusAnnual(10000.0);
@@ -447,14 +449,11 @@ class USCalculatorTest {
 
         CalculationResult result = calculator.calculate(input, rulePack);
 
-        LineItem bonus = findLineItem(result, "Bonus");
-        LineItem commission = findLineItem(result, "Commission");
-        assertNotNull(bonus);
-        assertNotNull(commission);
-        assertEquals(10000.0, bonus.getAmount(), 0.01);
-        assertEquals(5000.0, commission.getAmount(), 0.01);
-        assertEquals(LineItemCategory.EARNINGS, bonus.getCategory());
-        assertEquals(LineItemCategory.EARNINGS, commission.getCategory());
+        assertNull(findLineItem(result, "Bonus"));
+        assertNull(findLineItem(result, "Commission"));
+        assertNotNull(result.getSupplemental());
+        assertEquals(10000.0, result.getSupplemental().getBonusGross(), 0.01);
+        assertEquals(5000.0, result.getSupplemental().getCommissionGross(), 0.01);
     }
 
     @Test
@@ -898,10 +897,52 @@ class USCalculatorTest {
         assertEquals(30000.0 * 0.0145, supplemental.getMedicare(), 0.01);
         assertEquals(30000.0 - 6600.0 - 1860.0 - 435.0, supplemental.getNet(), 0.01);
 
-        LineItem rsuItem = findLineItem(result, "RSU Vesting");
-        assertNotNull(rsuItem);
-        assertEquals(20000.0, rsuItem.getAmount(), 0.01);
-        assertEquals(LineItemCategory.EARNINGS, rsuItem.getCategory());
+        // RSU is lump-sum, not a per-paycheck earnings line item — it's
+        // represented annually via `supplemental` only (asserted above).
+        assertNull(findLineItem(result, "RSU Vesting"));
+    }
+
+    @Test
+    void calculate_withBonusAndRsu_shouldComputeRegularAnnualOffRegularWagesOnly() {
+        // regular 100k salary + 5k bonus + 15k RSU = 120k blended gross.
+        // regularGrossAnnual/regularNetAnnual must reflect the 100k alone.
+        input.setAnnualGross(120000.0);
+        input.setSalaryAnnual(100000.0);
+        input.setBonusAnnual(5000.0);
+        input.setRsuVestingAnnual(15000.0);
+
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(0.0);
+        // Flat 10% of whatever taxable income is passed in, for both federal and state calls.
+        when(bracketCalculator.calculateTax(anyDouble(), anyList()))
+                .thenAnswer(invocation -> invocation.getArgument(0, Double.class) * 0.10);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        assertEquals(100000.0, result.getRegularGrossAnnual(), 0.01);
+        // 100000 - 8540 (federal on 100000-14600 std deduction, 10%) - 10000 (state, 10%)
+        // - 6200 (SS, 6.2%) - 1450 (Medicare, 1.45%) = 73810
+        assertEquals(73810.0, result.getRegularNetAnnual(), 0.01);
+        // Blended annual truth stays unaffected by the regular-only figures.
+        assertEquals(120000.0, result.getGrossAnnual(), 0.01);
+    }
+
+    @Test
+    void calculate_withNoSupplementalIncome_shouldMakeRegularAnnualEqualBlendedAnnual() {
+        input.setSalaryAnnual(100000.0);
+
+        when(deductionCalculator.calculatePretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculateGenericPretaxDeductions(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePensionContribution(any(), anyDouble())).thenReturn(0.0);
+        when(deductionCalculator.calculatePosttaxDeductions(any())).thenReturn(0.0);
+        when(bracketCalculator.calculateTax(anyDouble(), anyList())).thenReturn(10000.0);
+
+        CalculationResult result = calculator.calculate(input, rulePack);
+
+        assertEquals(result.getGrossAnnual(), result.getRegularGrossAnnual(), 0.01);
+        assertEquals(result.getNetAnnual(), result.getRegularNetAnnual(), 0.01);
     }
 
     @Test
