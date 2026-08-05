@@ -3,6 +3,7 @@ package app.salary.rules;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.Comparator;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -114,14 +115,23 @@ class RulesRegistryTest {
         assertFalse(rulePack.getFederal().getBrackets().isEmpty());
     }
 
+    // Asserted as containment plus ordering rather than an exact list: the
+    // supported years grow every time a rule pack is embedded, and an exact
+    // match makes an unrelated test fail on each new tax year.
     @Test
-    void getSupportedTaxYears_us_shouldIncludeEmbedded2025Pack() {
-        assertEquals(List.of(2025), registry.getSupportedTaxYears("US"));
+    void getSupportedTaxYears_us_shouldIncludeEmbeddedPacksNewestFirst() {
+        List<Integer> years = registry.getSupportedTaxYears("US");
+
+        assertTrue(years.containsAll(List.of(2025, 2026)));
+        assertEquals(years.stream().sorted(Comparator.reverseOrder()).toList(), years);
     }
 
     @Test
-    void getSupportedTaxYears_uk_shouldIncludeEmbedded2025Pack() {
-        assertEquals(List.of(2025), registry.getSupportedTaxYears("UK"));
+    void getSupportedTaxYears_uk_shouldIncludeEmbeddedPacksNewestFirst() {
+        List<Integer> years = registry.getSupportedTaxYears("UK");
+
+        assertTrue(years.containsAll(List.of(2025, 2026)));
+        assertEquals(years.stream().sorted(Comparator.reverseOrder()).toList(), years);
     }
 
     @Test
@@ -163,9 +173,10 @@ class RulesRegistryTest {
         assertNotNull(byStatus);
         assertTrue(byStatus.containsKey("MARRIED"), "MFJ brackets should be present");
         var mfjBrackets = byStatus.get("MARRIED");
-        // First bracket: 10% up to $23,850
-        assertEquals(23850.0, mfjBrackets.get(0).getUpTo());
+        // 10% starts at $0; 12% takes over at $23,850
+        assertEquals(0.0, mfjBrackets.get(0).getOver());
         assertEquals(0.10, mfjBrackets.get(0).getRate());
+        assertEquals(23850.0, mfjBrackets.get(1).getOver());
     }
 
     @Test
@@ -174,9 +185,10 @@ class RulesRegistryTest {
         var byStatus = rulePack.getFederal().getBracketsByFilingStatus();
         assertNotNull(byStatus);
         assertTrue(byStatus.containsKey("HEAD_OF_HOUSEHOLD"));
-        // First bracket: 10% up to $17,000
+        // 10% starts at $0; 12% takes over at $17,000
         var hohBrackets = byStatus.get("HEAD_OF_HOUSEHOLD");
-        assertEquals(17000.0, hohBrackets.get(0).getUpTo());
+        assertEquals(0.0, hohBrackets.get(0).getOver());
+        assertEquals(17000.0, hohBrackets.get(1).getOver());
     }
 
     @Test
@@ -210,7 +222,8 @@ class RulesRegistryTest {
         var ilBrackets = rulePack.getStates().get("IL").getBrackets();
         assertEquals(1, ilBrackets.size());
         assertEquals(0.0495, ilBrackets.get(0).getRate());
-        assertNull(ilBrackets.get(0).getUpTo());
+        // A flat tax is one band starting at zero
+        assertEquals(0.0, ilBrackets.get(0).getOver());
 
         // PA flat 3.07%
         var paBrackets = rulePack.getStates().get("PA").getBrackets();
@@ -230,10 +243,11 @@ class RulesRegistryTest {
         assertEquals(9, nyBrackets.size());
         // Lowest: 4% up to $8,500
         assertEquals(0.04, nyBrackets.get(0).getRate());
-        assertEquals(8500.0, nyBrackets.get(0).getUpTo());
+        assertEquals(0.0, nyBrackets.get(0).getOver());
+        assertEquals(8500.0, nyBrackets.get(1).getOver());
         // Top bracket: 10.9% (catch-all)
         assertEquals(0.109, nyBrackets.get(nyBrackets.size() - 1).getRate());
-        assertNull(nyBrackets.get(nyBrackets.size() - 1).getUpTo());
+        assertEquals(25000000.0, nyBrackets.get(nyBrackets.size() - 1).getOver());
     }
 
     @Test

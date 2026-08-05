@@ -24,7 +24,7 @@ class TaxBracketCalculatorTest {
     void calculateTax_withSingleBracket_shouldCalculateCorrectly() {
         List<RulePack.TaxBracket> brackets = new ArrayList<>();
         RulePack.TaxBracket bracket = new RulePack.TaxBracket();
-        bracket.setUpTo(null); // Unlimited
+        bracket.setOver(0.0); // single band covering all income
         bracket.setRate(0.20);
         brackets.add(bracket);
 
@@ -121,21 +121,90 @@ class TaxBracketCalculatorTest {
         assertEquals(2500.0, detail.getTax(), 0.01);
     }
 
+    // ── legacy upper-bound schema ────────────────────────────────────────────
+    // Rule packs published to the rule-pack-service before the `over` migration
+    // still carry `upTo`. The mapper behind HttpRulePackClient disables
+    // FAIL_ON_UNKNOWN_PROPERTIES, so an unrecognised field would be dropped
+    // silently rather than raising — these guard that the legacy form keeps
+    // computing identical numbers until every stored pack is republished.
+
+    private static RulePack.TaxBracket over(Double over, double rate) {
+        RulePack.TaxBracket b = new RulePack.TaxBracket();
+        b.setOver(over);
+        b.setRate(rate);
+        return b;
+    }
+
+    @SuppressWarnings("deprecation")
+    private static RulePack.TaxBracket upTo(Double upTo, double rate) {
+        RulePack.TaxBracket b = new RulePack.TaxBracket();
+        b.setUpTo(upTo);
+        b.setRate(rate);
+        return b;
+    }
+
+    @Test
+    void calculateTax_legacyUpToSchema_shouldMatchOverSchema() {
+        // Same three bands expressed both ways.
+        List<RulePack.TaxBracket> legacy = List.of(
+                upTo(12400.0, 0.10), upTo(50400.0, 0.12), upTo(null, 0.22));
+        List<RulePack.TaxBracket> modern = List.of(
+                over(0.0, 0.10), over(12400.0, 0.12), over(50400.0, 0.22));
+
+        for (double income : new double[]{0, 1, 12400, 12401, 50400, 75000, 250000}) {
+            assertEquals(calculator.calculateTax(income, modern),
+                    calculator.calculateTax(income, legacy), 0.0001,
+                    "schemas disagree at income " + income);
+        }
+    }
+
+    @Test
+    void calculateTaxWithBreakdown_legacyUpToSchema_shouldMatchOverSchema() {
+        List<RulePack.TaxBracket> legacy = List.of(
+                upTo(12400.0, 0.10), upTo(50400.0, 0.12), upTo(null, 0.22));
+        List<RulePack.TaxBracket> modern = List.of(
+                over(0.0, 0.10), over(12400.0, 0.12), over(50400.0, 0.22));
+
+        var fromLegacy = calculator.calculateTaxWithBreakdown(75000.0, legacy);
+        var fromModern = calculator.calculateTaxWithBreakdown(75000.0, modern);
+
+        assertEquals(fromModern.getTotalTax(), fromLegacy.getTotalTax(), 0.0001);
+        assertEquals(fromModern.getBands().size(), fromLegacy.getBands().size());
+    }
+
+    @Test
+    void calculateTax_incomeBelowFirstThreshold_shouldTaxOnlyTheLowestBand() {
+        List<RulePack.TaxBracket> brackets = List.of(
+                over(0.0, 0.10), over(12400.0, 0.12));
+
+        assertEquals(1000.0, calculator.calculateTax(10000.0, brackets), 0.0001);
+    }
+
+    @Test
+    void calculateTax_zeroRatedFirstBand_shouldExemptIncomeBelowThreshold() {
+        // Ohio's 2026 shape: nothing under $26,050, 2.75% above it.
+        List<RulePack.TaxBracket> brackets = List.of(
+                over(0.0, 0.0), over(26050.0, 0.0275));
+
+        assertEquals(0.0, calculator.calculateTax(26050.0, brackets), 0.0001);
+        assertEquals(2033.625, calculator.calculateTax(100000.0, brackets), 0.0001);
+    }
+
     private List<RulePack.TaxBracket> createUKStyleBrackets() {
         List<RulePack.TaxBracket> brackets = new ArrayList<>();
 
         RulePack.TaxBracket basic = new RulePack.TaxBracket();
-        basic.setUpTo(37700.0);
+        basic.setOver(0.0);
         basic.setRate(0.20);
         brackets.add(basic);
 
         RulePack.TaxBracket higher = new RulePack.TaxBracket();
-        higher.setUpTo(125270.0);
+        higher.setOver(37700.0);
         higher.setRate(0.40);
         brackets.add(higher);
 
         RulePack.TaxBracket additional = new RulePack.TaxBracket();
-        additional.setUpTo(null); // Unlimited
+        additional.setOver(125270.0);
         additional.setRate(0.45);
         brackets.add(additional);
 

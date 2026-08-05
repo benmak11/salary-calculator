@@ -61,7 +61,7 @@ class USCalculatorTest {
 
         List<RulePack.TaxBracket> brackets = new ArrayList<>();
         RulePack.TaxBracket bracket1 = new RulePack.TaxBracket();
-        bracket1.setUpTo(11600.0);
+        bracket1.setOver(0.0);
         bracket1.setRate(0.10);
         brackets.add(bracket1);
         federal.setBrackets(brackets);
@@ -69,7 +69,7 @@ class USCalculatorTest {
         // HoH-specific brackets
         List<RulePack.TaxBracket> hohBrackets = new ArrayList<>();
         RulePack.TaxBracket hohBracket = new RulePack.TaxBracket();
-        hohBracket.setUpTo(16550.0);
+        hohBracket.setOver(0.0);
         hohBracket.setRate(0.10);
         hohBrackets.add(hohBracket);
         Map<String, List<RulePack.TaxBracket>> byStatus = new HashMap<>();
@@ -90,7 +90,7 @@ class USCalculatorTest {
         RulePack.StateRules caRules = new RulePack.StateRules();
         List<RulePack.TaxBracket> caBrackets = new ArrayList<>();
         RulePack.TaxBracket caBracket = new RulePack.TaxBracket();
-        caBracket.setUpTo(10000.0);
+        caBracket.setOver(0.0);
         caBracket.setRate(0.01);
         caBrackets.add(caBracket);
         caRules.setBrackets(caBrackets);

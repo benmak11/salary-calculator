@@ -61,7 +61,29 @@ public class RulePack {
     @Setter
     @Getter
     public static class TaxBracket {
+        /**
+         * Lower bound: this rate applies to income above this amount. Mirrors how the IRS,
+         * HMRC and state revenue departments publish their tables ("22% on income over
+         * $50,400"), so a pack can be diffed straight against the source with no
+         * off-by-one-bracket translation step.
+         */
+        private Double over;
+
+        /**
+         * Legacy upper-bound form, superseded by {@link #over}.
+         *
+         * <p>Retained purely so rule packs published to the rule-pack-service before the
+         * schema change still deserialize. The mapper wired into {@code HttpRulePackClient}
+         * disables {@code FAIL_ON_UNKNOWN_PROPERTIES}, so dropping this field would make a
+         * stale remote pack parse into all-null thresholds and silently compute nonsense
+         * rather than failing. {@code TaxBracketCalculator} normalizes it away.
+         *
+         * @deprecated remove once every stored remote pack has been republished with
+         *     {@code over}.
+         */
+        @Deprecated(since = "US-2026.1.0")
         private Double upTo;
+
         private Double rate;
     }
 

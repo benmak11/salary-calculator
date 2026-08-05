@@ -1,8 +1,8 @@
 {
   "metadata": {
     "country": "UK",
-    "taxYear": 2025,
-    "version": "UK-2025.4.0"
+    "taxYear": 2026,
+    "version": "UK-2026.1.0"
   },
   "incomeTax": {
     "personalAllowance": 12570,
@@ -31,11 +31,11 @@
   },
   "studentLoan": {
     "plan1": {
-      "threshold": 24990,
+      "threshold": 26900,
       "rate": 0.09
     },
     "plan2": {
-      "threshold": 27295,
+      "threshold": 29385,
       "rate": 0.09
     },
     "postgrad": {

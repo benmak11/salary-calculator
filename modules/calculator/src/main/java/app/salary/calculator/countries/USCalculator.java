@@ -141,8 +141,9 @@ public class USCalculator implements CountryCalculator {
                         "% federal rate");
             }
             result.addExplanation("fed_tax_brackets",
-                    "Applied 2025 federal tax brackets based on " +
-                            input.getUsOptions().getFilingStatus());
+                    "Applied " + rules.getMetadata().getTaxYear()
+                            + " federal tax brackets based on "
+                            + input.getUsOptions().getFilingStatus());
         } else {
             result.addExplanation("fed_tax_exempt", "Filer exempt from federal income tax withholding");
         }
