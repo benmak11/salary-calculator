@@ -1,5 +1,7 @@
 package app.salary.api.auth;
 
+import app.salary.api.store.AccountDirectory;
+import app.salary.api.store.InMemoryAccountDirectory;
 import app.salary.api.store.UserDirectory;
 import app.salary.api.validation.RequestValidator;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -76,10 +78,12 @@ class AuthControllerTest {
     }
 
     private Javalin app(AppleIdentityVerifier appleVerifier, GoogleIdentityVerifier googleVerifier, UserDirectory users) {
+        AccountDirectory accounts = new InMemoryAccountDirectory();
         byte[] secret = new byte[32];
         for (int i = 0; i < secret.length; i++) secret[i] = (byte) i;
         SessionTokenService tokens = new SessionTokenService(secret);
-        AuthController controller = new AuthController(appleVerifier, googleVerifier, tokens, users, new RequestValidator());
+        AuthController controller = new AuthController(appleVerifier, googleVerifier, tokens, users,
+                accounts, new RequestValidator());
         return Javalin.create(config -> {
             config.jsonMapper(new JavalinJackson(MAPPER, false));
             config.startup.showJavalinBanner = false;

@@ -1,5 +1,7 @@
 package app.salary.api.auth;
 
+import app.salary.api.store.AccountDirectory;
+import app.salary.api.store.InMemoryAccountDirectory;
 import app.salary.api.store.InMemoryUserDirectory;
 import app.salary.api.store.UserDirectory;
 import app.salary.api.validation.RequestValidator;
@@ -32,6 +34,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AuthFlowTest {
 
@@ -92,6 +95,10 @@ class AuthFlowTest {
     }
 
     private Javalin app() {
+        return app(new InMemoryAccountDirectory());
+    }
+
+    private Javalin app(AccountDirectory accounts) {
         AppleIdentityVerifier appleVerifier = new AppleIdentityVerifier(ISSUER, AUDIENCE, jwks);
         GoogleIdentityVerifier googleVerifier =
                 new GoogleIdentityVerifier(new String[] {GOOGLE_ISSUER}, GOOGLE_AUDIENCE, jwks);
@@ -99,7 +106,8 @@ class AuthFlowTest {
         UserDirectory users = new InMemoryUserDirectory();
         AuthMiddleware middleware = new AuthMiddleware(sessionTokens);
         AuthController controller =
-                new AuthController(appleVerifier, googleVerifier, sessionTokens, users, new RequestValidator());
+                new AuthController(appleVerifier, googleVerifier, sessionTokens, users,
+                        accounts, new RequestValidator());
 
         return Javalin.create(config -> {
             config.jsonMapper(new JavalinJackson(MAPPER, false));
@@ -137,6 +145,55 @@ class AuthFlowTest {
             assertEquals(200, who.code());
             JsonNode whoBody = MAPPER.readTree(who.body().string());
             assertEquals("000123.apple.sub", whoBody.get("userId").asText());
+        });
+    }
+
+    @Test
+    void signInRecordsTheAccountIdentityMappingButKeepsTheProviderSubAsTheSubject() throws Exception {
+        AccountDirectory accounts = new InMemoryAccountDirectory();
+        String identityToken = signAppleToken("nonce-abc", "000123.apple.sub");
+
+        JavalinTest.test(app(accounts), (server, client) -> {
+            String body = MAPPER.writeValueAsString(Map.of(
+                    "identityToken", identityToken,
+                    "nonce", "nonce-abc",
+                    "displayName", "Ben Makusha"));
+            var resp = client.post("/v1/auth/apple", body);
+            assertEquals(200, resp.code());
+
+            // The mapping exists...
+            var accountId = accounts.findAccountId(AccountDirectory.PROVIDER_APPLE, "000123.apple.sub");
+            assertTrue(accountId.isPresent(), "sign-in should record the identity mapping");
+
+            // ...but it is still dark: the session subject and the response are the provider sub.
+            JsonNode response = MAPPER.readTree(resp.body().string());
+            assertEquals("000123.apple.sub", response.get("user").get("id").asText());
+            var who = client.get("/_probe/whoami", req ->
+                    req.header("Authorization", "Bearer " + response.get("sessionToken").asText()));
+            assertEquals("000123.apple.sub", MAPPER.readTree(who.body().string()).get("userId").asText());
+            assertNotEquals(accountId.get(),
+                    MAPPER.readTree(who.body().string()).get("userId").asText());
+        });
+    }
+
+    @Test
+    void signInStillSucceedsWhenTheAccountDirectoryFails() throws Exception {
+        // The mapping backs a schema nothing reads yet, so it must never take sign-in down.
+        AccountDirectory failing = new InMemoryAccountDirectory() {
+            @Override
+            public String resolveOrCreate(String provider, String providerSub, String displayName) {
+                throw new IllegalStateException("Firestore is having a bad day");
+            }
+        };
+        String identityToken = signAppleToken("nonce-abc", "000123.apple.sub");
+
+        JavalinTest.test(app(failing), (server, client) -> {
+            String body = MAPPER.writeValueAsString(Map.of(
+                    "identityToken", identityToken,
+                    "nonce", "nonce-abc",
+                    "displayName", "Ben Makusha"));
+            var resp = client.post("/v1/auth/apple", body);
+            assertEquals(200, resp.code());
         });
     }
 

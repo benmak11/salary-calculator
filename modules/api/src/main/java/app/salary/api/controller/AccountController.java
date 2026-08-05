@@ -1,6 +1,7 @@
 package app.salary.api.controller;
 
 import app.salary.api.auth.AuthMiddleware;
+import app.salary.api.store.AccountDirectory;
 import app.salary.api.store.BudgetStore;
 import app.salary.api.store.CalculationStore;
 import app.salary.api.store.GrantStore;
@@ -28,20 +29,30 @@ public class AccountController {
     private final GrantStore grantStore;
     private final BudgetStore budgetStore;
     private final UserDirectory users;
+    private final AccountDirectory accounts;
 
     public AccountController(CalculationStore calculationStore, GrantStore grantStore,
-                              BudgetStore budgetStore, UserDirectory users) {
+                              BudgetStore budgetStore, UserDirectory users,
+                              AccountDirectory accounts) {
         this.calculationStore = calculationStore;
         this.grantStore = grantStore;
         this.budgetStore = budgetStore;
         this.users = users;
+        this.accounts = accounts;
     }
 
     public void register(RoutesConfig routes) {
         routes.delete("/v1/account", this::deleteAccount);
     }
 
-    /** Deletes the user's saved calculations, RSU grants, budget, and directory record. Idempotent. */
+    /**
+     * Deletes the user's saved calculations, RSU grants, budget, directory record, and
+     * account/identity mapping. Idempotent.
+     *
+     * <p>The mapping is purged even though nothing reads it yet: leaving it behind would
+     * accumulate identity records pointing at deleted users, and the migration would later
+     * resurrect accounts for people who asked to be forgotten.
+     */
     private void deleteAccount(Context ctx) {
         Optional<String> userId = AuthMiddleware.currentUserId(ctx);
         if (userId.isEmpty()) {
@@ -53,8 +64,9 @@ public class AccountController {
         int grantsRemoved = grantStore.deleteAll(userId.get());
         boolean budgetRemoved = budgetStore.delete(userId.get());
         users.delete(userId.get());
-        log.info("account deleted: calculationsRemoved={} grantsRemoved={} budgetRemoved={}",
-                removed, grantsRemoved, budgetRemoved);
+        int identitiesRemoved = accounts != null ? accounts.deleteByProviderSub(userId.get()) : 0;
+        log.info("account deleted: calculationsRemoved={} grantsRemoved={} budgetRemoved={} identitiesRemoved={}",
+                removed, grantsRemoved, budgetRemoved, identitiesRemoved);
         ctx.status(HttpStatus.NO_CONTENT);
     }
 }

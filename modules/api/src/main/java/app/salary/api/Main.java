@@ -19,13 +19,16 @@ import app.salary.api.controller.CalculationHistoryController;
 import app.salary.api.controller.GrantsController;
 import app.salary.api.controller.StocksController;
 import app.salary.api.service.BudgetPlanService;
+import app.salary.api.store.AccountDirectory;
 import app.salary.api.store.BudgetStore;
 import app.salary.api.store.CalculationStore;
+import app.salary.api.store.FirestoreAccountDirectory;
 import app.salary.api.store.FirestoreBudgetStore;
 import app.salary.api.store.FirestoreCalculationStore;
 import app.salary.api.store.FirestoreGrantStore;
 import app.salary.api.store.FirestoreUserDirectory;
 import app.salary.api.store.GrantStore;
+import app.salary.api.store.InMemoryAccountDirectory;
 import app.salary.api.store.InMemoryBudgetStore;
 import app.salary.api.store.InMemoryCalculationStore;
 import app.salary.api.store.InMemoryGrantStore;
@@ -140,21 +143,23 @@ public class Main {
         // ── Persistence + identity (lazy / optional) ─────────────────────────
         Firestore firestore = enableGcp ? buildFirestore(projectId) : null;
         UserDirectory userDirectory = buildUserDirectory(firestore);
+        AccountDirectory accountDirectory = buildAccountDirectory(firestore);
         CalculationStore calculationStore = buildCalculationStore(firestore, objectMapper);
         GrantStore grantStore = buildGrantStore(firestore, objectMapper);
         BudgetStore budgetStore = buildBudgetStore(firestore, objectMapper);
         if (firestore == null) {
-            log.warn("Firestore unavailable (ENABLE_GCP={}); user directory + calculation history + grants + budget are in-memory only.", enableGcp);
+            log.warn("Firestore unavailable (ENABLE_GCP={}); user directory + accounts + calculation history + grants + budget are in-memory only.", enableGcp);
         }
 
         SessionTokenService sessionTokens = buildSessionTokens(sessionSecretEnv);
         AuthMiddleware authMiddleware = new AuthMiddleware(sessionTokens);
         AuthController authController = buildAuthController(
-                appleAudience, googleAudience, sessionSecretEnv, sessionTokens, userDirectory, requestValidator);
+                appleAudience, googleAudience, sessionSecretEnv, sessionTokens, userDirectory,
+                accountDirectory, requestValidator);
 
         CalculationHistoryController historyController = new CalculationHistoryController(calculationStore);
         AccountController accountController =
-                new AccountController(calculationStore, grantStore, budgetStore, userDirectory);
+                new AccountController(calculationStore, grantStore, budgetStore, userDirectory, accountDirectory);
         GrantsController grantsController = new GrantsController(grantStore, requestValidator);
         BudgetController budgetController = new BudgetController(budgetStore, requestValidator);
         BudgetPlanController budgetPlanController = new BudgetPlanController(budgetPlanService, requestValidator);
@@ -318,6 +323,10 @@ public class Main {
         return firestore != null ? new FirestoreUserDirectory(firestore) : new InMemoryUserDirectory();
     }
 
+    private static AccountDirectory buildAccountDirectory(Firestore firestore) {
+        return firestore != null ? new FirestoreAccountDirectory(firestore) : new InMemoryAccountDirectory();
+    }
+
     private static CalculationStore buildCalculationStore(Firestore firestore, ObjectMapper objectMapper) {
         return firestore != null
                 ? new FirestoreCalculationStore(firestore, objectMapper)
@@ -340,6 +349,7 @@ public class Main {
                                                         String sessionSecretEnv,
                                                         SessionTokenService sessionTokens,
                                                         UserDirectory userDirectory,
+                                                        AccountDirectory accountDirectory,
                                                         RequestValidator requestValidator) {
         AppleIdentityVerifier appleVerifier = null;
         if (appleAudience.isBlank()) {
@@ -357,7 +367,8 @@ public class Main {
             googleVerifier = new GoogleIdentityVerifier(googleAudience);
         }
 
-        return new AuthController(appleVerifier, googleVerifier, sessionTokens, userDirectory, requestValidator);
+        return new AuthController(appleVerifier, googleVerifier, sessionTokens, userDirectory,
+                accountDirectory, requestValidator);
     }
 
     private static SessionTokenService buildSessionTokens(String secretEnv) {
