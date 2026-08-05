@@ -99,8 +99,12 @@ class CalculateControllerTest {
 
             JsonNode body = MAPPER.readTree(response.body().string());
             assertEquals("US", body.get("country").asText());
-            assertEquals(2025, body.get("supportedTaxYears").get(0).asInt());
-            assertEquals(2025, body.get("defaultTaxYear").asInt());
+            // The default is whichever embedded pack is newest, so asserting the
+            // relationship keeps this passing as tax years are added, while still
+            // proving the 2026 pack is picked up.
+            assertEquals(body.get("supportedTaxYears").get(0).asInt(),
+                    body.get("defaultTaxYear").asInt());
+            assertTrue(body.get("defaultTaxYear").asInt() >= 2026);
         });
     }
 

@@ -103,7 +103,9 @@ class MainTest {
             assertEquals(200, response.code());
             JsonNode body = new ObjectMapper().readTree(response.body().string());
             assertEquals("US", body.get("country").asText());
-            assertEquals(2025, body.get("defaultTaxYear").asInt());
+            // Newest embedded pack wins; see CalculateControllerTest for why this
+            // asserts a floor rather than an exact year.
+            assertTrue(body.get("defaultTaxYear").asInt() >= 2026);
             assertTrue(body.get("supportedTaxYears").isArray());
         });
     }

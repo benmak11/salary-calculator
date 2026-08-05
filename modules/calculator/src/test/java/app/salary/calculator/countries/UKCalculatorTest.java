@@ -58,7 +58,7 @@ class UKCalculatorTest {
 
         List<RulePack.TaxBracket> bands = new ArrayList<>();
         RulePack.TaxBracket band1 = new RulePack.TaxBracket();
-        band1.setUpTo(37700.0);
+        band1.setOver(0.0);
         band1.setRate(0.20);
         bands.add(band1);
         incomeTax.setBands(bands);
