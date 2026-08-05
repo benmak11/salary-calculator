@@ -1,5 +1,6 @@
 package app.salary.api.auth;
 
+import app.salary.api.store.AccountDirectory;
 import app.salary.api.store.UserDirectory;
 import app.salary.api.validation.RequestValidator;
 import app.salary.common.constants.ApiConstants;
@@ -27,17 +28,20 @@ public class AuthController {
     private final GoogleIdentityVerifier googleVerifier;
     private final SessionTokenService sessionTokens;
     private final UserDirectory users;
+    private final AccountDirectory accounts;
     private final RequestValidator validator;
 
     public AuthController(AppleIdentityVerifier appleVerifier,
                           GoogleIdentityVerifier googleVerifier,
                           SessionTokenService sessionTokens,
                           UserDirectory users,
+                          AccountDirectory accounts,
                           RequestValidator validator) {
         this.appleVerifier = appleVerifier;
         this.googleVerifier = googleVerifier;
         this.sessionTokens = sessionTokens;
         this.users = users;
+        this.accounts = accounts;
         this.validator = validator;
     }
 
@@ -69,6 +73,7 @@ public class AuthController {
 
         // We intentionally do not persist identity.email() — see UserDirectory.
         users.upsertOnSignIn(userId, req.getDisplayName());
+        recordAccountIdentity(AccountDirectory.PROVIDER_APPLE, userId, req.getDisplayName());
 
         SessionTokenService.IssuedSession session = sessionTokens.mint(userId);
         String storedDisplayName = users.displayName(userId).orElse(req.getDisplayName());
@@ -103,6 +108,7 @@ public class AuthController {
         // We intentionally do not persist identity.email() — see UserDirectory.
         String displayName = req.getDisplayName() != null ? req.getDisplayName() : identity.name();
         users.upsertOnSignIn(userId, displayName);
+        recordAccountIdentity(AccountDirectory.PROVIDER_GOOGLE, userId, displayName);
 
         SessionTokenService.IssuedSession session = sessionTokens.mint(userId);
         String storedDisplayName = users.displayName(userId).orElse(displayName);
@@ -115,5 +121,30 @@ public class AuthController {
 
         log.info("Google sign-in succeeded");
         ctx.json(response);
+    }
+
+    /**
+     * Records the provider identity against an accountId. Ships dark — the session below is
+     * still minted with the provider sub, so nothing downstream observes the result.
+     *
+     * <p>Failures are logged and swallowed <b>on purpose</b>: this write backs a schema
+     * nothing reads yet, and degrading live sign-in for it would trade a real outage against
+     * a hypothetical one. It is safe because the migration backfills from the {@code users}
+     * collection, so an identity missed here is recreated there rather than lost.
+     *
+     * <p><b>Delete this swallow when accountId becomes authoritative.</b> At that point a
+     * failed mapping means a session with no account behind it, and the sign-in genuinely
+     * should fail.
+     */
+    private void recordAccountIdentity(String provider, String providerSub, String displayName) {
+        if (accounts == null) {
+            return;
+        }
+        try {
+            accounts.resolveOrCreate(provider, providerSub, displayName);
+        } catch (RuntimeException e) {
+            log.warn("Account identity mapping failed for provider={} (sign-in continues): {}",
+                    provider, e.getMessage());
+        }
     }
 }

@@ -9,6 +9,7 @@ import app.salary.api.controller.StocksController;
 import app.salary.api.store.BudgetStore;
 import app.salary.api.store.CalculationStore;
 import app.salary.api.store.GrantStore;
+import app.salary.api.store.InMemoryAccountDirectory;
 import app.salary.api.store.InMemoryBudgetStore;
 import app.salary.api.store.InMemoryCalculationStore;
 import app.salary.api.store.InMemoryGrantStore;
@@ -64,7 +65,8 @@ class MainTest {
         UserDirectory userDirectory = new InMemoryUserDirectory();
         CalculationHistoryController historyController = new CalculationHistoryController(calculationStore);
         AccountController accountController =
-                new AccountController(calculationStore, grantStore, budgetStore, userDirectory);
+                new AccountController(calculationStore, grantStore, budgetStore, userDirectory,
+                        new InMemoryAccountDirectory());
         GrantsController grantsController = new GrantsController(grantStore, validator);
         BudgetController budgetController = new BudgetController(budgetStore, validator);
         BudgetPlanController budgetPlanController = new BudgetPlanController(null, validator);

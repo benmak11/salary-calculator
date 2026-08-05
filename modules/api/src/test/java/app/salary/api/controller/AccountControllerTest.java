@@ -2,9 +2,11 @@ package app.salary.api.controller;
 
 import app.salary.api.auth.AuthMiddleware;
 import app.salary.api.auth.SessionTokenService;
+import app.salary.api.store.AccountDirectory;
 import app.salary.api.store.BudgetStore;
 import app.salary.api.store.CalculationStore;
 import app.salary.api.store.GrantStore;
+import app.salary.api.store.InMemoryAccountDirectory;
 import app.salary.api.store.InMemoryBudgetStore;
 import app.salary.api.store.InMemoryCalculationStore;
 import app.salary.api.store.InMemoryGrantStore;
@@ -38,6 +40,7 @@ class AccountControllerTest {
     private BudgetStore budgets;
     private UserDirectory users;
     private SessionTokenService sessionTokens;
+    private AccountDirectory accounts;
 
     @BeforeEach
     void setUp() {
@@ -45,6 +48,7 @@ class AccountControllerTest {
         grants = new InMemoryGrantStore();
         budgets = new InMemoryBudgetStore();
         users = new InMemoryUserDirectory();
+        accounts = new InMemoryAccountDirectory();
         byte[] secret = new byte[32];
         for (int i = 0; i < secret.length; i++) secret[i] = (byte) i;
         sessionTokens = new SessionTokenService(secret);
@@ -56,7 +60,7 @@ class AccountControllerTest {
             config.jsonMapper(new JavalinJackson(MAPPER, false));
             config.startup.showJavalinBanner = false;
             config.routes.before(middleware::handle);
-            new AccountController(store, grants, budgets, users).register(config.routes);
+            new AccountController(store, grants, budgets, users, accounts).register(config.routes);
         });
     }
 
@@ -142,6 +146,36 @@ class AccountControllerTest {
             assertEquals(1, grants.list("user-2").size());
             assertTrue(budgets.get("user-2").isPresent());
             assertTrue(users.displayName("user-2").isPresent());
+        });
+    }
+
+    @Test
+    void deleteAccountAlsoPurgesTheAccountIdentityMapping() {
+        // Left behind, these would be identity records pointing at a deleted user — and the
+        // migration would later resurrect an account for someone who asked to be forgotten.
+        accounts.resolveOrCreate(AccountDirectory.PROVIDER_APPLE, "user-1", "Alex Carter");
+        accounts.resolveOrCreate(AccountDirectory.PROVIDER_APPLE, "user-2", "Sam Rivera");
+        users.upsertOnSignIn("user-1", "Alex Carter");
+
+        JavalinTest.test(app(), (server, client) -> {
+            var resp = client.delete("/v1/account", null,
+                    r -> r.header("Authorization", bearerFor("user-1")));
+            assertEquals(204, resp.code());
+
+            assertTrue(accounts.findAccountId(AccountDirectory.PROVIDER_APPLE, "user-1").isEmpty());
+            assertTrue(accounts.findAccountId(AccountDirectory.PROVIDER_APPLE, "user-2").isPresent());
+        });
+    }
+
+    @Test
+    void deleteAccountSucceedsWhenTheUserHasNoAccountMapping() {
+        // Everyone who signed in before this shipped has no identity record yet.
+        users.upsertOnSignIn("user-1", "Alex Carter");
+
+        JavalinTest.test(app(), (server, client) -> {
+            var resp = client.delete("/v1/account", null,
+                    r -> r.header("Authorization", bearerFor("user-1")));
+            assertEquals(204, resp.code());
         });
     }
 }
