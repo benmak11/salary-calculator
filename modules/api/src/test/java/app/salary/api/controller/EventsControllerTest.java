@@ -69,12 +69,22 @@ class EventsControllerTest {
     }
 
     @Test
-    void rejectsAnonymousBatches() throws Exception {
+    void acceptsAnonymousBatches() throws Exception {
+        // The pre-sign-in events are the ones that make the Phase 1 measurement honest:
+        // sign-in is optional in the client, so requiring it here would collect only from a
+        // self-selected, more engaged minority.
         String body = batch(Map.of("name", "session_start"));
 
         JavalinTest.test(app(), (server, client) -> {
-            assertEquals(401, client.post("/v1/events", body).code());
-            assertTrue(events.all().isEmpty());
+            var resp = client.post("/v1/events", body);
+            assertEquals(202, resp.code());
+            assertEquals(1, MAPPER.readTree(resp.body().string()).get("accepted").asInt());
+
+            EventRecord stored = events.all().getFirst();
+            assertEquals("session_start", stored.name());
+            assertNull(stored.accountId(), "a signed-out sender has no accountId");
+            assertEquals("device-1", stored.deviceId(),
+                    "deviceId is what makes an anonymous run stitchable to an account later");
         });
     }
 
