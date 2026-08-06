@@ -27,17 +27,25 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * First-party analytics ingest. Anonymous requests get 401.
+ * First-party analytics ingest. <b>Deliberately open to anonymous callers.</b>
  *
- * <p><b>Known consequence of requiring auth:</b> everything before sign-in is invisible —
- * {@code session_start}, the onboarding events, and a signed-out user's first
- * {@code calculation_completed}. Signed-out installs that never convert produce no data at
- * all. Any funnel metric defined on this endpoint measures post-sign-in behaviour only, and
- * install-to-sign-in conversion has to come from store analytics instead.
+ * <p>Sign-in is optional in the client, so a signed-in user is a self-selected, more
+ * engaged minority. Phase 1's payday loop ships free to everyone and its exit criterion is
+ * a session-frequency measurement; collecting that only from signed-in users would bias it
+ * toward success, on exactly the decision that gates whether the paywall proceeds. The
+ * pre-sign-in events — {@code session_start}, the onboarding steps, a signed-out user's
+ * first {@code calculation_completed} — are the ones that make the measurement honest.
  *
- * <p>The {@code deviceId} on each batch still matters: one account spans several devices,
- * and per-device rates (widget installs, notification opt-in) cannot be read from the
- * account alone.
+ * <p>This briefly required auth (2026-08-05) to close an unauthenticated write path to
+ * billed Firestore operations. That concern is now carried by
+ * {@code app.salary.api.ratelimit}, which throttles anonymous callers by IP and caps a
+ * batch at 50 events. Auth was the blunter instrument and cost more than it bought. If the
+ * anonymous surface ever needs narrowing again, restrict it to an allowlist of the
+ * pre-sign-in event names rather than closing the endpoint outright.
+ *
+ * <p>{@code deviceId} is on every batch, anonymous or not: it is what lets a signed-out
+ * install be stitched to an account later, and it carries per-device rates (widget
+ * installs, notification opt-in) that the account alone cannot express.
  *
  * <p>Event properties are never logged — only names and counts. The payload is exactly the
  * kind of thing the logging rules call a raw body.
@@ -72,13 +80,10 @@ public class EventsController {
     }
 
     private void ingest(Context ctx) {
-        Optional<String> userId = AuthMiddleware.requireUser(ctx);
-        if (userId.isEmpty()) return;
-
         EventBatchRequest batch = ctx.bodyAsClass(EventBatchRequest.class);
         validator.validate(batch);
 
-        String accountId = resolveAccountId(userId.get());
+        String accountId = resolveAccountId(AuthMiddleware.currentUserId(ctx));
         Instant receivedAt = Instant.now();
 
         List<EventRecord> records = new ArrayList<>(batch.getEvents().size());
@@ -101,18 +106,19 @@ public class EventsController {
     }
 
     /**
-     * Maps the session's provider sub onto an accountId, so events are keyed on the
+     * Maps a session's provider sub onto an accountId, so events are keyed on the
      * identifier that survives the migration rather than on the sub itself.
      *
-     * <p>Null is still a normal outcome even now that auth is required: anyone whose last
-     * sign-in predates the identity schema has no mapping until they sign in again.
-     * Attribution falls back to the batch's deviceId.
+     * <p>Null is the common case, not an error: the sender may be signed out, or may have
+     * last signed in before the identity schema shipped. Attribution falls back to the
+     * batch's deviceId, which is what makes an anonymous run stitchable to an account once
+     * that device signs in.
      */
-    private String resolveAccountId(String userId) {
-        if (accounts == null) {
+    private String resolveAccountId(Optional<String> userId) {
+        if (accounts == null || userId.isEmpty()) {
             return null;
         }
-        return accounts.findAccountIdBySub(userId).orElse(null);
+        return accounts.findAccountIdBySub(userId.get()).orElse(null);
     }
 
     /** Falls back to receive time rather than rejecting — a bad clock should not lose an event. */
