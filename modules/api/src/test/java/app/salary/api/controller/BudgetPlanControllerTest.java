@@ -99,16 +99,32 @@ class BudgetPlanControllerTest {
     @Test
     void generate_serviceUnavailable_returns503() {
         JavalinTest.test(app(null), (server, client) -> {
-            var response = client.post("/v1/budget/plan", requestJson());
+            var response = client.post("/v1/budget/plan", requestJson(), authed());
             assertEquals(503, response.code());
         });
     }
 
     @Test
-    void generate_anonymous_stillWorks() {
+    void generate_anonymous_returns401() {
+        // Every call bills a Vertex AI request, so this must never be reachable without
+        // a session. Checked before the service-null branch so an anonymous caller cannot
+        // distinguish "Vertex AI is off" from "you are not signed in".
+        BudgetPlanService service = new BudgetPlanService(WORKING_CLIENT, MAPPER, MODEL);
+        JavalinTest.test(app(service), (server, client) ->
+                assertEquals(401, client.post("/v1/budget/plan", requestJson()).code()));
+    }
+
+    @Test
+    void generate_anonymousWithVertexDisabled_stillReturns401() {
+        JavalinTest.test(app(null), (server, client) ->
+                assertEquals(401, client.post("/v1/budget/plan", requestJson()).code()));
+    }
+
+    @Test
+    void generate_signedIn_stillWorks() {
         BudgetPlanService service = new BudgetPlanService(WORKING_CLIENT, MAPPER, MODEL);
         JavalinTest.test(app(service), (server, client) -> {
-            var response = client.post("/v1/budget/plan", requestJson());
+            var response = client.post("/v1/budget/plan", requestJson(), authed());
             assertEquals(200, response.code());
             JsonNode body = MAPPER.readTree(response.body().string());
             assertEquals("Front-load the emergency fund.", body.get("rationale").asText());
@@ -117,20 +133,10 @@ class BudgetPlanControllerTest {
     }
 
     @Test
-    void generate_signedIn_stillWorks() {
-        BudgetPlanService service = new BudgetPlanService(WORKING_CLIENT, MAPPER, MODEL);
-        JavalinTest.test(app(service), (server, client) -> {
-            var response = client.post("/v1/budget/plan", requestJson(),
-                    r -> r.header("Authorization", bearerFor("user-1")));
-            assertEquals(200, response.code());
-        });
-    }
-
-    @Test
     void generate_upstreamFailure_returns503() {
         BudgetPlanService service = new BudgetPlanService(FAILING_CLIENT, MAPPER, MODEL);
         JavalinTest.test(app(service), (server, client) -> {
-            var response = client.post("/v1/budget/plan", requestJson());
+            var response = client.post("/v1/budget/plan", requestJson(), authed());
             assertEquals(503, response.code());
         });
     }
@@ -140,11 +146,15 @@ class BudgetPlanControllerTest {
         BudgetPlanService service = new BudgetPlanService(WORKING_CLIENT, MAPPER, MODEL);
         JavalinTest.test(app(service), (server, client) -> {
             String invalid = MAPPER.writeValueAsString(Map.of("netIncomePerPeriod", 2400.0));
-            var response = client.post("/v1/budget/plan", invalid);
+            var response = client.post("/v1/budget/plan", invalid, authed());
             assertEquals(400, response.code());
             JsonNode errors = MAPPER.readTree(response.body().string());
             assertTrue(errors.has("budget"));
             assertTrue(errors.has("payFrequency"));
         });
+    }
+
+    private java.util.function.Consumer<io.javalin.testtools.Request.Builder> authed() {
+        return r -> r.header("Authorization", bearerFor("user-1"));
     }
 }

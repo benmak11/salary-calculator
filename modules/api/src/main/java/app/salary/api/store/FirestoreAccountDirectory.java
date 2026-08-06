@@ -102,10 +102,27 @@ public class FirestoreAccountDirectory implements AccountDirectory {
     }
 
     @Override
+    public Optional<String> findAccountIdBySub(String providerSub) {
+        try {
+            List<QueryDocumentSnapshot> bySub = identitiesForSub(providerSub);
+            if (bySub.isEmpty()) {
+                return Optional.empty();
+            }
+            String accountId = bySub.getFirst().getString(FIELD_ACCOUNT_ID);
+            return (accountId == null || accountId.isBlank()) ? Optional.empty() : Optional.of(accountId);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Firestore identity lookup interrupted", ie);
+        } catch (ExecutionException e) {
+            log.warn("Firestore identity lookup by sub failed", e);
+            return Optional.empty();
+        }
+    }
+
+    @Override
     public int deleteByProviderSub(String providerSub) {
         try {
-            List<QueryDocumentSnapshot> bySub = firestore.collection(IDENTITIES)
-                    .whereEqualTo(FIELD_SUB, providerSub).get().get().getDocuments();
+            List<QueryDocumentSnapshot> bySub = identitiesForSub(providerSub);
             if (bySub.isEmpty()) {
                 return 0;
             }
@@ -133,6 +150,12 @@ public class FirestoreAccountDirectory implements AccountDirectory {
         } catch (ExecutionException e) {
             throw new IllegalStateException("Firestore account delete failed", e);
         }
+    }
+
+    private List<QueryDocumentSnapshot> identitiesForSub(String providerSub)
+            throws InterruptedException, ExecutionException {
+        return firestore.collection(IDENTITIES)
+                .whereEqualTo(FIELD_SUB, providerSub).get().get().getDocuments();
     }
 
     private static String identityKey(String provider, String providerSub) {
