@@ -16,23 +16,18 @@ import app.salary.api.controller.BudgetController;
 import app.salary.api.controller.BudgetPlanController;
 import app.salary.api.controller.CalculateController;
 import app.salary.api.controller.CalculationHistoryController;
+import app.salary.api.controller.EventsController;
+import app.salary.api.ratelimit.RateLimitMiddleware;
+import app.salary.api.ratelimit.RateLimiter;
 import app.salary.api.controller.GrantsController;
 import app.salary.api.controller.StocksController;
 import app.salary.api.service.BudgetPlanService;
 import app.salary.api.store.AccountDirectory;
 import app.salary.api.store.BudgetStore;
 import app.salary.api.store.CalculationStore;
-import app.salary.api.store.FirestoreAccountDirectory;
-import app.salary.api.store.FirestoreBudgetStore;
-import app.salary.api.store.FirestoreCalculationStore;
-import app.salary.api.store.FirestoreGrantStore;
-import app.salary.api.store.FirestoreUserDirectory;
+import app.salary.api.store.EventStore;
 import app.salary.api.store.GrantStore;
-import app.salary.api.store.InMemoryAccountDirectory;
-import app.salary.api.store.InMemoryBudgetStore;
-import app.salary.api.store.InMemoryCalculationStore;
-import app.salary.api.store.InMemoryGrantStore;
-import app.salary.api.store.InMemoryUserDirectory;
+import app.salary.api.store.StoreFactory;
 import app.salary.api.store.UserDirectory;
 import app.salary.api.validation.RequestValidator;
 import app.salary.api.validation.ValidationException;
@@ -142,13 +137,14 @@ public class Main {
 
         // ── Persistence + identity (lazy / optional) ─────────────────────────
         Firestore firestore = enableGcp ? buildFirestore(projectId) : null;
-        UserDirectory userDirectory = buildUserDirectory(firestore);
-        AccountDirectory accountDirectory = buildAccountDirectory(firestore);
-        CalculationStore calculationStore = buildCalculationStore(firestore, objectMapper);
-        GrantStore grantStore = buildGrantStore(firestore, objectMapper);
-        BudgetStore budgetStore = buildBudgetStore(firestore, objectMapper);
+        UserDirectory userDirectory = StoreFactory.userDirectory(firestore);
+        AccountDirectory accountDirectory = StoreFactory.accountDirectory(firestore);
+        CalculationStore calculationStore = StoreFactory.calculationStore(firestore, objectMapper);
+        GrantStore grantStore = StoreFactory.grantStore(firestore, objectMapper);
+        BudgetStore budgetStore = StoreFactory.budgetStore(firestore, objectMapper);
+        EventStore eventStore = StoreFactory.eventStore(firestore);
         if (firestore == null) {
-            log.warn("Firestore unavailable (ENABLE_GCP={}); user directory + accounts + calculation history + grants + budget are in-memory only.", enableGcp);
+            log.warn("Firestore unavailable (ENABLE_GCP={}); user directory + accounts + calculation history + grants + budget + events are in-memory only.", enableGcp);
         }
 
         SessionTokenService sessionTokens = buildSessionTokens(sessionSecretEnv);
@@ -164,11 +160,15 @@ public class Main {
         BudgetController budgetController = new BudgetController(budgetStore, requestValidator);
         BudgetPlanController budgetPlanController = new BudgetPlanController(budgetPlanService, requestValidator);
         StocksController stocksController = new StocksController(stockClient);
+        EventsController eventsController =
+                new EventsController(eventStore, accountDirectory, requestValidator);
+        RateLimitMiddleware rateLimitMiddleware = buildRateLimiter();
 
         Javalin app = createApp(objectMapper, meterRegistry, orchestrator,
                 calculatorRegistry, requestValidator, calculationStore, rulesRegistry,
                 authMiddleware, authController, historyController, accountController,
-                grantsController, budgetController, budgetPlanController, stocksController);
+                grantsController, budgetController, budgetPlanController, stocksController,
+                eventsController, rateLimitMiddleware);
 
         // ── Boot ─────────────────────────────────────────────────────────────
         app.start(port);
@@ -199,7 +199,9 @@ public class Main {
                              GrantsController grantsController,
                              BudgetController budgetController,
                              BudgetPlanController budgetPlanController,
-                             StocksController stocksController) {
+                             StocksController stocksController,
+                             EventsController eventsController,
+                             RateLimitMiddleware rateLimitMiddleware) {
         return Javalin.create(config -> {
             config.jsonMapper(new JavalinJackson(objectMapper, false));
             config.startup.showJavalinBanner = false;
@@ -223,6 +225,12 @@ public class Main {
 
             if (authMiddleware != null) {
                 config.routes.before(authMiddleware::handle);
+            }
+
+            // After auth so a signed-in caller is keyed on their userId rather than sharing
+            // an IP bucket with everyone behind the same NAT.
+            if (rateLimitMiddleware != null) {
+                config.routes.before(rateLimitMiddleware::handle);
             }
 
             config.routes.after(ctx -> {
@@ -267,6 +275,7 @@ public class Main {
             budgetController.register(config.routes);
             budgetPlanController.register(config.routes);
             stocksController.register(config.routes);
+            eventsController.register(config.routes);
 
             config.routes.get("/actuator/health", ctx -> ctx.json(Map.of("status", "UP")));
             config.routes.get("/actuator/prometheus", ctx ->
@@ -319,31 +328,32 @@ public class Main {
         return new BudgetPlanService(generativeAiClient, objectMapper, vertexAiModel);
     }
 
-    private static UserDirectory buildUserDirectory(Firestore firestore) {
-        return firestore != null ? new FirestoreUserDirectory(firestore) : new InMemoryUserDirectory();
+
+
+    /**
+     * Defaults are deliberately generous — this exists to stop one caller saturating an
+     * instance at peak, not to police normal use. Unset env vars keep the defaults, which
+     * avoids touching deploy.yml and the trap where {@code --set-env-vars} replaces the
+     * whole set.
+     */
+    private static RateLimitMiddleware buildRateLimiter() {
+        if (!Env.flag("RATE_LIMIT_ENABLED", true)) {
+            log.warn("Rate limiting disabled (RATE_LIMIT_ENABLED=false).");
+            return null;
+        }
+        int perMinute = Env.intValue("RATE_LIMIT_PER_MINUTE", 300);
+        int eventsPerMinute = Env.intValue("EVENTS_RATE_LIMIT_PER_MINUTE", 60);
+        int maxCallers = Env.intValue("RATE_LIMIT_MAX_CALLERS", 50_000);
+        log.info("Rate limiting enabled: {}/min default, {}/min on /v1/events, tracking up to {} callers",
+                perMinute, eventsPerMinute, maxCallers);
+        return new RateLimitMiddleware(
+                new RateLimiter(perMinute, Math.max(1, perMinute / 3), maxCallers),
+                new RateLimiter(eventsPerMinute, Math.max(1, eventsPerMinute / 3), maxCallers));
     }
 
-    private static AccountDirectory buildAccountDirectory(Firestore firestore) {
-        return firestore != null ? new FirestoreAccountDirectory(firestore) : new InMemoryAccountDirectory();
-    }
 
-    private static CalculationStore buildCalculationStore(Firestore firestore, ObjectMapper objectMapper) {
-        return firestore != null
-                ? new FirestoreCalculationStore(firestore, objectMapper)
-                : new InMemoryCalculationStore();
-    }
 
-    private static GrantStore buildGrantStore(Firestore firestore, ObjectMapper objectMapper) {
-        return firestore != null
-                ? new FirestoreGrantStore(firestore, objectMapper)
-                : new InMemoryGrantStore();
-    }
 
-    private static BudgetStore buildBudgetStore(Firestore firestore, ObjectMapper objectMapper) {
-        return firestore != null
-                ? new FirestoreBudgetStore(firestore, objectMapper)
-                : new InMemoryBudgetStore();
-    }
 
     private static AuthController buildAuthController(String appleAudience, String googleAudience,
                                                         String sessionSecretEnv,
@@ -427,6 +437,25 @@ public class Main {
 
         static boolean boolValue(boolean defaultValue) {
             String v = System.getenv("ENABLE_GCP");
+            if (v == null || v.isBlank()) return defaultValue;
+            return "true".equalsIgnoreCase(v.trim()) || "1".equals(v.trim());
+        }
+
+        /** Falls back rather than failing: a typo in a tuning knob must not stop the service booting. */
+        static int intValue(String key, int defaultValue) {
+            String v = System.getenv(key);
+            if (v == null || v.isBlank()) return defaultValue;
+            try {
+                int parsed = Integer.parseInt(v.trim());
+                return parsed > 0 ? parsed : defaultValue;
+            } catch (NumberFormatException nfe) {
+                log.warn("{} is not a positive integer; using {}", key, defaultValue);
+                return defaultValue;
+            }
+        }
+
+        static boolean flag(String key, boolean defaultValue) {
+            String v = System.getenv(key);
             if (v == null || v.isBlank()) return defaultValue;
             return "true".equalsIgnoreCase(v.trim()) || "1".equals(v.trim());
         }

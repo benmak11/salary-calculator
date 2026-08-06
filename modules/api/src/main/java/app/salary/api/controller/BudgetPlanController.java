@@ -12,18 +12,28 @@ import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 
 import java.util.Map;
 import java.util.Optional;
 
 /**
  * AI-suggested budget strategy for a goals/expenses combo the client already
- * has locally. Auth optional, same as {@code /v1/calculate} — the budget
- * being planned doesn't have to be saved yet, so anonymous users can preview
- * a plan too. When Vertex AI is unavailable (no GCP creds, or the model call
- * fails) this answers 503 and the client falls back to BudgetEngine's own
- * deterministic contribution rates.
+ * has locally. Anonymous requests get 401.
+ *
+ * <p><b>Auth is an abuse control, not an access-model decision.</b> Every call
+ * invokes Vertex AI, which bills per request, so leaving this open was an
+ * unauthenticated path to a metered paid API. Same reasoning already applied to
+ * {@code /v1/stocks/*}, which is gated to keep the Finnhub key from being
+ * farmed. The budget being planned still does not have to be saved first — the
+ * request carries it — so this remains usable before any budget is synced.
+ *
+ * <p>No client impact when this changed: the iOS Budget CTA is already gated on
+ * being signed in ({@code InsightsTab.swift}, {@code showBudgetCTA: isSignedIn})
+ * and Android has no budget feature yet, so no reachable caller was anonymous.
+ *
+ * <p>When Vertex AI is unavailable (no GCP creds, or the model call fails) this
+ * answers 503 and the client falls back to BudgetEngine's own deterministic
+ * contribution rates.
  */
 public class BudgetPlanController {
     private static final Logger log = LoggerFactory.getLogger(BudgetPlanController.class);
@@ -42,12 +52,16 @@ public class BudgetPlanController {
     }
 
     private void generate(Context ctx) {
+        // Auth is checked before the service-null branch: an anonymous caller must not be
+        // able to distinguish "Vertex AI is off" from "you are not signed in", and the
+        // 401 costs nothing to produce.
+        Optional<String> userId = AuthMiddleware.requireUser(ctx);
+        if (userId.isEmpty()) return;
+
         if (service == null) {
             unavailable(ctx);
             return;
         }
-        Optional<String> userId = AuthMiddleware.currentUserId(ctx);
-        userId.ifPresent(id -> MDC.put(ApiConstants.MDC_USER_ID, id));
 
         BudgetPlanRequest request = ctx.bodyAsClass(BudgetPlanRequest.class);
         validator.validate(request);

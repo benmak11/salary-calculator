@@ -4,6 +4,7 @@ import app.salary.api.controller.AccountController;
 import app.salary.api.controller.BudgetController;
 import app.salary.api.controller.BudgetPlanController;
 import app.salary.api.controller.CalculationHistoryController;
+import app.salary.api.controller.EventsController;
 import app.salary.api.controller.GrantsController;
 import app.salary.api.controller.StocksController;
 import app.salary.api.store.BudgetStore;
@@ -11,6 +12,7 @@ import app.salary.api.store.CalculationStore;
 import app.salary.api.store.GrantStore;
 import app.salary.api.store.InMemoryAccountDirectory;
 import app.salary.api.store.InMemoryBudgetStore;
+import app.salary.api.store.InMemoryEventStore;
 import app.salary.api.store.InMemoryCalculationStore;
 import app.salary.api.store.InMemoryGrantStore;
 import app.salary.api.store.InMemoryUserDirectory;
@@ -71,9 +73,11 @@ class MainTest {
         BudgetController budgetController = new BudgetController(budgetStore, validator);
         BudgetPlanController budgetPlanController = new BudgetPlanController(null, validator);
         StocksController stocksController = new StocksController(null);
+        EventsController eventsController =
+                new EventsController(new InMemoryEventStore(), new InMemoryAccountDirectory(), validator);
         return Main.createApp(mapper, meterRegistry, orchestrator, calculatorRegistry, validator,
                 calculationStore, rulesRegistry, null, null, historyController, accountController, grantsController,
-                budgetController, budgetPlanController, stocksController);
+                budgetController, budgetPlanController, stocksController, eventsController, null);
     }
 
     @Test

@@ -44,11 +44,16 @@ public class InMemoryAccountDirectory implements AccountDirectory {
     }
 
     @Override
-    public int deleteByProviderSub(String providerSub) {
-        Optional<String> accountId = identities.values().stream()
+    public Optional<String> findAccountIdBySub(String providerSub) {
+        return identities.values().stream()
                 .filter(i -> i.sub.equals(providerSub))
                 .map(Identity::accountId)
                 .findFirst();
+    }
+
+    @Override
+    public int deleteByProviderSub(String providerSub) {
+        Optional<String> accountId = findAccountIdBySub(providerSub);
         if (accountId.isEmpty()) {
             return 0;
         }

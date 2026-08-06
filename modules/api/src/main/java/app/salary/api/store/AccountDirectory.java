@@ -34,6 +34,19 @@ public interface AccountDirectory {
     Optional<String> findAccountId(String provider, String providerSub);
 
     /**
+     * The accountId for a provider sub without knowing which provider issued it.
+     *
+     * <p>Exists because {@code AuthMiddleware} only carries the sub — the session JWT does
+     * not record the provider. Anything that wants to key new data on accountId today has
+     * to go through here.
+     *
+     * <p>Returns empty for anyone who last signed in before the identity schema shipped;
+     * they have no identity record until their next sign-in. Callers must treat a missing
+     * accountId as normal rather than as an error.
+     */
+    Optional<String> findAccountIdBySub(String providerSub);
+
+    /**
      * Deletes the account reachable from this provider sub along with <em>every</em> identity
      * pointing at it, and returns how many identity records were removed.
      *
