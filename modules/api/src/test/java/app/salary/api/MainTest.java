@@ -11,6 +11,10 @@ import app.salary.api.store.BudgetStore;
 import app.salary.api.store.CalculationStore;
 import app.salary.api.store.GrantStore;
 import app.salary.api.controller.AccountLinkController;
+import app.salary.api.controller.CheckInController;
+import app.salary.api.store.AccountKeyedStores;
+import app.salary.api.store.InMemoryCheckInStore;
+import app.salary.api.store.SubKeyedStores;
 import app.salary.api.store.InMemoryAccountDirectory;
 import app.salary.api.version.ClientVersionMiddleware;
 import app.salary.api.store.InMemoryEntitlementStore;
@@ -71,9 +75,10 @@ class MainTest {
         UserDirectory userDirectory = new InMemoryUserDirectory();
         CalculationHistoryController historyController = new CalculationHistoryController(calculationStore);
         AccountController accountController =
-                new AccountController(calculationStore, grantStore, budgetStore, userDirectory,
-                        new InMemoryAccountDirectory(), new InMemoryEntitlementStore(),
-                        new InMemoryLinkCodeStore());
+                new AccountController(new InMemoryAccountDirectory(),
+                        new SubKeyedStores(calculationStore, grantStore, budgetStore, userDirectory),
+                        new AccountKeyedStores(new InMemoryEntitlementStore(),
+                                new InMemoryLinkCodeStore(), new InMemoryCheckInStore()));
         GrantsController grantsController = new GrantsController(grantStore, validator);
         BudgetController budgetController = new BudgetController(budgetStore, validator);
         BudgetPlanController budgetPlanController = new BudgetPlanController(null, validator, null, null);
@@ -84,7 +89,8 @@ class MainTest {
                 calculationStore, rulesRegistry, null, null, historyController, accountController, grantsController,
                 budgetController, budgetPlanController, stocksController, eventsController, null,
                 new ClientVersionMiddleware(java.util.Map.of()),
-                new AccountLinkController(new InMemoryLinkCodeStore(), new InMemoryAccountDirectory(), null, null));
+                new AccountLinkController(new InMemoryLinkCodeStore(), new InMemoryAccountDirectory(), null, null),
+                new CheckInController(new InMemoryCheckInStore(), new InMemoryAccountDirectory(), validator));
     }
 
     @Test
