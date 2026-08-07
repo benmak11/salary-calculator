@@ -47,6 +47,28 @@ public interface AccountDirectory {
     Optional<String> findAccountIdBySub(String providerSub);
 
     /**
+     * Whether this account was granted permanent AI-budget access at migration time.
+     *
+     * <p>Always false today: the flag is written exactly once, by the B1 migration, for
+     * accounts that already had a saved budget. It is read here so the subscription gate is
+     * already correct on the day that backfill runs, rather than needing a second change
+     * then. It grants one feature, not Pro.
+     */
+    boolean hasLegacyProBudget(String accountId);
+
+    /**
+     * Repoints one identity at another account, returning the accountId it used to point at.
+     *
+     * <p>This is what a redeemed link code performs. Only the redeeming identity moves; the
+     * account it came from is left in place rather than deleted, because its data is still
+     * keyed on the provider sub until the B1 migration runs, and deleting it here would
+     * strand that data with nothing pointing at it.
+     *
+     * <p>Empty when the sub has no identity record, or when it already points at the target.
+     */
+    Optional<String> relinkIdentity(String providerSub, String targetAccountId);
+
+    /**
      * Deletes the account reachable from this provider sub along with <em>every</em> identity
      * pointing at it, and returns how many identity records were removed.
      *

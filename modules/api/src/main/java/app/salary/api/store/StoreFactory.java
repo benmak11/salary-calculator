@@ -6,9 +6,9 @@ import com.google.cloud.firestore.Firestore;
 /**
  * Picks the Firestore or in-memory implementation of each store.
  *
- * <p>Extracted from {@code Main} so the one rule that governs all six — a null
+ * <p>Extracted from {@code Main} so the one rule that governs all of them — a null
  * {@link Firestore} means run in memory — lives in a single place, and so {@code Main}
- * depends on the six store interfaces rather than on all twelve implementations.
+ * depends on the store interfaces rather than on every implementation.
  *
  * <p>Still hand-wired: this is a factory, not a container. Nothing here scans, registers or
  * resolves anything, and {@code Main} remains the only place dependencies are assembled.
@@ -35,6 +35,14 @@ public final class StoreFactory {
 
     public static BudgetStore budgetStore(Firestore firestore, ObjectMapper mapper) {
         return firestore != null ? new FirestoreBudgetStore(firestore, mapper) : new InMemoryBudgetStore();
+    }
+
+    public static EntitlementStore entitlementStore(Firestore firestore) {
+        return firestore != null ? new FirestoreEntitlementStore(firestore) : new InMemoryEntitlementStore();
+    }
+
+    public static LinkCodeStore linkCodeStore(Firestore firestore) {
+        return firestore != null ? new FirestoreLinkCodeStore(firestore) : new InMemoryLinkCodeStore();
     }
 
     public static EventStore eventStore(Firestore firestore) {
