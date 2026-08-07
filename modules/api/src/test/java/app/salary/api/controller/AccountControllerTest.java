@@ -7,6 +7,8 @@ import app.salary.api.store.BudgetStore;
 import app.salary.api.store.CalculationStore;
 import app.salary.api.store.GrantStore;
 import app.salary.api.store.InMemoryAccountDirectory;
+import app.salary.api.store.InMemoryEntitlementStore;
+import app.salary.api.store.InMemoryLinkCodeStore;
 import app.salary.api.store.InMemoryBudgetStore;
 import app.salary.api.store.InMemoryCalculationStore;
 import app.salary.api.store.InMemoryGrantStore;
@@ -41,6 +43,8 @@ class AccountControllerTest {
     private UserDirectory users;
     private SessionTokenService sessionTokens;
     private AccountDirectory accounts;
+    private InMemoryEntitlementStore entitlements;
+    private InMemoryLinkCodeStore linkCodes;
 
     @BeforeEach
     void setUp() {
@@ -49,6 +53,8 @@ class AccountControllerTest {
         budgets = new InMemoryBudgetStore();
         users = new InMemoryUserDirectory();
         accounts = new InMemoryAccountDirectory();
+        entitlements = new InMemoryEntitlementStore();
+        linkCodes = new InMemoryLinkCodeStore();
         byte[] secret = new byte[32];
         for (int i = 0; i < secret.length; i++) secret[i] = (byte) i;
         sessionTokens = new SessionTokenService(secret);
@@ -60,7 +66,8 @@ class AccountControllerTest {
             config.jsonMapper(new JavalinJackson(MAPPER, false));
             config.startup.showJavalinBanner = false;
             config.routes.before(middleware::handle);
-            new AccountController(store, grants, budgets, users, accounts).register(config.routes);
+            new AccountController(store, grants, budgets, users, accounts, entitlements, linkCodes)
+                    .register(config.routes);
         });
     }
 

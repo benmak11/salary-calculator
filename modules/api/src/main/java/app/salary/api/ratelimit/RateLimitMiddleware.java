@@ -8,7 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * Throttles callers before a request reaches a controller.
@@ -17,6 +16,10 @@ import java.util.Optional;
  * userId and gets their own budget regardless of which network they are on. Anonymous
  * callers fall back to client IP, which is coarse: everyone behind one NAT shares a bucket.
  * That is the accepted cost of throttling traffic that has no identity attached.
+ *
+ * <p>Link-code redemption is throttled by {@code AccountLinkController} rather than here: it
+ * needs a far tighter budget, and the route that defines the path is the honest place to
+ * apply it.
  *
  * <p>Health and metrics endpoints are exempt — Cloud Run's probes and the Prometheus
  * scraper are not the traffic this protects against, and throttling them turns a load spike
@@ -42,7 +45,7 @@ public class RateLimitMiddleware {
         }
 
         RateLimiter limiter = EVENTS_PATH.equals(path) ? eventsLimiter : defaultLimiter;
-        String key = callerKey(ctx);
+        String key = CallerKey.of(ctx);
         if (limiter.tryAcquire(key)) {
             return;
         }
@@ -57,24 +60,4 @@ public class RateLimitMiddleware {
                 Map.of(ApiConstants.ERROR, "Too many requests. Retry in a minute."));
     }
 
-    private static String callerKey(Context ctx) {
-        Optional<String> userId = AuthMiddleware.currentUserId(ctx);
-        return userId.map(s -> "user:" + s).orElseGet(() -> "ip:" + clientIp(ctx));
-    }
-
-    /**
-     * Cloud Run terminates TLS at its front end, so {@code ctx.ip()} is the proxy. The
-     * left-most {@code X-Forwarded-For} entry is the original client.
-     */
-    private static String clientIp(Context ctx) {
-        String forwarded = ctx.header("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            int comma = forwarded.indexOf(',');
-            String first = (comma > 0 ? forwarded.substring(0, comma) : forwarded).trim();
-            if (!first.isEmpty()) {
-                return first;
-            }
-        }
-        return ctx.ip();
-    }
 }

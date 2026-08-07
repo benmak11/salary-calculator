@@ -29,6 +29,7 @@ public class FirestoreAccountDirectory implements AccountDirectory {
     private static final String IDENTITIES = "identities";
     private static final String FIELD_ACCOUNT_ID = "accountId";
     private static final String FIELD_SUB = "sub";
+    private static final String FIELD_LEGACY_PRO_BUDGET = "legacy_pro_budget";
 
     private final Firestore firestore;
 
@@ -116,6 +117,45 @@ public class FirestoreAccountDirectory implements AccountDirectory {
         } catch (ExecutionException e) {
             log.warn("Firestore identity lookup by sub failed", e);
             return Optional.empty();
+        }
+    }
+
+    @Override
+    public boolean hasLegacyProBudget(String accountId) {
+        if (accountId == null || accountId.isBlank()) {
+            return false;
+        }
+        try {
+            DocumentSnapshot snap = firestore.collection(ACCOUNTS).document(accountId).get().get();
+            return snap.exists() && Boolean.TRUE.equals(snap.getBoolean(FIELD_LEGACY_PRO_BUDGET));
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Firestore account read interrupted", ie);
+        } catch (ExecutionException e) {
+            // Failing closed: an unreadable account is not a grandfathered one.
+            log.warn("Firestore legacy-pro-budget read failed", e);
+            return false;
+        }
+    }
+
+    @Override
+    public Optional<String> relinkIdentity(String providerSub, String targetAccountId) {
+        try {
+            List<QueryDocumentSnapshot> bySub = identitiesForSub(providerSub);
+            for (QueryDocumentSnapshot snap : bySub) {
+                String previous = snap.getString(FIELD_ACCOUNT_ID);
+                if (previous == null || previous.equals(targetAccountId)) {
+                    continue;
+                }
+                snap.getReference().update(FIELD_ACCOUNT_ID, targetAccountId).get();
+                return Optional.of(previous);
+            }
+            return Optional.empty();
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Firestore identity relink interrupted", ie);
+        } catch (ExecutionException e) {
+            throw new IllegalStateException("Firestore identity relink failed", e);
         }
     }
 

@@ -16,15 +16,20 @@ import app.salary.api.controller.BudgetController;
 import app.salary.api.controller.BudgetPlanController;
 import app.salary.api.controller.CalculateController;
 import app.salary.api.controller.CalculationHistoryController;
+import app.salary.api.controller.AccountLinkController;
 import app.salary.api.controller.EventsController;
 import app.salary.api.ratelimit.RateLimitMiddleware;
 import app.salary.api.ratelimit.RateLimiter;
 import app.salary.api.controller.GrantsController;
 import app.salary.api.controller.StocksController;
 import app.salary.api.service.BudgetPlanService;
+import app.salary.api.service.EntitlementService;
+import app.salary.api.service.SubscriptionRequiredException;
 import app.salary.api.store.AccountDirectory;
 import app.salary.api.store.BudgetStore;
 import app.salary.api.store.CalculationStore;
+import app.salary.api.store.EntitlementStore;
+import app.salary.api.store.LinkCodeStore;
 import app.salary.api.store.EventStore;
 import app.salary.api.store.GrantStore;
 import app.salary.api.store.StoreFactory;
@@ -147,6 +152,8 @@ public class Main {
         GrantStore grantStore = StoreFactory.grantStore(firestore, objectMapper);
         BudgetStore budgetStore = StoreFactory.budgetStore(firestore, objectMapper);
         EventStore eventStore = StoreFactory.eventStore(firestore);
+        EntitlementStore entitlementStore = StoreFactory.entitlementStore(firestore);
+        LinkCodeStore linkCodeStore = StoreFactory.linkCodeStore(firestore);
         if (firestore == null) {
             log.warn("Firestore unavailable (ENABLE_GCP={}); user directory + accounts + calculation history + grants + budget + events are in-memory only.", enableGcp);
         }
@@ -159,10 +166,17 @@ public class Main {
 
         CalculationHistoryController historyController = new CalculationHistoryController(calculationStore);
         AccountController accountController =
-                new AccountController(calculationStore, grantStore, budgetStore, userDirectory, accountDirectory);
+                new AccountController(calculationStore, grantStore, budgetStore, userDirectory,
+                        accountDirectory, entitlementStore, linkCodeStore);
         GrantsController grantsController = new GrantsController(grantStore, requestValidator);
         BudgetController budgetController = new BudgetController(budgetStore, requestValidator);
-        BudgetPlanController budgetPlanController = new BudgetPlanController(budgetPlanService, requestValidator);
+        EntitlementService entitlementService = buildEntitlementService(entitlementStore, accountDirectory);
+        RateLimiter linkRedeemLimiter = buildLinkRedeemLimiter();
+        AccountLinkController accountLinkController =
+                new AccountLinkController(linkCodeStore, accountDirectory, entitlementService,
+                        linkRedeemLimiter);
+        BudgetPlanController budgetPlanController =
+                new BudgetPlanController(budgetPlanService, requestValidator, entitlementService, accountDirectory);
         StocksController stocksController = new StocksController(stockClient);
         EventsController eventsController =
                 new EventsController(eventStore, accountDirectory, requestValidator);
@@ -173,7 +187,7 @@ public class Main {
                 calculatorRegistry, requestValidator, calculationStore, rulesRegistry,
                 authMiddleware, authController, historyController, accountController,
                 grantsController, budgetController, budgetPlanController, stocksController,
-                eventsController, rateLimitMiddleware, clientVersionMiddleware);
+                eventsController, rateLimitMiddleware, clientVersionMiddleware, accountLinkController);
 
         // ── Boot ─────────────────────────────────────────────────────────────
         app.start(port);
@@ -207,7 +221,8 @@ public class Main {
                              StocksController stocksController,
                              EventsController eventsController,
                              RateLimitMiddleware rateLimitMiddleware,
-                             ClientVersionMiddleware clientVersionMiddleware) {
+                             ClientVersionMiddleware clientVersionMiddleware,
+                             AccountLinkController accountLinkController) {
         return Javalin.create(config -> {
             config.jsonMapper(new JavalinJackson(objectMapper, false));
             config.startup.showJavalinBanner = false;
@@ -216,24 +231,11 @@ public class Main {
                     micrometerCfg.registry = meterRegistry
             ));
 
-            config.routes.before(ctx -> {
-                String requestId = ctx.header(REQUEST_ID_HEADER);
-                if (requestId == null || requestId.isBlank()) {
-                    requestId = UUID.randomUUID().toString();
-                }
-                MDC.put(MDC_REQUEST_ID, requestId);
-                MDC.put("method", ctx.method().name());
-                MDC.put("path", ctx.path());
-                ctx.attribute(ATTR_START_NANOS, System.nanoTime());
-                ctx.attribute(MDC_REQUEST_ID, requestId);
-                ctx.header(REQUEST_ID_HEADER, requestId);
-            });
+            config.routes.before(Main::beginRequest);
 
             // Before auth and rate limiting so the client platform/version lands in the MDC
             // for every request, including ones those two turn away.
-            if (clientVersionMiddleware != null) {
-                config.routes.before(clientVersionMiddleware::handle);
-            }
+            config.routes.before(clientVersionMiddleware::handle);
 
             if (authMiddleware != null) {
                 config.routes.before(authMiddleware::handle);
@@ -245,21 +247,7 @@ public class Main {
                 config.routes.before(rateLimitMiddleware::handle);
             }
 
-            config.routes.after(ctx -> {
-                try {
-                    Long startNanos = ctx.attribute(ATTR_START_NANOS);
-                    long durationMs = startNanos != null
-                            ? (System.nanoTime() - startNanos) / 1_000_000L
-                            : -1L;
-                    int status = ctx.status().getCode();
-                    MDC.put("status",      String.valueOf(status));
-                    MDC.put("duration_ms", String.valueOf(durationMs));
-                    access.info("{} {} -> {} ({}ms){}",
-                            ctx.method(), ctx.path(), status, durationMs, accessLogClientSuffix());
-                } finally {
-                    MDC.clear();
-                }
-            });
+            config.routes.after(Main::endRequest);
 
             config.routes.exception(ValidationException.class, (e, ctx) -> {
                 log.warn("Validation failed: {}", e.getErrors());
@@ -269,6 +257,12 @@ public class Main {
             // build's upgrade prompt cannot depend on a header that build may not set.
             config.routes.exception(UpgradeRequiredException.class, (e, ctx) ->
                     ctx.status(HttpStatus.UPGRADE_REQUIRED).json(e.getBody()));
+            // 402 is the contract both clients map to SubscriptionRequired(feature), so the
+            // paywall can open on the surface that was refused rather than a generic page.
+            config.routes.exception(SubscriptionRequiredException.class, (e, ctx) ->
+                    ctx.status(HttpStatus.PAYMENT_REQUIRED).json(Map.of(
+                            ApiConstants.ERROR, "subscription_required",
+                            "feature", e.getFeature())));
             config.routes.exception(IllegalArgumentException.class, (e, ctx) -> {
                 log.warn("Illegal argument: {}", e.getMessage());
                 ctx.status(HttpStatus.UNPROCESSABLE_CONTENT)
@@ -287,6 +281,7 @@ public class Main {
             }
             historyController.register(config.routes);
             accountController.register(config.routes);
+            accountLinkController.register(config.routes);
             grantsController.register(config.routes);
             budgetController.register(config.routes);
             budgetPlanController.register(config.routes);
@@ -314,6 +309,42 @@ public class Main {
             return "";
         }
         return " client=" + platform + "/" + MDC.get(ApiConstants.MDC_CLIENT_VERSION);
+    }
+
+    /** Correlation id, MDC, and the timer the access log reads. */
+    private static void beginRequest(io.javalin.http.Context ctx) {
+        String requestId = ctx.header(REQUEST_ID_HEADER);
+        if (requestId == null || requestId.isBlank()) {
+            requestId = UUID.randomUUID().toString();
+        }
+        MDC.put(MDC_REQUEST_ID, requestId);
+        MDC.put("method", ctx.method().name());
+        MDC.put("path", ctx.path());
+        ctx.attribute(ATTR_START_NANOS, System.nanoTime());
+        ctx.attribute(MDC_REQUEST_ID, requestId);
+        ctx.header(REQUEST_ID_HEADER, requestId);
+    }
+
+    /** One access line per request. Clears the MDC even if logging it throws. */
+    private static void endRequest(io.javalin.http.Context ctx) {
+        try {
+            // Everything below exists only to produce that line, including the MDC values the
+            // JSON encoder reads off it, so skip the lot when the logger is turned down.
+            if (!access.isInfoEnabled()) {
+                return;
+            }
+            Long startNanos = ctx.attribute(ATTR_START_NANOS);
+            long durationMs = startNanos != null
+                    ? (System.nanoTime() - startNanos) / 1_000_000L
+                    : -1L;
+            int status = ctx.status().getCode();
+            MDC.put("status",      String.valueOf(status));
+            MDC.put("duration_ms", String.valueOf(durationMs));
+            access.info("{} {} -> {} ({}ms){}",
+                    ctx.method(), ctx.path(), status, durationMs, accessLogClientSuffix());
+        } finally {
+            MDC.clear();
+        }
     }
 
     private static Firestore buildFirestore(String projectId) {
@@ -382,6 +413,38 @@ public class Main {
         return new RateLimitMiddleware(
                 new RateLimiter(perMinute, Math.max(1, perMinute / 3), maxCallers),
                 new RateLimiter(eventsPerMinute, Math.max(1, eventsPerMinute / 3), maxCallers));
+    }
+
+    /**
+     * Deliberately mean. Ten a minute is generous for a human typing a code off another screen
+     * and hostile to anyone enumerating a 10^6 space inside a 10-minute TTL. Applied by
+     * {@code AccountLinkController} rather than the blanket middleware.
+     */
+    private static RateLimiter buildLinkRedeemLimiter() {
+        if (!Env.flag("RATE_LIMIT_ENABLED", true)) {
+            return null;
+        }
+        int perMinute = Env.intValue("LINK_REDEEM_RATE_LIMIT_PER_MINUTE", 10);
+        int maxCallers = Env.intValue("RATE_LIMIT_MAX_CALLERS", 50_000);
+        log.info("Link redemption limited to {}/min per caller", perMinute);
+        return new RateLimiter(perMinute, Math.max(1, perMinute / 2), maxCallers);
+    }
+
+    /**
+     * Both kill switches default to <b>off</b>, per the roadmap: the schema and the
+     * resolution go live and get observed well before anyone is refused.
+     *
+     * <p>{@code PLAY_ENFORCEMENT} is separate from {@code SUBSCRIPTION_ENFORCEMENT} because
+     * the two stores go live at different times, and a half-built Play integration writing
+     * speculative records must not be able to grant Pro on its own.
+     */
+    private static EntitlementService buildEntitlementService(EntitlementStore entitlements,
+                                                              AccountDirectory accounts) {
+        boolean subscriptionEnforcement = Env.flag("SUBSCRIPTION_ENFORCEMENT", false);
+        boolean playEnforcement = Env.flag("PLAY_ENFORCEMENT", false);
+        log.info("Entitlements: subscription enforcement={}, play enforcement={}",
+                subscriptionEnforcement, playEnforcement);
+        return new EntitlementService(entitlements, accounts, subscriptionEnforcement, playEnforcement);
     }
 
     /**

@@ -10,7 +10,11 @@ import app.salary.api.controller.StocksController;
 import app.salary.api.store.BudgetStore;
 import app.salary.api.store.CalculationStore;
 import app.salary.api.store.GrantStore;
+import app.salary.api.controller.AccountLinkController;
 import app.salary.api.store.InMemoryAccountDirectory;
+import app.salary.api.version.ClientVersionMiddleware;
+import app.salary.api.store.InMemoryEntitlementStore;
+import app.salary.api.store.InMemoryLinkCodeStore;
 import app.salary.api.store.InMemoryBudgetStore;
 import app.salary.api.store.InMemoryEventStore;
 import app.salary.api.store.InMemoryCalculationStore;
@@ -68,16 +72,19 @@ class MainTest {
         CalculationHistoryController historyController = new CalculationHistoryController(calculationStore);
         AccountController accountController =
                 new AccountController(calculationStore, grantStore, budgetStore, userDirectory,
-                        new InMemoryAccountDirectory());
+                        new InMemoryAccountDirectory(), new InMemoryEntitlementStore(),
+                        new InMemoryLinkCodeStore());
         GrantsController grantsController = new GrantsController(grantStore, validator);
         BudgetController budgetController = new BudgetController(budgetStore, validator);
-        BudgetPlanController budgetPlanController = new BudgetPlanController(null, validator);
+        BudgetPlanController budgetPlanController = new BudgetPlanController(null, validator, null, null);
         StocksController stocksController = new StocksController(null);
         EventsController eventsController =
                 new EventsController(new InMemoryEventStore(), new InMemoryAccountDirectory(), validator);
         return Main.createApp(mapper, meterRegistry, orchestrator, calculatorRegistry, validator,
                 calculationStore, rulesRegistry, null, null, historyController, accountController, grantsController,
-                budgetController, budgetPlanController, stocksController, eventsController, null, null);
+                budgetController, budgetPlanController, stocksController, eventsController, null,
+                new ClientVersionMiddleware(java.util.Map.of()),
+                new AccountLinkController(new InMemoryLinkCodeStore(), new InMemoryAccountDirectory(), null, null));
     }
 
     @Test

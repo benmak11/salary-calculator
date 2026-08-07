@@ -108,4 +108,5 @@ class RateLimitMiddlewareTest {
                     r -> r.header("X-Forwarded-For", "198.51.100.4, 10.0.0.1")).code());
         });
     }
+
 }

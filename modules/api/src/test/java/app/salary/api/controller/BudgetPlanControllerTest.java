@@ -1,6 +1,11 @@
 package app.salary.api.controller;
 
 import app.salary.api.auth.AuthMiddleware;
+import app.salary.api.service.EntitlementService;
+import app.salary.api.service.SubscriptionRequiredException;
+import app.salary.api.store.AccountDirectory;
+import app.salary.api.store.InMemoryAccountDirectory;
+import app.salary.api.store.InMemoryEntitlementStore;
 import app.salary.api.auth.SessionTokenService;
 import app.salary.api.client.GenerativeAiClient;
 import app.salary.api.client.GenerativeAiException;
@@ -55,6 +60,11 @@ class BudgetPlanControllerTest {
     }
 
     private Javalin app(BudgetPlanService service) {
+        return app(service, null, null);
+    }
+
+    private Javalin app(BudgetPlanService service, EntitlementService entitlements,
+                        AccountDirectory accounts) {
         AuthMiddleware middleware = new AuthMiddleware(sessionTokens);
         return Javalin.create(config -> {
             config.jsonMapper(new JavalinJackson(MAPPER, false));
@@ -62,7 +72,11 @@ class BudgetPlanControllerTest {
             config.routes.before(middleware::handle);
             config.routes.exception(ValidationException.class, (e, ctx) ->
                     ctx.status(HttpStatus.BAD_REQUEST).json(e.getErrors()));
-            new BudgetPlanController(service, new RequestValidator()).register(config.routes);
+            config.routes.exception(SubscriptionRequiredException.class, (e, ctx) ->
+                    ctx.status(HttpStatus.PAYMENT_REQUIRED).json(java.util.Map.of(
+                            "error", "subscription_required", "feature", e.getFeature())));
+            new BudgetPlanController(service, new RequestValidator(), entitlements, accounts)
+                    .register(config.routes);
         });
     }
 
@@ -156,5 +170,68 @@ class BudgetPlanControllerTest {
 
     private java.util.function.Consumer<io.javalin.testtools.Request.Builder> authed() {
         return r -> r.header("Authorization", bearerFor("user-1"));
+    }
+
+    @Test
+    void enforcementOffLetsEveryoneThrough() throws Exception {
+        // The shipping default. Nobody is refused until the B1 migration has backfilled
+        // legacy_pro_budget, or every existing budget user loses a feature they already had.
+        InMemoryAccountDirectory accounts = new InMemoryAccountDirectory();
+        accounts.resolveOrCreate(AccountDirectory.PROVIDER_APPLE, "user-1", "Alex");
+        EntitlementService entitlements =
+                new EntitlementService(new InMemoryEntitlementStore(), accounts, false, false);
+        String body = requestJson();
+
+        JavalinTest.test(app(null, entitlements, accounts), (server, client) -> {
+            // 503 (Vertex AI absent), not 402: the gate admitted the request.
+            var response = client.post("/v1/budget/plan", body,
+                    r -> r.header("Authorization", bearerFor("user-1")));
+            assertEquals(503, response.code());
+        });
+    }
+
+    @Test
+    void enforcementOnAnswers402WithTheRefusedFeature() throws Exception {
+        InMemoryAccountDirectory accounts = new InMemoryAccountDirectory();
+        accounts.resolveOrCreate(AccountDirectory.PROVIDER_APPLE, "user-1", "Alex");
+        EntitlementService entitlements =
+                new EntitlementService(new InMemoryEntitlementStore(), accounts, true, true);
+        String body = requestJson();
+
+        JavalinTest.test(app(null, entitlements, accounts), (server, client) -> {
+            var response = client.post("/v1/budget/plan", body,
+                    r -> r.header("Authorization", bearerFor("user-1")));
+            // 402 is the contract both clients map to SubscriptionRequired(feature).
+            assertEquals(402, response.code());
+            JsonNode json = MAPPER.readTree(response.body().string());
+            assertEquals("subscription_required", json.get("error").asText());
+            assertEquals("budget_plan", json.get("feature").asText());
+        });
+    }
+
+    @Test
+    void grandfatheredBudgetUsersAreNotRefusedUnderEnforcement() throws Exception {
+        InMemoryAccountDirectory accounts = new InMemoryAccountDirectory();
+        String accountId = accounts.resolveOrCreate(AccountDirectory.PROVIDER_APPLE, "user-1", "Alex");
+        accounts.grantLegacyProBudget(accountId);
+        EntitlementService entitlements =
+                new EntitlementService(new InMemoryEntitlementStore(), accounts, true, true);
+        String body = requestJson();
+
+        JavalinTest.test(app(null, entitlements, accounts), (server, client) -> {
+            var response = client.post("/v1/budget/plan", body,
+                    r -> r.header("Authorization", bearerFor("user-1")));
+            assertEquals(503, response.code(), "grandfathered accounts must pass the gate");
+        });
+    }
+
+    @Test
+    void anAnonymousCallerStillGets401NotA402() {
+        InMemoryAccountDirectory accounts = new InMemoryAccountDirectory();
+        EntitlementService entitlements =
+                new EntitlementService(new InMemoryEntitlementStore(), accounts, true, true);
+
+        JavalinTest.test(app(null, entitlements, accounts), (server, client) ->
+                assertEquals(401, client.post("/v1/budget/plan", "{}").code()));
     }
 }

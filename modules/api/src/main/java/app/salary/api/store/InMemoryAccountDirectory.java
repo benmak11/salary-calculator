@@ -13,6 +13,7 @@ public class InMemoryAccountDirectory implements AccountDirectory {
     private final Clock clock;
     private final Map<String, Account> accounts = new ConcurrentHashMap<>();
     private final Map<String, Identity> identities = new ConcurrentHashMap<>();
+    private final java.util.Set<String> legacyProBudget = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     public InMemoryAccountDirectory() { this(Clock.systemUTC()); }
     public InMemoryAccountDirectory(Clock clock) { this.clock = clock; }
@@ -52,6 +53,34 @@ public class InMemoryAccountDirectory implements AccountDirectory {
     }
 
     @Override
+    public boolean hasLegacyProBudget(String accountId) {
+        return accountId != null && legacyProBudget.contains(accountId);
+    }
+
+    /**
+     * Test seam standing in for the B1 migration's one-time backfill. Nothing in production
+     * calls this; the flag is written by the migration, not by a running request.
+     */
+    public void grantLegacyProBudget(String accountId) {
+        legacyProBudget.add(accountId);
+    }
+
+    @Override
+    public Optional<String> relinkIdentity(String providerSub, String targetAccountId) {
+        for (Map.Entry<String, Identity> entry : identities.entrySet()) {
+            Identity identity = entry.getValue();
+            if (!identity.sub.equals(providerSub) || identity.accountId.equals(targetAccountId)) {
+                continue;
+            }
+            String previous = identity.accountId;
+            identities.put(entry.getKey(), new Identity(identity.provider, identity.sub,
+                    targetAccountId, identity.createdAt, identity.lastSeenAt));
+            return Optional.of(previous);
+        }
+        return Optional.empty();
+    }
+
+    @Override
     public int deleteByProviderSub(String providerSub) {
         Optional<String> accountId = findAccountIdBySub(providerSub);
         if (accountId.isEmpty()) {
@@ -66,6 +95,7 @@ public class InMemoryAccountDirectory implements AccountDirectory {
         });
         keys.forEach(identities::remove);
         accounts.remove(accountId.get());
+        legacyProBudget.remove(accountId.get());
         return keys.size();
     }
 
