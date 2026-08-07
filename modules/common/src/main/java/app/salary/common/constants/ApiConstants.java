@@ -15,6 +15,8 @@ public final class ApiConstants {
     // MDC log keys
     public static final String MDC_USER_ID = "user_id";
     public static final String MDC_REQUEST_ID = "request_id";
+    public static final String MDC_CLIENT_PLATFORM = "client_platform";
+    public static final String MDC_CLIENT_VERSION = "client_version";
 
     private ApiConstants() {
     }
