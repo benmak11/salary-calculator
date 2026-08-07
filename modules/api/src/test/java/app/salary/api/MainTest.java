@@ -40,9 +40,13 @@ import io.javalin.Javalin;
 import io.javalin.testtools.JavalinTest;
 import io.micrometer.prometheusmetrics.PrometheusConfig;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
+import io.javalin.testtools.Request;
 import org.junit.jupiter.api.Test;
 
+import java.net.http.HttpRequest;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -88,7 +92,7 @@ class MainTest {
         return Main.createApp(mapper, meterRegistry, orchestrator, calculatorRegistry, validator,
                 calculationStore, rulesRegistry, null, null, historyController, accountController, grantsController,
                 budgetController, budgetPlanController, stocksController, eventsController, null,
-                new ClientVersionMiddleware(java.util.Map.of()),
+                new ClientVersionMiddleware(Map.of()),
                 new AccountLinkController(new InMemoryLinkCodeStore(), new InMemoryAccountDirectory(), null, null),
                 new CheckInController(new InMemoryCheckInStore(), new InMemoryAccountDirectory(), validator));
     }
@@ -136,6 +140,44 @@ class MainTest {
             assertEquals(200, response.code());
             JsonNode body = new ObjectMapper().readTree(response.body().string());
             assertEquals("UK", body.get("country").asText());
+        });
+    }
+
+    // ── malformed bodies ─────────────────────────────────────────────────────
+    // These went out as 500s until the Jackson parse handlers were registered, which
+    // reads as "the service is broken" when the caller simply sent the wrong shape.
+
+    @Test
+    void calculate_withUnacceptedEnumValue_returns400NamingTheField() {
+        JavalinTest.test(createApp(), (server, client) -> {
+            var response = client.post("/v1/calculate", Map.of(
+                    "country", "US",
+                    "taxYear", 2026,
+                    "cadence", "ANNUAL",
+                    // Basis is PER_YEAR / PER_PERIOD; "ANNUAL" is the cadence vocabulary.
+                    "earnings", Map.of("salary", Map.of("amount", 100000, "basis", "ANNUAL"))));
+
+            assertEquals(400, response.code());
+            JsonNode body = new ObjectMapper().readTree(response.body().string());
+            String message = body.get("earnings.salary.basis").asText();
+            assertTrue(message.contains("PER_YEAR"), message);
+            assertTrue(message.contains("PER_PERIOD"), message);
+        });
+    }
+
+    @Test
+    void calculate_withUnparseableBody_returns400() {
+        JavalinTest.test(createApp(), (server, client) -> {
+            // request(), not post(): post() applies its own body publisher AFTER the caller's
+            // customizer runs, so a raw body set there is silently replaced by the serialized
+            // `json` argument (noBody() when that argument is null).
+            var response = client.request("/v1/calculate", (Consumer<Request.Builder>) req -> req
+                    .post(HttpRequest.BodyPublishers.ofString("{not json"))
+                    .header("Content-Type", "application/json"));
+
+            assertEquals(400, response.code());
+            JsonNode body = new ObjectMapper().readTree(response.body().string());
+            assertEquals("is not valid JSON", body.get("body").asText());
         });
     }
 
