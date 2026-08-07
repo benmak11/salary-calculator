@@ -109,6 +109,16 @@ public class Main {
         // so a future swap is a Cloud Run env change, not a code deploy.
         String vertexAiLocation = Env.stringValue("VERTEX_AI_LOCATION", "global");
         String vertexAiModel = Env.stringValue("VERTEX_AI_MODEL", "gemini-3.1-flash-lite");
+        // A ceiling, not a delay: a call that answers in 3s still answers in 3s. 10s is
+        // tight enough that a pathological call cannot hold a request slot for long, and
+        // loose enough for a flash-lite budget-plan prompt. Cutting a slow-but-successful
+        // call costs the user only the on-device fallback.
+        //
+        // Env-tunable so retuning from observed latency is a Cloud Run change, not a
+        // redeploy — same reasoning as VERTEX_AI_MODEL/VERTEX_AI_LOCATION above. Must stay
+        // well below Cloud Run's request timeout, or the platform kills the request before
+        // this deadline fires and the client loses its graceful fallback.
+        int vertexAiTimeoutSeconds = Env.intValue("VERTEX_AI_TIMEOUT_SECONDS", 10);
 
         // ── Shared infra ─────────────────────────────────────────────────────
         ObjectMapper objectMapper = buildObjectMapper();
@@ -141,8 +151,8 @@ public class Main {
                 rulesRegistry, calculatorRegistry, rulePackClient, meterRegistry);
 
         StockClient stockClient = buildStockClient(httpClient, objectMapper, finnhubApiKey, finnhubBaseUrl);
-        BudgetPlanService budgetPlanService =
-                buildBudgetPlanService(projectId, vertexAiLocation, vertexAiModel, enableGcp, objectMapper);
+        BudgetPlanService budgetPlanService = buildBudgetPlanService(
+                projectId, vertexAiLocation, vertexAiModel, vertexAiTimeoutSeconds, enableGcp, objectMapper);
 
         // ── Persistence + identity (lazy / optional) ─────────────────────────
         Firestore firestore = enableGcp ? buildFirestore(projectId) : null;
@@ -359,9 +369,10 @@ public class Main {
         }
     }
 
-    private static GenerativeAiClient buildGenerativeAiClient(String projectId, String location) {
+    private static GenerativeAiClient buildGenerativeAiClient(String projectId, String location,
+                                                              int timeoutSeconds) {
         try {
-            return new VertexGenerativeAiClient(projectId, location);
+            return new VertexGenerativeAiClient(projectId, location, Duration.ofSeconds(timeoutSeconds));
         } catch (Exception e) {
             log.warn("Failed to construct Vertex AI client (projectId={}, location={}): {}",
                     projectId, location, e.getMessage());
@@ -379,16 +390,18 @@ public class Main {
     }
 
     private static BudgetPlanService buildBudgetPlanService(String projectId, String vertexAiLocation,
-                                                              String vertexAiModel, boolean enableGcp,
+                                                              String vertexAiModel, int timeoutSeconds,
+                                                              boolean enableGcp,
                                                               ObjectMapper objectMapper) {
         GenerativeAiClient generativeAiClient = enableGcp
-                ? buildGenerativeAiClient(projectId, vertexAiLocation)
+                ? buildGenerativeAiClient(projectId, vertexAiLocation, timeoutSeconds)
                 : null;
         if (generativeAiClient == null) {
             log.warn("Vertex AI unavailable (ENABLE_GCP={}) — POST /v1/budget/plan will answer 503 "
                     + "(client falls back to its own on-device plan).", enableGcp);
             return null;
         }
+        log.info("Vertex AI budget planning enabled: model={}, timeout={}s", vertexAiModel, timeoutSeconds);
         return new BudgetPlanService(generativeAiClient, objectMapper, vertexAiModel);
     }
 
@@ -479,10 +492,6 @@ public class Main {
                 () -> log.warn("Minimum client version for {} is not a version ('{}'); "
                         + "leaving {} unenforced.", platform, configured, platform));
     }
-
-
-
-
 
     private static AuthController buildAuthController(String appleAudience, String googleAudience,
                                                         String sessionSecretEnv,

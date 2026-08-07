@@ -50,6 +50,17 @@ class BudgetPlanControllerTest {
         throw new GenerativeAiException("upstream down");
     };
 
+    /**
+     * Shaped like a real deadline breach: {@code VertexGenerativeAiClient} wraps the
+     * transport's {@link java.net.SocketTimeoutException} into a
+     * {@link GenerativeAiException}. That class needs live GCP and is coverage-excluded, so
+     * the mapping is proven here, at the boundary the client actually depends on.
+     */
+    private static final GenerativeAiClient TIMING_OUT_CLIENT = (model, prompt, schema) -> {
+        throw new GenerativeAiException("Gemini request timed out after 10s",
+                new java.net.SocketTimeoutException("Read timed out"));
+    };
+
     private SessionTokenService sessionTokens;
 
     @BeforeEach
@@ -233,5 +244,19 @@ class BudgetPlanControllerTest {
 
         JavalinTest.test(app(null, entitlements, accounts), (server, client) ->
                 assertEquals(401, client.post("/v1/budget/plan", "{}").code()));
+    }
+
+    @Test
+    void generate_upstreamTimeout_returns503SoTheClientFallsBackLocally() throws Exception {
+        // The whole point of the deadline: a hung Gemini call used to ride to Cloud Run's
+        // 300s request timeout. It now surfaces as the same 503 the iOS client already
+        // maps to BudgetEngine's on-device plan, just far sooner.
+        String body = requestJson();
+
+        JavalinTest.test(app(new BudgetPlanService(TIMING_OUT_CLIENT, MAPPER, MODEL)), (server, client) -> {
+            var response = client.post("/v1/budget/plan", body,
+                    r -> r.header("Authorization", bearerFor("user-1")));
+            assertEquals(503, response.code());
+        });
     }
 }
