@@ -20,6 +20,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -113,6 +114,11 @@ public class HttpRulePackClient implements RulePackClient {
             }
 
             RulePack rulePack = objectMapper.convertValue(rulePackJson, RulePack.class);
+            if (!hasReadableBrackets(rulePack)) {
+                log.warn("Discarding rule pack for {} {}: brackets carry no 'over' bound, so the pack "
+                        + "predates the current schema. Falling back to the embedded rules.", country, taxYear);
+                return null;
+            }
             log.debug("Fetched rule pack from rule-pack-service: {} {}", country, taxYear);
             return rulePack;
         } catch (InterruptedException e) {
@@ -142,6 +148,41 @@ public class HttpRulePackClient implements RulePackClient {
             return new HashMap<>();
         }
         return objectMapper.readValue(resp.body(), JSON_MAP);
+    }
+
+    /**
+     * True when every bracket in the pack states its own lower bound.
+     *
+     * <p>The mapper here disables {@code FAIL_ON_UNKNOWN_PROPERTIES} so a pack carrying fields
+     * this version does not know about still loads. The cost is that a pack written against an
+     * older bracket schema loses its bounds silently rather than failing to parse, which would
+     * put every band at the top marginal rate. Checking on the way in keeps such a pack out of
+     * the cache and lets the orchestrator fall back to the embedded rules — the same path an
+     * unreachable rule-pack-service takes.
+     */
+    private static boolean hasReadableBrackets(RulePack pack) {
+        RulePack.Federal federal = pack.getFederal();
+        if (federal != null) {
+            if (!bounded(federal.getBrackets())) {
+                return false;
+            }
+            Map<String, List<RulePack.TaxBracket>> byFilingStatus = federal.getBracketsByFilingStatus();
+            if (byFilingStatus != null
+                    && !byFilingStatus.values().stream().allMatch(HttpRulePackClient::bounded)) {
+                return false;
+            }
+        }
+        Map<String, RulePack.StateRules> states = pack.getStates();
+        if (states != null && !states.values().stream()
+                .allMatch(state -> state == null || bounded(state.getBrackets()))) {
+            return false;
+        }
+        return pack.getIncomeTax() == null || bounded(pack.getIncomeTax().getBands());
+    }
+
+    /** A null or empty list is vacuously fine — the pack simply has no brackets of that kind. */
+    private static boolean bounded(List<RulePack.TaxBracket> brackets) {
+        return brackets == null || brackets.stream().allMatch(bracket -> bracket.getOver() != null);
     }
 
     private static String trimTrailingSlash(String url) {

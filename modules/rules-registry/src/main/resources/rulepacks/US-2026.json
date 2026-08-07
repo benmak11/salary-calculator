@@ -2,7 +2,7 @@
   "metadata": {
     "country": "US",
     "taxYear": 2026,
-    "version": "US-2026.1.0"
+    "version": "US-2026.2.0"
   },
   "federal": {
     "standardDeductions": {
@@ -599,7 +599,7 @@
           "rate": 0.047
         },
         {
-          "over": 21100,
+          "over": 47500,
           "rate": 0.0565
         }
       ],

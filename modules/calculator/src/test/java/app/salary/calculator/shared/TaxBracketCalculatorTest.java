@@ -121,13 +121,6 @@ class TaxBracketCalculatorTest {
         assertEquals(2500.0, detail.getTax(), 0.01);
     }
 
-    // ── legacy upper-bound schema ────────────────────────────────────────────
-    // Rule packs published to the rule-pack-service before the `over` migration
-    // still carry `upTo`. The mapper behind HttpRulePackClient disables
-    // FAIL_ON_UNKNOWN_PROPERTIES, so an unrecognised field would be dropped
-    // silently rather than raising — these guard that the legacy form keeps
-    // computing identical numbers until every stored pack is republished.
-
     private static RulePack.TaxBracket over(Double over, double rate) {
         RulePack.TaxBracket b = new RulePack.TaxBracket();
         b.setOver(over);
@@ -135,41 +128,30 @@ class TaxBracketCalculatorTest {
         return b;
     }
 
-    @SuppressWarnings("deprecation")
-    private static RulePack.TaxBracket upTo(Double upTo, double rate) {
-        RulePack.TaxBracket b = new RulePack.TaxBracket();
-        b.setUpTo(upTo);
-        b.setRate(rate);
-        return b;
+    // ── unreadable brackets ──────────────────────────────────────────────────
+    // A bracket with no `over` means the pack was written against a schema this
+    // version cannot read. Defaulting the bound to zero would collapse the whole
+    // table into one unbounded band and tax every pound at the top rate, so the
+    // calculator refuses instead. Callers reject such a pack at the boundary
+    // (see HttpRulePackClientTest); these pin the last line of defence.
+
+    @Test
+    void calculateTax_bracketWithoutLowerBound_shouldThrowRatherThanGuess() {
+        List<RulePack.TaxBracket> unreadable = List.of(
+                over(null, 0.10), over(null, 0.12), over(null, 0.37));
+
+        IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+                () -> calculator.calculateTax(100000.0, unreadable));
+        assertTrue(thrown.getMessage().contains("no lower bound"), thrown.getMessage());
     }
 
     @Test
-    void calculateTax_legacyUpToSchema_shouldMatchOverSchema() {
-        // Same three bands expressed both ways.
-        List<RulePack.TaxBracket> legacy = List.of(
-                upTo(12400.0, 0.10), upTo(50400.0, 0.12), upTo(null, 0.22));
-        List<RulePack.TaxBracket> modern = List.of(
-                over(0.0, 0.10), over(12400.0, 0.12), over(50400.0, 0.22));
+    void calculateTaxWithBreakdown_bracketWithoutLowerBound_shouldThrowRatherThanGuess() {
+        List<RulePack.TaxBracket> partiallyUnreadable = List.of(
+                over(0.0, 0.10), over(null, 0.12));
 
-        for (double income : new double[]{0, 1, 12400, 12401, 50400, 75000, 250000}) {
-            assertEquals(calculator.calculateTax(income, modern),
-                    calculator.calculateTax(income, legacy), 0.0001,
-                    "schemas disagree at income " + income);
-        }
-    }
-
-    @Test
-    void calculateTaxWithBreakdown_legacyUpToSchema_shouldMatchOverSchema() {
-        List<RulePack.TaxBracket> legacy = List.of(
-                upTo(12400.0, 0.10), upTo(50400.0, 0.12), upTo(null, 0.22));
-        List<RulePack.TaxBracket> modern = List.of(
-                over(0.0, 0.10), over(12400.0, 0.12), over(50400.0, 0.22));
-
-        var fromLegacy = calculator.calculateTaxWithBreakdown(75000.0, legacy);
-        var fromModern = calculator.calculateTaxWithBreakdown(75000.0, modern);
-
-        assertEquals(fromModern.getTotalTax(), fromLegacy.getTotalTax(), 0.0001);
-        assertEquals(fromModern.getBands().size(), fromLegacy.getBands().size());
+        assertThrows(IllegalArgumentException.class,
+                () -> calculator.calculateTaxWithBreakdown(100000.0, partiallyUnreadable));
     }
 
     @Test

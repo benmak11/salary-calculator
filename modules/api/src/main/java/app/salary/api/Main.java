@@ -38,6 +38,7 @@ import app.salary.api.store.EventStore;
 import app.salary.api.store.GrantStore;
 import app.salary.api.store.StoreFactory;
 import app.salary.api.store.UserDirectory;
+import app.salary.api.validation.JsonBodyErrors;
 import app.salary.api.validation.RequestValidator;
 import app.salary.api.validation.ValidationException;
 import app.salary.api.version.ClientVersion;
@@ -54,8 +55,10 @@ import app.salary.calculator.shared.StudentLoanCalculator;
 import app.salary.calculator.shared.TaxBracketCalculator;
 import app.salary.common.constants.ApiConstants;
 import app.salary.rules.RulesRegistry;
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.cloud.firestore.Firestore;
@@ -288,6 +291,19 @@ public class Main {
                 log.warn("Illegal argument: {}", e.getMessage());
                 ctx.status(HttpStatus.UNPROCESSABLE_CONTENT)
                         .json(Map.of(ApiConstants.ERROR, String.valueOf(e.getMessage())));
+            });
+            // A body that does not fit the DTO is the caller's mistake, so 400 rather than the
+            // 500 these used to fall through to. Only the field path is logged or returned:
+            // Jackson's message quotes the rejected value, which on a salary field is earnings.
+            // InvalidDefinitionException is deliberately NOT covered — that one is our bug and
+            // still belongs in the 500 handler below.
+            config.routes.exception(MismatchedInputException.class, (e, ctx) -> {
+                log.warn("Malformed request body at field '{}'", JsonBodyErrors.fieldPath(e));
+                ctx.status(HttpStatus.BAD_REQUEST).json(JsonBodyErrors.forMismatch(e));
+            });
+            config.routes.exception(JsonParseException.class, (e, ctx) -> {
+                log.warn("Request body is not valid JSON");
+                ctx.status(HttpStatus.BAD_REQUEST).json(JsonBodyErrors.forUnparseableJson());
             });
             config.routes.exception(Exception.class, (e, ctx) -> {
                 log.error("Unexpected error", e);

@@ -9,7 +9,7 @@ mode is a silently mis-keyed threshold rather than a crash.
 Checks per pack:
   - every US pack covers all 50 states + DC, and nothing else
   - bracket thresholds strictly increase within a bracket list
-  - exactly one unbounded (no `upTo`) bracket, and it is last
+  - every bracket states an explicit `over`, and the first is 0
   - rates are within a sane range and non-decreasing across brackets
   - required federal/FICA/UK fields are present and sanely bounded
   - year-over-year drift on shared keys is flagged for review
@@ -51,15 +51,20 @@ def check_brackets(label: str, brackets: list, max_rate: float) -> None:
 
     Brackets are lower-bound (`over`) form, matching published tax tables: the
     first band starts at 0 and each subsequent `over` strictly increases. The
-    legacy upper-bound `upTo` form is still accepted by the Java model for
-    remote packs, but no checked-in pack should use it.
+    legacy upper-bound `upTo` form is no longer understood anywhere — the Java
+    model dropped the field, so a pack still using it now deserializes with null
+    bounds and is rejected outright by HttpRulePackClient.
     """
     if not brackets:
         return  # a state with no income tax legitimately has none
 
     legacy = [i for i, b in enumerate(brackets) if "upTo" in b]
     if legacy:
-        err(f"{label}: uses the legacy 'upTo' form at {legacy}; convert to 'over'")
+        err(f"{label}: uses the retired 'upTo' form at {legacy}; convert to 'over'")
+
+    missing = [i for i, b in enumerate(brackets) if b.get("over") is None]
+    if missing:
+        err(f"{label}: brackets {missing} have no 'over' bound")
 
     first = brackets[0].get("over")
     if first != 0:

@@ -14,29 +14,32 @@ import java.util.Map;
  * applies to income above its own bound and below the next bracket's, and the last bracket is
  * unbounded. This mirrors how tax authorities publish their tables.
  *
- * <p>Packs written against the older upper-bound (<em>upTo</em>) schema are normalized on
- * read, so a remote pack predating the change still computes correctly.
+ * <p>An earlier schema expressed brackets as upper bounds ({@code upTo}) and was normalized
+ * here on read. That field is gone: every rule pack, embedded or remote, now states
+ * {@code over} explicitly, and {@link app.salary.calculator.client.RulePackClient}
+ * implementations reject any pack that does not.
  */
 public class TaxBracketCalculator {
 
     /**
-     * Lower bound of each bracket, resolving the legacy {@code upTo} form where needed.
+     * Lower bound of each bracket.
      *
-     * <p>Under {@code upTo} a bracket starts wherever the previous one ended, and the first
-     * starts at zero, so the two schemas describe identical bands and convert exactly.
+     * <p>Throws rather than defaulting a missing bound. A null {@code over} means the pack
+     * was written against a schema this version does not understand, and every plausible
+     * default silently mis-taxes: treating it as zero collapses the whole table into one
+     * unbounded band, so all income is charged at the top marginal rate. Wrong numbers that
+     * look right are the worst outcome for a payroll calculator, so this fails loudly and
+     * lets callers fall back to a pack they can read.
      */
     private static List<Double> lowerBounds(List<RulePack.TaxBracket> brackets) {
         List<Double> bounds = new ArrayList<>(brackets.size());
         for (int i = 0; i < brackets.size(); i++) {
             Double over = brackets.get(i).getOver();
-            if (over != null) {
-                bounds.add(over);
-            } else if (i == 0) {
-                bounds.add(0.0);
-            } else {
-                Double previousUpTo = brackets.get(i - 1).getUpTo();
-                bounds.add(previousUpTo != null ? previousUpTo : bounds.get(i - 1));
+            if (over == null) {
+                throw new IllegalArgumentException(
+                        "Tax bracket " + i + " has no lower bound ('over'); rule pack is unreadable");
             }
+            bounds.add(over);
         }
         return bounds;
     }

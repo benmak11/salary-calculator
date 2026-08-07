@@ -153,8 +153,17 @@ class RulesRegistryTest {
     @Test
     void getRulePack_us2025_shouldBeAtLeastVersion11_0() {
         RulePack rulePack = registry.getRulePack("US", 2025);
-        // Phase 3 bumped version from 10.0 → 11.0 (2025 IRS-current brackets + new states)
-        assertEquals("US-2025.11.0", rulePack.getMetadata().getVersion());
+        // Phase 3 bumped version from 10.0 → 11.0 (2025 IRS-current brackets + new states).
+        // Asserted as a floor rather than an equality, matching the name: correcting a figure
+        // in the pack bumps the minor version, and that should not fail a test whose point is
+        // that the pack has not regressed below Phase 3.
+        String version = rulePack.getMetadata().getVersion();
+        assertTrue(minorVersion(version) >= 11, version);
+    }
+
+    /** Minor component of a {@code US-2025.11.0} style pack version. */
+    private static int minorVersion(String version) {
+        return Integer.parseInt(version.split("\\.")[1]);
     }
 
     @Test
@@ -206,6 +215,51 @@ class RulesRegistryTest {
         for (String code : new String[]{"CA", "NY", "TX", "FL", "IL", "PA", "OH", "GA", "NC", "MI", "MD"}) {
             assertTrue(states.containsKey(code), code + " should be in the rule pack");
         }
+    }
+
+    // ── corrections, pinned so they cannot silently regress ──────────────────
+    // Three 2025 modelling errors found while building the 2026 packs and fixed there
+    // first, plus one 2026 figure that was carried over from 2025 by mistake. Each was
+    // confirmed against the state revenue department before being changed.
+
+    @Test
+    void getRulePack_us2025_deShouldExemptTheFirstTwoThousand() {
+        var brackets = registry.getRulePack("US", 2025).getStates().get("DE").getBrackets();
+
+        assertEquals(0.0, brackets.get(0).getOver());
+        assertEquals(0.0, brackets.get(0).getRate(), "Delaware exempts the first $2,000");
+        assertEquals(2000.0, brackets.get(1).getOver());
+        assertEquals(0.022, brackets.get(1).getRate());
+    }
+
+    @Test
+    void getRulePack_us2025_njTopBracketShouldStartAtOneMillion() {
+        var brackets = registry.getRulePack("US", 2025).getStates().get("NJ").getBrackets();
+        var top = brackets.get(brackets.size() - 1);
+
+        // Had been modelled at $5,000,000, under-taxing filers between $1M and $5M.
+        assertEquals(1000000.0, top.getOver());
+        assertEquals(0.1075, top.getRate());
+    }
+
+    @Test
+    void getRulePack_us2025_caShouldIncludeTheMentalHealthSurtaxBand() {
+        var brackets = registry.getRulePack("US", 2025).getStates().get("CA").getBrackets();
+        var top = brackets.get(brackets.size() - 1);
+
+        // 12.3% plus the 1% Mental Health Services surtax on income over $1M.
+        assertEquals(1000000.0, top.getOver());
+        assertEquals(0.133, top.getRate());
+    }
+
+    @Test
+    void getRulePack_us2026_mtLowerBracketShouldReflectHb337Widening() {
+        var brackets = registry.getRulePack("US", 2026).getStates().get("MT").getBrackets();
+
+        // HB 337 widened the 4.7% band to $47,500 for 2026; the pack had kept 2025's 21,100,
+        // which over-taxed every Montana filer earning above it.
+        assertEquals(47500.0, brackets.get(1).getOver());
+        assertEquals(0.0565, brackets.get(1).getRate());
     }
 
     @Test

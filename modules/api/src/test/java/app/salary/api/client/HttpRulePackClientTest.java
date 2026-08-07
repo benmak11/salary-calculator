@@ -1,5 +1,6 @@
 package app.salary.api.client;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -151,6 +152,68 @@ class HttpRulePackClientTest {
                 http, new ObjectMapper(), BASE_URL);
 
         assertFalse(client.fetchLatest("US", 2025).isPresent());
+    }
+
+    /**
+     * Mirrors {@code Main.buildObjectMapper()}, which disables
+     * {@code FAIL_ON_UNKNOWN_PROPERTIES}. A default mapper would reject an unknown key
+     * outright and these tests would pass for the wrong reason — the whole point is that
+     * production silently drops it.
+     */
+    private static ObjectMapper lenientMapper() {
+        return new ObjectMapper().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+    }
+
+    @Test
+    void rejectsPackWhoseBracketsCarryNoLowerBound() throws Exception {
+        HttpClient http = mock(HttpClient.class);
+        @SuppressWarnings("unchecked")
+        HttpResponse<String> metadataResp = mock(HttpResponse.class);
+        when(metadataResp.statusCode()).thenReturn(200);
+        when(metadataResp.body()).thenReturn("{\"id\":\"pack-legacy\"}");
+
+        @SuppressWarnings("unchecked")
+        HttpResponse<String> downloadResp = mock(HttpResponse.class);
+        when(downloadResp.statusCode()).thenReturn(200);
+        // The shape of packs published before brackets moved to `over`. The lenient mapper
+        // drops the unknown `upTo`, so every bound arrives null.
+        when(downloadResp.body()).thenReturn(
+                "{\"metadata\":{\"version\":\"US-2025.11.0\"},"
+                        + "\"federal\":{\"brackets\":[{\"upTo\":11925,\"rate\":0.10},{\"rate\":0.37}]}}");
+
+        doReturn(metadataResp, downloadResp).when(http).send(any(HttpRequest.class), any());
+
+        HttpRulePackClient client = new HttpRulePackClient(http, lenientMapper(), BASE_URL);
+
+        // Empty, so the orchestrator falls back to the embedded rules. Accepting this pack
+        // would put the whole income in one unbounded band at the top marginal rate.
+        assertFalse(client.fetchLatest("US", 2025).isPresent());
+    }
+
+    @Test
+    void acceptsPackWhoseBracketsStateTheirLowerBound() throws Exception {
+        HttpClient http = mock(HttpClient.class);
+        @SuppressWarnings("unchecked")
+        HttpResponse<String> metadataResp = mock(HttpResponse.class);
+        when(metadataResp.statusCode()).thenReturn(200);
+        when(metadataResp.body()).thenReturn("{\"id\":\"pack-current\"}");
+
+        @SuppressWarnings("unchecked")
+        HttpResponse<String> downloadResp = mock(HttpResponse.class);
+        when(downloadResp.statusCode()).thenReturn(200);
+        // Federal, per-filing-status and state brackets all populated: the guard walks
+        // every one of them, so a pack this shaped proves it is not simply over-eager.
+        when(downloadResp.body()).thenReturn(
+                "{\"metadata\":{\"version\":\"US-2026.1.0\"},"
+                        + "\"federal\":{\"brackets\":[{\"over\":0,\"rate\":0.10},{\"over\":11925,\"rate\":0.12}],"
+                        + "\"bracketsByFilingStatus\":{\"MARRIED\":[{\"over\":0,\"rate\":0.10}]}},"
+                        + "\"states\":{\"CA\":{\"brackets\":[{\"over\":0,\"rate\":0.01}]},\"TX\":{\"local\":0}}}");
+
+        doReturn(metadataResp, downloadResp).when(http).send(any(HttpRequest.class), any());
+
+        HttpRulePackClient client = new HttpRulePackClient(http, lenientMapper(), BASE_URL);
+
+        assertTrue(client.fetchLatest("US", 2025).isPresent());
     }
 
     @Test
