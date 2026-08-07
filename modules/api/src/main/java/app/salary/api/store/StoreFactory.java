@@ -45,6 +45,10 @@ public final class StoreFactory {
         return firestore != null ? new FirestoreLinkCodeStore(firestore) : new InMemoryLinkCodeStore();
     }
 
+    public static CheckInStore checkInStore(Firestore firestore, ObjectMapper mapper) {
+        return firestore != null ? new FirestoreCheckInStore(firestore, mapper) : new InMemoryCheckInStore();
+    }
+
     public static EventStore eventStore(Firestore firestore) {
         return firestore != null ? new FirestoreEventStore(firestore) : new InMemoryEventStore();
     }

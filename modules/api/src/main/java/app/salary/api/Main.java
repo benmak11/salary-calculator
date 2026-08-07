@@ -17,6 +17,7 @@ import app.salary.api.controller.BudgetPlanController;
 import app.salary.api.controller.CalculateController;
 import app.salary.api.controller.CalculationHistoryController;
 import app.salary.api.controller.AccountLinkController;
+import app.salary.api.controller.CheckInController;
 import app.salary.api.controller.EventsController;
 import app.salary.api.ratelimit.RateLimitMiddleware;
 import app.salary.api.ratelimit.RateLimiter;
@@ -28,6 +29,9 @@ import app.salary.api.service.SubscriptionRequiredException;
 import app.salary.api.store.AccountDirectory;
 import app.salary.api.store.BudgetStore;
 import app.salary.api.store.CalculationStore;
+import app.salary.api.store.AccountKeyedStores;
+import app.salary.api.store.CheckInStore;
+import app.salary.api.store.SubKeyedStores;
 import app.salary.api.store.EntitlementStore;
 import app.salary.api.store.LinkCodeStore;
 import app.salary.api.store.EventStore;
@@ -164,6 +168,8 @@ public class Main {
         EventStore eventStore = StoreFactory.eventStore(firestore);
         EntitlementStore entitlementStore = StoreFactory.entitlementStore(firestore);
         LinkCodeStore linkCodeStore = StoreFactory.linkCodeStore(firestore);
+        CheckInStore checkInStore = StoreFactory.checkInStore(firestore, objectMapper);
+
         if (firestore == null) {
             log.warn("Firestore unavailable (ENABLE_GCP={}); user directory + accounts + calculation history + grants + budget + events are in-memory only.", enableGcp);
         }
@@ -176,12 +182,15 @@ public class Main {
 
         CalculationHistoryController historyController = new CalculationHistoryController(calculationStore);
         AccountController accountController =
-                new AccountController(calculationStore, grantStore, budgetStore, userDirectory,
-                        accountDirectory, entitlementStore, linkCodeStore);
+                new AccountController(accountDirectory,
+                        new SubKeyedStores(calculationStore, grantStore, budgetStore, userDirectory),
+                        new AccountKeyedStores(entitlementStore, linkCodeStore, checkInStore));
         GrantsController grantsController = new GrantsController(grantStore, requestValidator);
         BudgetController budgetController = new BudgetController(budgetStore, requestValidator);
         EntitlementService entitlementService = buildEntitlementService(entitlementStore, accountDirectory);
         RateLimiter linkRedeemLimiter = buildLinkRedeemLimiter();
+        CheckInController checkInController =
+                new CheckInController(checkInStore, accountDirectory, requestValidator);
         AccountLinkController accountLinkController =
                 new AccountLinkController(linkCodeStore, accountDirectory, entitlementService,
                         linkRedeemLimiter);
@@ -197,7 +206,8 @@ public class Main {
                 calculatorRegistry, requestValidator, calculationStore, rulesRegistry,
                 authMiddleware, authController, historyController, accountController,
                 grantsController, budgetController, budgetPlanController, stocksController,
-                eventsController, rateLimitMiddleware, clientVersionMiddleware, accountLinkController);
+                eventsController, rateLimitMiddleware, clientVersionMiddleware, accountLinkController,
+                checkInController);
 
         // ── Boot ─────────────────────────────────────────────────────────────
         app.start(port);
@@ -232,7 +242,8 @@ public class Main {
                              EventsController eventsController,
                              RateLimitMiddleware rateLimitMiddleware,
                              ClientVersionMiddleware clientVersionMiddleware,
-                             AccountLinkController accountLinkController) {
+                             AccountLinkController accountLinkController,
+                             CheckInController checkInController) {
         return Javalin.create(config -> {
             config.jsonMapper(new JavalinJackson(objectMapper, false));
             config.startup.showJavalinBanner = false;
@@ -292,6 +303,7 @@ public class Main {
             historyController.register(config.routes);
             accountController.register(config.routes);
             accountLinkController.register(config.routes);
+            checkInController.register(config.routes);
             grantsController.register(config.routes);
             budgetController.register(config.routes);
             budgetPlanController.register(config.routes);

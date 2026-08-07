@@ -8,6 +8,9 @@ import app.salary.api.store.CalculationStore;
 import app.salary.api.store.GrantStore;
 import app.salary.api.store.InMemoryAccountDirectory;
 import app.salary.api.store.InMemoryEntitlementStore;
+import app.salary.api.store.AccountKeyedStores;
+import app.salary.api.store.InMemoryCheckInStore;
+import app.salary.api.store.SubKeyedStores;
 import app.salary.api.store.InMemoryLinkCodeStore;
 import app.salary.api.store.InMemoryBudgetStore;
 import app.salary.api.store.InMemoryCalculationStore;
@@ -45,6 +48,7 @@ class AccountControllerTest {
     private AccountDirectory accounts;
     private InMemoryEntitlementStore entitlements;
     private InMemoryLinkCodeStore linkCodes;
+    private InMemoryCheckInStore checkIns;
 
     @BeforeEach
     void setUp() {
@@ -55,6 +59,7 @@ class AccountControllerTest {
         accounts = new InMemoryAccountDirectory();
         entitlements = new InMemoryEntitlementStore();
         linkCodes = new InMemoryLinkCodeStore();
+        checkIns = new InMemoryCheckInStore();
         byte[] secret = new byte[32];
         for (int i = 0; i < secret.length; i++) secret[i] = (byte) i;
         sessionTokens = new SessionTokenService(secret);
@@ -66,7 +71,9 @@ class AccountControllerTest {
             config.jsonMapper(new JavalinJackson(MAPPER, false));
             config.startup.showJavalinBanner = false;
             config.routes.before(middleware::handle);
-            new AccountController(store, grants, budgets, users, accounts, entitlements, linkCodes)
+            new AccountController(accounts,
+                    new SubKeyedStores(store, grants, budgets, users),
+                    new AccountKeyedStores(entitlements, linkCodes, checkIns))
                     .register(config.routes);
         });
     }

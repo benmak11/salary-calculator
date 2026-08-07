@@ -2,12 +2,8 @@ package app.salary.api.controller;
 
 import app.salary.api.auth.AuthMiddleware;
 import app.salary.api.store.AccountDirectory;
-import app.salary.api.store.BudgetStore;
-import app.salary.api.store.CalculationStore;
-import app.salary.api.store.EntitlementStore;
-import app.salary.api.store.LinkCodeStore;
-import app.salary.api.store.GrantStore;
-import app.salary.api.store.UserDirectory;
+import app.salary.api.store.AccountKeyedStores;
+import app.salary.api.store.SubKeyedStores;
 import app.salary.common.constants.ApiConstants;
 import io.javalin.config.RoutesConfig;
 import io.javalin.http.Context;
@@ -27,25 +23,15 @@ import java.util.Optional;
 public class AccountController {
     private static final Logger log = LoggerFactory.getLogger(AccountController.class);
 
-    private final CalculationStore calculationStore;
-    private final GrantStore grantStore;
-    private final BudgetStore budgetStore;
-    private final UserDirectory users;
     private final AccountDirectory accounts;
-    private final EntitlementStore entitlements;
-    private final LinkCodeStore linkCodes;
+    private final SubKeyedStores subKeyed;
+    private final AccountKeyedStores accountKeyed;
 
-    public AccountController(CalculationStore calculationStore, GrantStore grantStore,
-                              BudgetStore budgetStore, UserDirectory users,
-                              AccountDirectory accounts, EntitlementStore entitlements,
-                              LinkCodeStore linkCodes) {
-        this.calculationStore = calculationStore;
-        this.grantStore = grantStore;
-        this.budgetStore = budgetStore;
-        this.users = users;
+    public AccountController(AccountDirectory accounts, SubKeyedStores subKeyed,
+                              AccountKeyedStores accountKeyed) {
         this.accounts = accounts;
-        this.entitlements = entitlements;
-        this.linkCodes = linkCodes;
+        this.subKeyed = subKeyed;
+        this.accountKeyed = accountKeyed;
     }
 
     public void register(RoutesConfig routes) {
@@ -72,24 +58,34 @@ public class AccountController {
             return;
         }
         MDC.put(ApiConstants.MDC_USER_ID, userId.get());
-        int removed = calculationStore.deleteAll(userId.get());
-        int grantsRemoved = grantStore.deleteAll(userId.get());
-        boolean budgetRemoved = budgetStore.delete(userId.get());
-        users.delete(userId.get());
+        int removed = subKeyed.calculations().deleteAll(userId.get());
+        int grantsRemoved = subKeyed.grants().deleteAll(userId.get());
+        boolean budgetRemoved = subKeyed.budgets().delete(userId.get());
+        subKeyed.users().delete(userId.get());
 
         // Resolve first: deleteByProviderSub removes the identity that makes this lookup work.
         Optional<String> accountId = accounts == null
                 ? Optional.empty()
                 : accounts.findAccountIdBySub(userId.get());
-        accountId.ifPresent(id -> {
-            if (entitlements != null) entitlements.deleteAll(id);
-            if (linkCodes != null) linkCodes.deleteByAccountId(id);
-        });
+        accountId.ifPresent(this::purgeAccountKeyed);
 
         int identitiesRemoved = accounts != null ? accounts.deleteByProviderSub(userId.get()) : 0;
         log.info("account deleted: calculationsRemoved={} grantsRemoved={} budgetRemoved={} "
                         + "identitiesRemoved={} entitlementsPurged={}",
                 removed, grantsRemoved, budgetRemoved, identitiesRemoved, accountId.isPresent());
         ctx.status(HttpStatus.NO_CONTENT);
+    }
+
+    /** A store that is not configured has nothing to purge, which is not an error. */
+    private void purgeAccountKeyed(String accountId) {
+        if (accountKeyed.entitlements() != null) {
+            accountKeyed.entitlements().deleteAll(accountId);
+        }
+        if (accountKeyed.linkCodes() != null) {
+            accountKeyed.linkCodes().deleteByAccountId(accountId);
+        }
+        if (accountKeyed.checkIns() != null) {
+            accountKeyed.checkIns().deleteAll(accountId);
+        }
     }
 }
