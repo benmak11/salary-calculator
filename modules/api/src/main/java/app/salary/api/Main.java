@@ -31,6 +31,9 @@ import app.salary.api.store.StoreFactory;
 import app.salary.api.store.UserDirectory;
 import app.salary.api.validation.RequestValidator;
 import app.salary.api.validation.ValidationException;
+import app.salary.api.version.ClientVersion;
+import app.salary.api.version.ClientVersionMiddleware;
+import app.salary.api.version.UpgradeRequiredException;
 import app.salary.calculator.client.RulePackClient;
 import app.salary.calculator.countries.UKCalculator;
 import app.salary.calculator.countries.USCalculator;
@@ -63,6 +66,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -163,12 +167,13 @@ public class Main {
         EventsController eventsController =
                 new EventsController(eventStore, accountDirectory, requestValidator);
         RateLimitMiddleware rateLimitMiddleware = buildRateLimiter();
+        ClientVersionMiddleware clientVersionMiddleware = buildClientVersionGate();
 
         Javalin app = createApp(objectMapper, meterRegistry, orchestrator,
                 calculatorRegistry, requestValidator, calculationStore, rulesRegistry,
                 authMiddleware, authController, historyController, accountController,
                 grantsController, budgetController, budgetPlanController, stocksController,
-                eventsController, rateLimitMiddleware);
+                eventsController, rateLimitMiddleware, clientVersionMiddleware);
 
         // ── Boot ─────────────────────────────────────────────────────────────
         app.start(port);
@@ -201,7 +206,8 @@ public class Main {
                              BudgetPlanController budgetPlanController,
                              StocksController stocksController,
                              EventsController eventsController,
-                             RateLimitMiddleware rateLimitMiddleware) {
+                             RateLimitMiddleware rateLimitMiddleware,
+                             ClientVersionMiddleware clientVersionMiddleware) {
         return Javalin.create(config -> {
             config.jsonMapper(new JavalinJackson(objectMapper, false));
             config.startup.showJavalinBanner = false;
@@ -223,6 +229,12 @@ public class Main {
                 ctx.header(REQUEST_ID_HEADER, requestId);
             });
 
+            // Before auth and rate limiting so the client platform/version lands in the MDC
+            // for every request, including ones those two turn away.
+            if (clientVersionMiddleware != null) {
+                config.routes.before(clientVersionMiddleware::handle);
+            }
+
             if (authMiddleware != null) {
                 config.routes.before(authMiddleware::handle);
             }
@@ -242,8 +254,8 @@ public class Main {
                     int status = ctx.status().getCode();
                     MDC.put("status",      String.valueOf(status));
                     MDC.put("duration_ms", String.valueOf(durationMs));
-                    access.info("{} {} -> {} ({}ms)",
-                            ctx.method(), ctx.path(), status, durationMs);
+                    access.info("{} {} -> {} ({}ms){}",
+                            ctx.method(), ctx.path(), status, durationMs, accessLogClientSuffix());
                 } finally {
                     MDC.clear();
                 }
@@ -253,6 +265,10 @@ public class Main {
                 log.warn("Validation failed: {}", e.getErrors());
                 ctx.status(HttpStatus.BAD_REQUEST).json(e.getErrors());
             });
+            // 426 with a JSON body regardless of what the client sent in Accept — an old
+            // build's upgrade prompt cannot depend on a header that build may not set.
+            config.routes.exception(UpgradeRequiredException.class, (e, ctx) ->
+                    ctx.status(HttpStatus.UPGRADE_REQUIRED).json(e.getBody()));
             config.routes.exception(IllegalArgumentException.class, (e, ctx) -> {
                 log.warn("Illegal argument: {}", e.getMessage());
                 ctx.status(HttpStatus.UNPROCESSABLE_CONTENT)
@@ -281,6 +297,23 @@ public class Main {
             config.routes.get("/actuator/prometheus", ctx ->
                     ctx.contentType("text/plain; version=0.0.4").result(meterRegistry.scrape()));
         });
+    }
+
+    /**
+     * The client platform/version, appended to the access line only when the caller sent
+     * {@code X-Incomatic-Client}. Lines for callers without it (probes, curl, the marketing
+     * site) are unchanged.
+     *
+     * <p>The MDC alone is not enough: the plain pattern renders only {@code request_id}, and
+     * the JSON encoder emits an explicit allowlist. Without this the version gate's observe
+     * mode would record nothing, and observing is the only thing it does until a minimum is set.
+     */
+    private static String accessLogClientSuffix() {
+        String platform = MDC.get(ApiConstants.MDC_CLIENT_PLATFORM);
+        if (platform == null) {
+            return "";
+        }
+        return " client=" + platform + "/" + MDC.get(ApiConstants.MDC_CLIENT_VERSION);
     }
 
     private static Firestore buildFirestore(String projectId) {
@@ -349,6 +382,39 @@ public class Main {
         return new RateLimitMiddleware(
                 new RateLimiter(perMinute, Math.max(1, perMinute / 3), maxCallers),
                 new RateLimiter(eventsPerMinute, Math.max(1, eventsPerMinute / 3), maxCallers));
+    }
+
+    /**
+     * Ships with no minimums, so the gate observes and blocks nothing. That is deliberate:
+     * it must be live here and in a released iOS and Android build before any minimum is set,
+     * because a gate can only act on clients that already send the header.
+     *
+     * <p>Flipping enforcement later means editing {@code deploy.yml} — {@code --set-env-vars}
+     * replaces the whole set, so setting these in the Cloud Run console is wiped on the next
+     * deploy.
+     */
+    private static ClientVersionMiddleware buildClientVersionGate() {
+        Map<String, ClientVersion> minimums = new LinkedHashMap<>();
+        addMinimum(minimums, ClientVersion.IOS, Env.stringValue("MIN_CLIENT_VERSION_IOS", ""));
+        addMinimum(minimums, ClientVersion.ANDROID, Env.stringValue("MIN_CLIENT_VERSION_ANDROID", ""));
+        if (minimums.isEmpty()) {
+            log.info("Client version gate in observe mode: {} is recorded on every request, "
+                    + "no minimum enforced.", ClientVersionMiddleware.CLIENT_HEADER);
+        } else {
+            log.info("Client version gate enforcing minimums: {}", minimums.values());
+        }
+        return new ClientVersionMiddleware(minimums);
+    }
+
+    /** An unparseable minimum leaves that platform unenforced rather than blocking every build. */
+    private static void addMinimum(Map<String, ClientVersion> minimums, String platform, String configured) {
+        if (configured.isBlank()) {
+            return;
+        }
+        ClientVersion.parse(platform, configured).ifPresentOrElse(
+                version -> minimums.put(platform, version),
+                () -> log.warn("Minimum client version for {} is not a version ('{}'); "
+                        + "leaving {} unenforced.", platform, configured, platform));
     }
 
 

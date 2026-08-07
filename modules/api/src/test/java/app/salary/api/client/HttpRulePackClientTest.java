@@ -13,10 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 class HttpRulePackClientTest {
 
@@ -31,7 +28,7 @@ class HttpRulePackClientTest {
         // to capture the first request and inspect its headers.
         when(resp.statusCode()).thenReturn(200);
         when(resp.body()).thenReturn("{}");
-        org.mockito.Mockito.doReturn(resp).when(http).send(any(HttpRequest.class), any());
+        doReturn(resp).when(http).send(any(HttpRequest.class), any());
 
         Supplier<String> tokenSupplier = () -> "test-token";
         HttpRulePackClient client = new HttpRulePackClient(
@@ -63,7 +60,7 @@ class HttpRulePackClientTest {
 
         // First call: returns metadata. Second call: returns download. Subsequent calls
         // would also return the download stub, but we assert they never happen.
-        org.mockito.Mockito.doReturn(metadataResp, downloadResp)
+        doReturn(metadataResp, downloadResp)
                 .when(http).send(any(HttpRequest.class), any());
 
         HttpRulePackClient client = new HttpRulePackClient(
@@ -86,7 +83,7 @@ class HttpRulePackClientTest {
         HttpResponse<String> errorResp = mock(HttpResponse.class);
         when(errorResp.statusCode()).thenReturn(500);
         when(errorResp.body()).thenReturn("");
-        org.mockito.Mockito.doReturn(errorResp).when(http).send(any(HttpRequest.class), any());
+        doReturn(errorResp).when(http).send(any(HttpRequest.class), any());
 
         HttpRulePackClient client = new HttpRulePackClient(
                 http, new ObjectMapper(), BASE_URL);
@@ -115,7 +112,7 @@ class HttpRulePackClientTest {
         when(downloadResp.body()).thenReturn("");
 
         // Both attempts: metadata succeeds, download fails.
-        org.mockito.Mockito.doReturn(metadataResp, downloadResp, metadataResp, downloadResp)
+        doReturn(metadataResp, downloadResp, metadataResp, downloadResp)
                 .when(http).send(any(HttpRequest.class), any());
 
         HttpRulePackClient client = new HttpRulePackClient(
@@ -163,7 +160,7 @@ class HttpRulePackClientTest {
         HttpResponse<String> resp = mock(HttpResponse.class);
         when(resp.statusCode()).thenReturn(200);
         when(resp.body()).thenReturn("{}");
-        org.mockito.Mockito.doReturn(resp).when(http).send(any(HttpRequest.class), any());
+        doReturn(resp).when(http).send(any(HttpRequest.class), any());
 
         HttpRulePackClient client = new HttpRulePackClient(
                 http, new ObjectMapper(), BASE_URL);

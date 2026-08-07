@@ -77,7 +77,7 @@ class MainTest {
                 new EventsController(new InMemoryEventStore(), new InMemoryAccountDirectory(), validator);
         return Main.createApp(mapper, meterRegistry, orchestrator, calculatorRegistry, validator,
                 calculationStore, rulesRegistry, null, null, historyController, accountController, grantsController,
-                budgetController, budgetPlanController, stocksController, eventsController, null);
+                budgetController, budgetPlanController, stocksController, eventsController, null, null);
     }
 
     @Test
