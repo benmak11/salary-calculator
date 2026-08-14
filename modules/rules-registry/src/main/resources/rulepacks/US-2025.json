@@ -2,7 +2,7 @@
   "metadata": {
     "country": "US",
     "taxYear": 2025,
-    "version": "US-2025.12.0"
+    "version": "US-2025.13.0"
   },
   "federal": {
     "standardDeductions": {
@@ -519,6 +519,10 @@
       "brackets": [
         {
           "over": 0,
+          "rate": 0.0
+        },
+        {
+          "over": 1313,
           "rate": 0.02
         },
         {
@@ -705,6 +709,10 @@
       "brackets": [
         {
           "over": 0,
+          "rate": 0.0
+        },
+        {
+          "over": 48475,
           "rate": 0.0195
         },
         {

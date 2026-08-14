@@ -2,7 +2,7 @@
   "metadata": {
     "country": "US",
     "taxYear": 2026,
-    "version": "US-2026.2.0"
+    "version": "US-2026.3.0"
   },
   "federal": {
     "standardDeductions": {
@@ -449,7 +449,7 @@
           "rate": 0.05
         },
         {
-          "over": 1083150,
+          "over": 1107750,
           "rate": 0.09
         }
       ],
@@ -551,30 +551,34 @@
       "brackets": [
         {
           "over": 0,
+          "rate": 0.0
+        },
+        {
+          "over": 1348,
           "rate": 0.02
         },
         {
-          "over": 2626,
+          "over": 2696,
           "rate": 0.025
         },
         {
-          "over": 3939,
+          "over": 4044,
           "rate": 0.03
         },
         {
-          "over": 5252,
+          "over": 5392,
           "rate": 0.035
         },
         {
-          "over": 6565,
+          "over": 6740,
           "rate": 0.04
         },
         {
-          "over": 7878,
+          "over": 8088,
           "rate": 0.045
         },
         {
-          "over": 9191,
+          "over": 9436,
           "rate": 0.047
         }
       ]
@@ -618,6 +622,10 @@
       "brackets": [
         {
           "over": 0,
+          "rate": 0.0
+        },
+        {
+          "over": 48475,
           "rate": 0.0195
         },
         {
