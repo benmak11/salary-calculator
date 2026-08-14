@@ -279,8 +279,12 @@ class RulePackServiceTest {
                 entity("existing", "US", 2026, "US-2026.1.0", RulePackStatus.DRAFT, null)
         ));
 
+        // Built outside the lambda so the only thing that can throw inside it is the
+        // call under test — otherwise a failure in the fixture reads as a pass.
+        LocalDate effective = LocalDate.of(2026, Month.JANUARY, 1);
+
         assertThrows(IllegalArgumentException.class,
-                () -> service.createRulePack("US", 2026, "US-2026.1.0", LocalDate.of(2026, Month.JANUARY, 1), Map.of()));
+                () -> service.createRulePack("US", 2026, "US-2026.1.0", effective, Map.of()));
         verify(storageService, never()).upload(any(), any(), any(), any());
         verify(repository, never()).save(any());
     }
