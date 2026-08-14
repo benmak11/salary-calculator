@@ -13,7 +13,7 @@ import java.util.concurrent.ExecutionException;
 
 /**
  * Firestore-backed {@link BudgetStore}.
- *
+ * <p>
  * Layout: a single fixed document at {@code users/{userId}/budget/current}
  * (one budget per user, unlike grants' auto-id-per-item collection).
  */
@@ -35,7 +35,8 @@ public class FirestoreBudgetStore implements BudgetStore {
     public Optional<Budget> get(String userId) {
         try {
             DocumentSnapshot snap = doc(userId).get().get();
-            if (!snap.exists()) return Optional.empty();
+            if (!snap.exists())
+                return Optional.empty();
             return Optional.ofNullable(mapper.convertValue(snap.getData(), Budget.class));
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
@@ -63,7 +64,8 @@ public class FirestoreBudgetStore implements BudgetStore {
         DocumentReference ref = doc(userId);
         try {
             DocumentSnapshot snap = ref.get().get();
-            if (!snap.exists()) return false;
+            if (!snap.exists())
+                return false;
             ref.delete().get();
             return true;
         } catch (InterruptedException ie) {

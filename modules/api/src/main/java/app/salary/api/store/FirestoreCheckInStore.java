@@ -75,9 +75,8 @@ public class FirestoreCheckInStore implements CheckInStore {
             List<PaycheckCheckIn> items = new ArrayList<>(snaps.size());
             for (QueryDocumentSnapshot snap : snaps) {
                 PaycheckCheckIn entry = read(snap);
-                if (entry != null) {
+                if (entry != null)
                     items.add(entry);
-                }
             }
             return items;
         } catch (InterruptedException ie) {
@@ -100,9 +99,8 @@ public class FirestoreCheckInStore implements CheckInStore {
     @Override
     public boolean delete(String accountId, String id) {
         Optional<PaycheckCheckIn> found = find(accountId, id);
-        if (found.isEmpty()) {
+        if (found.isEmpty())
             return false;
-        }
         try {
             entries(accountId).document(found.get().getPayDate()).delete().get();
             return true;

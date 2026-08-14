@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class AppleIdentityVerifier {
     private static final String APPLE_ISSUER = "https://appleid.apple.com";
-    private static final String APPLE_JWKS_URL_STR = "https://appleid.apple.com/auth/keys";
+    private static final String APPLE_JWTS_URL_STR = "https://appleid.apple.com/auth/keys";
 
     private final String expectedIssuer;
     private final String expectedAudience;
@@ -84,14 +84,14 @@ public class AppleIdentityVerifier {
         if (sub == null || sub.isBlank()) {
             throw new AppleVerificationException("Subject missing");
         }
-        String email = stringClaim(decoded, "email");
-        boolean emailVerified = boolClaim(decoded, "email_verified");
+        String email = stringClaim(decoded);
+        boolean emailVerified = boolClaim(decoded);
         return new VerifiedAppleIdentity(sub, email, emailVerified);
     }
 
     private static JwkProvider buildAppleKeyProvider() {
         try {
-            URL url = URI.create(APPLE_JWKS_URL_STR).toURL();
+            URL url = URI.create(APPLE_JWTS_URL_STR).toURL();
             return new JwkProviderBuilder(url)
                     .cached(10, 5, TimeUnit.MINUTES)
                     .rateLimited(10, 1, TimeUnit.MINUTES)
@@ -111,13 +111,13 @@ public class AppleIdentityVerifier {
         }
     }
 
-    private static String stringClaim(DecodedJWT jwt, String name) {
-        var claim = jwt.getClaim(name);
+    private static String stringClaim(DecodedJWT jwt) {
+        var claim = jwt.getClaim("email");
         return claim.isMissing() || claim.isNull() ? null : claim.asString();
     }
 
-    private static boolean boolClaim(DecodedJWT jwt, String name) {
-        var claim = jwt.getClaim(name);
+    private static boolean boolClaim(DecodedJWT jwt) {
+        var claim = jwt.getClaim("email_verified");
         if (claim.isMissing() || claim.isNull()) return false;
         Boolean b = claim.asBoolean();
         return b != null && b;

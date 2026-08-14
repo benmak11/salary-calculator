@@ -14,7 +14,7 @@ import java.util.function.Supplier;
  * Mints Google-signed ID tokens for service-to-service auth on Cloud Run.
  * The underlying {@link IdTokenCredentials} caches and auto-refreshes tokens,
  * so {@link #get()} is cheap on the hot path.
- *
+ * <p>
  * On Cloud Run, ADC resolves to the bound service account (which implements
  * {@link IdTokenProvider}). On a developer machine, {@code gcloud auth
  * application-default login} produces user credentials that do NOT implement

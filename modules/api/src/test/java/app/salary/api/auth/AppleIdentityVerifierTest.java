@@ -41,7 +41,7 @@ class AppleIdentityVerifierTest {
         KeyPair pair = gen.generateKeyPair();
         publicKey  = (RSAPublicKey)  pair.getPublic();
         privateKey = (RSAPrivateKey) pair.getPrivate();
-        Jwk jwk = jwkFromPublicKey(KID, publicKey);
+        Jwk jwk = jwkFromPublicKey(publicKey);
         jwks = singleKeyProvider(jwk);
     }
 
@@ -150,10 +150,10 @@ class AppleIdentityVerifierTest {
 
     // ── helpers ────────────────────────────────────────────────────────────
 
-    private static Jwk jwkFromPublicKey(String kid, RSAPublicKey key) {
+    private static Jwk jwkFromPublicKey(RSAPublicKey key) {
         Map<String, Object> attrs = new HashMap<>();
         attrs.put("kty", "RSA");
-        attrs.put("kid", kid);
+        attrs.put("kid", AppleIdentityVerifierTest.KID);
         attrs.put("alg", "RS256");
         attrs.put("use", "sig");
         attrs.put("n", base64UrlNoPad(stripSignByte(key.getModulus().toByteArray())));

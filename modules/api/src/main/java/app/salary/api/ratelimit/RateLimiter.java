@@ -56,27 +56,25 @@ public class RateLimiter {
                 .tryConsume(refillPerNano, capacity, nanoTime.getAsLong());
     }
 
-    private static final class Bucket {
-        /** Tokens scaled by 1e6 so refill fractions survive integer arithmetic. */
-        private static final long SCALE = 1_000_000L;
+    private record Bucket(AtomicLong tokens, AtomicLong lastRefillNanos) {
+            /**
+             * Tokens scaled by 1e6 so refill fractions survive integer arithmetic.
+             */
+            private static final long SCALE = 1_000_000L;
 
-        private final AtomicLong tokens;
-        private final AtomicLong lastRefillNanos;
+            Bucket(long capacity, long now) {
+                this(new AtomicLong(capacity * SCALE), new AtomicLong(now));
+            }
 
-        Bucket(long capacity, long now) {
-            this.tokens = new AtomicLong(capacity * SCALE);
-            this.lastRefillNanos = new AtomicLong(now);
+            boolean tryConsume(double refillPerNano, long capacity, long now) {
+                long last = lastRefillNanos.getAndSet(now);
+                long elapsed = Math.max(0, now - last);
+
+                long refill = (long) (elapsed * refillPerNano * SCALE);
+                long ceiling = capacity * SCALE;
+                tokens.updateAndGet(current -> Math.min(ceiling, current + refill));
+
+                return tokens.getAndUpdate(current -> current >= SCALE ? current - SCALE : current) >= SCALE;
+            }
         }
-
-        boolean tryConsume(double refillPerNano, long capacity, long now) {
-            long last = lastRefillNanos.getAndSet(now);
-            long elapsed = Math.max(0, now - last);
-
-            long refill = (long) (elapsed * refillPerNano * SCALE);
-            long ceiling = capacity * SCALE;
-            tokens.updateAndGet(current -> Math.min(ceiling, current + refill));
-
-            return tokens.getAndUpdate(current -> current >= SCALE ? current - SCALE : current) >= SCALE;
-        }
-    }
 }

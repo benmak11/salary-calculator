@@ -18,7 +18,7 @@ import java.util.concurrent.TimeoutException;
  * {@link app.salary.api.store.FirestoreBudgetStore} and friends, needs live
  * GCP and is excluded from the local coverage gate (see root build.gradle's
  * jacocoExcludes and this module's sonar.coverage.exclusions).
- *
+ * <p>
  * Never logs the prompt or response text — both may contain salary amounts.
  *
  * <p><b>Carries an explicit deadline.</b> The SDK applies no timeout of its own, so before

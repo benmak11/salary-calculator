@@ -119,8 +119,8 @@ class AccountControllerTest {
         return r;
     }
 
-    private String bearerFor(String userId) {
-        return "Bearer " + sessionTokens.mint(userId).token();
+    private String bearerFor() {
+        return "Bearer " + sessionTokens.mint("user-1").token();
     }
 
     @Test
@@ -145,7 +145,7 @@ class AccountControllerTest {
 
         JavalinTest.test(app(), (server, client) -> {
             var resp = client.delete("/v1/account", null,
-                    r -> r.header("Authorization", bearerFor("user-1")));
+                    r -> r.header("Authorization", bearerFor()));
             assertEquals(204, resp.code());
 
             // user-1 fully wiped
@@ -173,7 +173,7 @@ class AccountControllerTest {
 
         JavalinTest.test(app(), (server, client) -> {
             var resp = client.delete("/v1/account", null,
-                    r -> r.header("Authorization", bearerFor("user-1")));
+                    r -> r.header("Authorization", bearerFor()));
             assertEquals(204, resp.code());
 
             assertTrue(accounts.findAccountId(AccountDirectory.PROVIDER_APPLE, "user-1").isEmpty());
@@ -188,7 +188,7 @@ class AccountControllerTest {
 
         JavalinTest.test(app(), (server, client) -> {
             var resp = client.delete("/v1/account", null,
-                    r -> r.header("Authorization", bearerFor("user-1")));
+                    r -> r.header("Authorization", bearerFor()));
             assertEquals(204, resp.code());
         });
     }

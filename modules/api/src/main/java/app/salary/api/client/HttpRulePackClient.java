@@ -29,7 +29,7 @@ import java.util.function.Supplier;
  * Talks to {@code rule-pack-service} over HTTP. Previously used Spring's
  * {@code RestTemplate}; after the Javalin migration this uses the JDK's
  * {@link HttpClient} so the api module no longer depends on Spring at all.
- *
+ * <p>
  * Behavior is unchanged: any HTTP failure or empty body returns
  * {@link Optional#empty()}, which causes the orchestrator to fall back to the
  * embedded classpath rule pack.

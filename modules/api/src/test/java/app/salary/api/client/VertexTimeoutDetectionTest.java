@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
+import java.io.Serial;
 import java.net.SocketTimeoutException;
 import java.util.concurrent.TimeoutException;
 
@@ -55,6 +56,7 @@ class VertexTimeoutDetectionTest {
 
     /** {@code getCause()} returning {@code this} is legal and does happen in the wild. */
     private static final class SelfCausingException extends RuntimeException {
+        @Serial
         private static final long serialVersionUID = 1L;
 
         @Override
