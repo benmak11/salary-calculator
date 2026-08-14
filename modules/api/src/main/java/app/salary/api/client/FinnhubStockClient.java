@@ -26,7 +26,8 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * Finnhub-backed {@link StockClient} (<a href="https://finnhub.io">...</a> — free tier, 60 calls/min).
+ * Finnhub-backed {@link StockClient} (<a href="https://finnhub.io">finnhub.io</a> — free tier,
+ * 60 calls/min).
  * <p>
  * The API key travels in the {@code X-Finnhub-Token} header, never in the URL, so it
  * can't leak through request logs. Caffeine caches keep quote traffic well under the

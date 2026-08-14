@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.types.Schema;
 import com.google.genai.types.Type;
 
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -78,7 +79,9 @@ public class BudgetPlanService {
                 .append("left over after needs and wants, and windfalls are used to accelerate ")
                 .append("still-unmet goals. If a dated goal can't reasonably be met by its target date ")
                 .append("at the suggested rate, add a plain-language warning about it. Keep the rationale ")
-                .append("to 2-3 sentences. Respond with structured JSON only.\n\n");
+                .append("to 2-3 sentences. When you mention a dollar figure that appears below, ")
+                .append("copy it exactly as written, including the comma separators. ")
+                .append("Respond with structured JSON only.\n\n");
 
         sb.append("Pay cadence: ").append(request.getPayFrequency())
                 .append(" (").append(request.getPayFrequency().getPeriodsPerYear()).append(" periods/year)\n");
@@ -123,7 +126,19 @@ public class BudgetPlanService {
         return sb.toString();
     }
 
+    /**
+     * Formats a figure the way it should appear to the reader, grouping separators and all.
+     *
+     * <p>The model quotes these back verbatim in {@code rationale} and {@code warnings}, which
+     * the iOS "How I built this" card renders as-is. Feeding it {@code 4300.00} got {@code $4300}
+     * in the copy. Formatting here rather than asking the model to format is deliberate: the
+     * prompt is data it copies, not an instruction it can drift from.
+     *
+     * <p>{@link Locale#US} is pinned because the surrounding prompt is US English and the
+     * amounts are USD — a JVM defaulting to a comma-decimal locale would otherwise emit
+     * {@code 4.300,00} into an English sentence.
+     */
     private static String fmt(Double value) {
-        return String.format("%.2f", value);
+        return String.format(Locale.US, "%,.2f", value);
     }
 }
