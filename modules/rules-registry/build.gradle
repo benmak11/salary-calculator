@@ -2,6 +2,50 @@ plugins {
     id 'java-library'
 }
 
+// ── Rule pack structural validation (blocking) ───────────────────────────────
+// Bracket figures are transcribed by hand from published tax tables, so the
+// failure mode is a mis-keyed threshold that still deserializes and still
+// computes a plausible-looking number. RulesRegistryTest pins specific figures
+// it knows to ask about; this catches the shape problems nobody thought to pin —
+// a missing state, a bracket out of order, a rate that went backwards.
+//
+// Ran by hand only until 2026-08-13, which meant in practice it did not run.
+def validateRulePacks = tasks.register('validateRulePacks', Exec) {
+    description = 'Structurally validates the embedded rule packs.'
+    group = 'verification'
+
+    def script = file('src/test/resources/validate_rulepacks.py')
+    def packs = file('src/main/resources/rulepacks')
+
+    inputs.file(script)
+    inputs.dir(packs)
+    // No real output; this marks the task cacheable so it re-runs only when a
+    // pack or the validator itself changes.
+    outputs.file(layout.buildDirectory.file('rulepack-validation.txt'))
+
+    commandLine 'python3', script.absolutePath, packs.absolutePath
+
+    doFirst {
+        // Fail with a usable message rather than "Cannot run program python3".
+        // A gate that silently skips when its toolchain is missing is not a gate.
+        def probe = providers.exec {
+            commandLine 'sh', '-c', 'command -v python3 || true'
+        }.standardOutput.asText.get().trim()
+        if (probe.isEmpty()) {
+            throw new GradleException(
+                    'python3 is required to validate the rule packs but was not found on PATH. ' +
+                    'Install it, or run with -x validateRulePacks if you are certain the packs are untouched.')
+        }
+    }
+
+    doLast {
+        layout.buildDirectory.file('rulepack-validation.txt').get().asFile
+                .text = "validated at ${new Date()}\n"
+    }
+}
+
+tasks.named('check') { dependsOn validateRulePacks }
+
 dependencies {
     // Lombok (entity getters/setters)
     compileOnly 'org.projectlombok:lombok:1.18.30'

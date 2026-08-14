@@ -14,7 +14,10 @@ Checks per pack:
   - required federal/FICA/UK fields are present and sanely bounded
   - year-over-year drift on shared keys is flagged for review
 
-Usage:
+Runs as part of the build — `:modules:rules-registry:check` depends on the
+`validateRulePacks` task, so `./gradlew build` covers it. Run it directly when
+iterating on a pack and you want the result without the rest of the build:
+
     python3 validate_rulepacks.py [path/to/rulepacks]
 
 Exits non-zero on any error. Warnings do not fail the run.

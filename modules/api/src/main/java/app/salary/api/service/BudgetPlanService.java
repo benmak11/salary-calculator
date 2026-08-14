@@ -20,7 +20,7 @@ import java.util.Map;
  * BudgetEngine (iOS) is what simulates the paycheck timeline and verifies
  * these numbers, both as a fallback when this service is unavailable and as
  * a sanity check on what comes back from here.
- *
+ * <p>
  * Never logs the prompt or the model's raw response — both carry salary
  * amounts.
  */

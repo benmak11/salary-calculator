@@ -94,10 +94,11 @@ public class FirestoreCalculationStore implements CalculationStore {
     public Optional<SavedCalculationDetail> get(String userId, String calcId) {
         try {
             DocumentSnapshot snap = userCalculations(userId).document(calcId).get().get();
-            if (!snap.exists()) return Optional.empty();
+            if (!snap.exists())
+                return Optional.empty();
             SavedCalculationSummary summary = readSummary(snap);
-            CalculateRequest request = readSubdoc(snap, "request", CalculateRequest.class);
-            CalculateResponse response = readSubdoc(snap, "response", CalculateResponse.class);
+            CalculateRequest request = readSubduct(snap, "request", CalculateRequest.class);
+            CalculateResponse response = readSubduct(snap, "response", CalculateResponse.class);
             return Optional.of(new SavedCalculationDetail(summary, request, response));
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
@@ -112,7 +113,8 @@ public class FirestoreCalculationStore implements CalculationStore {
         DocumentReference doc = userCalculations(userId).document(calcId);
         try {
             DocumentSnapshot snap = doc.get().get();
-            if (!snap.exists()) return false;
+            if (!snap.exists())
+                return false;
             doc.delete().get();
             return true;
         } catch (InterruptedException ie) {
@@ -153,7 +155,7 @@ public class FirestoreCalculationStore implements CalculationStore {
         return mapper.convertValue(raw, SavedCalculationSummary.class);
     }
 
-    private <T> T readSubdoc(DocumentSnapshot snap, String field, Class<T> type) {
+    private <T> T readSubduct(DocumentSnapshot snap, String field, Class<T> type) {
         Object raw = snap.get(field);
         return raw == null ? null : mapper.convertValue(raw, type);
     }

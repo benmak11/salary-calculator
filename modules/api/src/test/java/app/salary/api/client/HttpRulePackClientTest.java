@@ -145,7 +145,7 @@ class HttpRulePackClientTest {
     @Test
     void returnsEmptyWhenRequestThrows() throws Exception {
         HttpClient http = mock(HttpClient.class);
-        org.mockito.Mockito.doThrow(new java.io.IOException("connection reset"))
+        doThrow(new java.io.IOException("connection reset"))
                 .when(http).send(any(HttpRequest.class), any());
 
         HttpRulePackClient client = new HttpRulePackClient(

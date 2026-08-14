@@ -63,8 +63,8 @@ class FinnhubStockClientTest {
         List<StockSymbol> results = client.search("apple");
 
         assertEquals(2, results.size());
-        assertEquals("AAPL", results.get(0).getSymbol());
-        assertEquals("Apple Inc", results.get(0).getName());
+        assertEquals("AAPL", results.getFirst().getSymbol());
+        assertEquals("Apple Inc", results.getFirst().getName());
         // dot-suffixed non-primary listings are filtered
         assertTrue(results.stream().noneMatch(s -> s.getSymbol().contains(".")));
     }

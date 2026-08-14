@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class GoogleIdentityVerifier {
     private static final String[] GOOGLE_ISSUERS = {"accounts.google.com", "https://accounts.google.com"};
-    private static final String GOOGLE_JWKS_URL_STR = "https://www.googleapis.com/oauth2/v3/certs";
+    private static final String GOOGLE_JWTS_URL_STR = "https://www.googleapis.com/oauth2/v3/certs";
 
     private final String[] expectedIssuers;
     private final String expectedAudience;
@@ -78,14 +78,14 @@ public class GoogleIdentityVerifier {
             throw new GoogleVerificationException("Subject missing");
         }
         String email = stringClaim(decoded, "email");
-        boolean emailVerified = boolClaim(decoded, "email_verified");
+        boolean emailVerified = boolClaim(decoded);
         String name = stringClaim(decoded, "name");
         return new VerifiedGoogleIdentity(sub, email, emailVerified, name);
     }
 
     private static JwkProvider buildGoogleKeyProvider() {
         try {
-            URL url = URI.create(GOOGLE_JWKS_URL_STR).toURL();
+            URL url = URI.create(GOOGLE_JWTS_URL_STR).toURL();
             return new JwkProviderBuilder(url)
                     .cached(10, 5, TimeUnit.MINUTES)
                     .rateLimited(10, 1, TimeUnit.MINUTES)
@@ -100,8 +100,8 @@ public class GoogleIdentityVerifier {
         return claim.isMissing() || claim.isNull() ? null : claim.asString();
     }
 
-    private static boolean boolClaim(DecodedJWT jwt, String name) {
-        var claim = jwt.getClaim(name);
+    private static boolean boolClaim(DecodedJWT jwt) {
+        var claim = jwt.getClaim("email_verified");
         if (claim.isMissing() || claim.isNull()) return false;
         Boolean b = claim.asBoolean();
         return b != null && b;
