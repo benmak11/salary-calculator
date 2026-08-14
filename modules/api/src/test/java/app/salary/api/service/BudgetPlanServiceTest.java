@@ -124,6 +124,24 @@ class BudgetPlanServiceTest {
     }
 
     @Test
+    void generatePlan_promptGroupsThousandsSoTheModelQuotesThemBack() {
+        when(client.generateJson(anyString(), anyString(), any(Schema.class)))
+                .thenReturn("{\"rationale\":\"ok\",\"goalContributions\":[],\"warnings\":[]}");
+
+        service.generatePlan(request());
+
+        ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
+        verify(client).generateJson(anyString(), promptCaptor.capture(), any(Schema.class));
+        String prompt = promptCaptor.getValue();
+        // The model copies these into rationale/warnings verbatim, so the grouping has to be
+        // in the prompt rather than left to the model to apply.
+        assertTrue(prompt.contains("$18,000.00"), "goal target should be grouped");
+        assertTrue(prompt.contains("$1,800.00"), "expense amount should be grouped");
+        assertTrue(prompt.contains("$7,035.00"), "windfall amount should be grouped");
+        assertTrue(prompt.contains("$2,400.00"), "net per period should be grouped");
+    }
+
+    @Test
     void generatePlan_responseSchemaHasExpectedShape() {
         when(client.generateJson(anyString(), anyString(), any(Schema.class)))
                 .thenReturn("{\"rationale\":\"ok\",\"goalContributions\":[],\"warnings\":[]}");
