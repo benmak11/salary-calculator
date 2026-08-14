@@ -195,6 +195,15 @@ public class RulePackService {
         return dto;
     }
 
+    // Sonar's S2143 flags java.util.Date here and wants java.time. It stays on purpose.
+    // RulePackEntity is serialized by the native Firestore client's POJO mapper, which
+    // maps java.util.Date to a Firestore Timestamp but does not understand java.time
+    // types at all — an Instant or LocalDate field would round-trip as a nested object,
+    // silently, against live documents. The api module hits the same wall and converts to
+    // com.google.cloud.Timestamp by hand at the boundary (see FirestoreCalculationStore).
+    // Doing the same here is a persistence change for an Info-level style rule; the
+    // boundary conversion below keeps java.util.Date from leaking past the service.
+
     private LocalDate toLocalDate(Date date) {
         if (date == null) return null;
         if (date instanceof java.sql.Date sqlDate) {
