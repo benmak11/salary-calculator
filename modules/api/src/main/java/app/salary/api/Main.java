@@ -54,6 +54,7 @@ import app.salary.calculator.shared.DeductionCalculator;
 import app.salary.calculator.shared.StudentLoanCalculator;
 import app.salary.calculator.shared.TaxBracketCalculator;
 import app.salary.common.constants.ApiConstants;
+import app.salary.rules.RulePackLoadException;
 import app.salary.rules.RulesRegistry;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -287,6 +288,17 @@ public class Main {
                     ctx.status(HttpStatus.PAYMENT_REQUIRED).json(Map.of(
                             ApiConstants.ERROR, "subscription_required",
                             "feature", e.getFeature())));
+            // An unsupported tax year is the caller asking for a year we do not ship a
+            // pack for, which is their mistake, not ours. It used to fall through to the
+            // 500 handler: @Min(2025) has no upper bound, so taxYear 2099 validated fine
+            // and then failed to load. The message names the years that do work, because
+            // an old client pinned to a retired year cannot otherwise tell why it broke.
+            config.routes.exception(RulePackLoadException.class, (e, ctx) -> {
+                log.warn("Unsupported tax year requested");
+                ctx.status(HttpStatus.UNPROCESSABLE_CONTENT).json(Map.of(
+                        ApiConstants.ERROR, "unsupported_tax_year",
+                        "supportedTaxYears", rulesRegistry.getSupportedTaxYears("US")));
+            });
             config.routes.exception(IllegalArgumentException.class, (e, ctx) -> {
                 log.warn("Illegal argument: {}", e.getMessage());
                 ctx.status(HttpStatus.UNPROCESSABLE_CONTENT)
