@@ -105,6 +105,79 @@ function SiteGalleryScreen({ kind }) {
       <AppPillNav tab="history" setTab={() => {}} tabs={[{ id: 'calculator', label: 'Calculator' }, { id: 'insights', label: 'Insights' }, { id: 'history', label: 'History' }]} />
     </div>
   );
+  // Payday loop (app v1.14.0). Composed here rather than threaded through
+  // B2Insights, which has no slot above the breakdown and is shared with the
+  // other gallery screens.
+  if (kind === 'payday') return (
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--inc-bg)', position: 'relative' }}>
+      <B2Screen>
+        <B2TopBar />
+        <div style={{ padding: '0 18px 230px' }}>
+          <PaydayCountdownCard net={app.result.perPeriod} />
+          <div style={{
+            background: 'var(--inc-surface)', borderRadius: 20, padding: 18,
+            border: '1px solid var(--inc-cardBorder)', marginBottom: 14,
+          }}>
+            <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.09em', color: 'var(--inc-textMute)' }}>ON PAYDAY MORNING</div>
+            <div style={{ fontSize: 14, color: 'var(--inc-text)', marginTop: 8, lineHeight: 1.5 }}>
+              A notification at 8am, after the deposit posts. It states the amount, so it is
+              worth keeping unmuted.
+            </div>
+          </div>
+          <div style={{
+            background: 'var(--inc-sageBg)', borderRadius: 20, padding: 18,
+            border: '1px solid var(--inc-sageSoft)',
+          }}>
+            <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.09em', color: 'var(--inc-sageDeep)' }}>WEEKENDS AND HOLIDAYS</div>
+            <div style={{ fontSize: 14, color: 'var(--inc-text)', marginTop: 8, lineHeight: 1.5 }}>
+              If payday lands on a Saturday or a bank holiday, the countdown moves with it and
+              says which day it moved from.
+            </div>
+          </div>
+        </div>
+      </B2Screen>
+      <AppPillNav tab="insights" setTab={() => {}} tabs={[{ id: 'calculator', label: 'Calculator' }, { id: 'insights', label: 'Insights' }, { id: 'history', label: 'History' }]} />
+    </div>
+  );
+  // Home Screen, so the widgets are shown where they actually live.
+  if (kind === 'widgets') return (
+    <div style={{
+      height: '100%', position: 'relative',
+      background: 'linear-gradient(165deg, #3F6B5C 0%, #5F8C7C 42%, #C9B79A 100%)',
+      padding: '78px 16px 0', display: 'flex', flexDirection: 'column', gap: 18,
+      overflow: 'hidden',
+    }}>
+      {/* iOS dims the wallpaper behind Lock Screen widgets so white glyphs stay
+          legible on a light photo. Without it, the gradient's warm end washes
+          the caption out to roughly 2:1 contrast. */}
+      <div style={{
+        position: 'absolute', left: 0, right: 0, bottom: 0, height: 190,
+        background: 'linear-gradient(to bottom, rgba(24,38,33,0) 0%, rgba(24,38,33,0.55) 55%, rgba(24,38,33,0.72) 100%)',
+        pointerEvents: 'none',
+      }} />
+      <div style={{ display: 'flex', gap: 19 }}>
+        <PaydayWidgetSmall net={app.result.perPeriod} />
+        <div style={{
+          width: 155, height: 155, borderRadius: 22,
+          background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.20)',
+        }} />
+      </div>
+      <PaydayWidgetMedium net={app.result.perPeriod} />
+      <div style={{ flex: 1 }} />
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px 30px',
+        position: 'relative',
+      }}>
+        <PaydayWidgetCircular />
+        <div style={{ color: '#fff' }}>
+          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.08em', opacity: .85 }}>LOCK SCREEN</div>
+          <div style={{ fontSize: 13, marginTop: 4, opacity: .95, lineHeight: 1.45, maxWidth: 200 }}>
+            Days only. The amount never appears on a locked screen.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
   if (kind === 'budget') return <BudgetShell initialTab="overview" />;
   if (kind === 'paychecks') return <BudgetShell initialTab="paychecks" />;
   return null;
