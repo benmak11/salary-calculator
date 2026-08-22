@@ -166,6 +166,35 @@ class MainTest {
     }
 
     @Test
+    void calculate_withUnsupportedTaxYear_returns422NotServerError() {
+        // @Min(2025) has no upper bound, so a year we ship no rule pack for
+        // passes validation and then fails to load. That used to reach the
+        // catch-all and surface as "Internal server error" - telling the caller
+        // our service was broken when the request was simply for a year that
+        // does not exist. It also decides what retiring a tax year looks like:
+        // every client still pinned to it would otherwise see a 500.
+        //
+        // Deliberately in MainTest rather than CalculateControllerTest, because
+        // that harness builds its own Javalin with a hand-copied subset of the
+        // exception handlers. A handler added to Main is invisible there.
+        JavalinTest.test(createApp(), (server, client) -> {
+            var response = client.post("/v1/calculate", Map.of(
+                    "country", "US",
+                    "taxYear", 2099,
+                    "earnings", Map.of("salary", Map.of("amount", 100000, "basis", "PER_YEAR")),
+                    "countryOptions", Map.of("US", Map.of("state", "CA", "filingStatus", "SINGLE"))));
+
+            assertEquals(422, response.code());
+            JsonNode body = new ObjectMapper().readTree(response.body().string());
+            assertEquals("unsupported_tax_year", body.get("error").asText());
+            // The years that do work are named, because a client pinned to a
+            // retired year cannot otherwise tell what to ask for instead.
+            assertTrue(body.get("supportedTaxYears").isArray());
+            assertTrue(body.get("supportedTaxYears").size() > 0);
+        });
+    }
+
+    @Test
     void calculate_withUnparseableBody_returns400() {
         JavalinTest.test(createApp(), (server, client) -> {
             // request(), not post(): post() applies its own body publisher AFTER the caller's
