@@ -145,7 +145,7 @@ footer{border-top:1px solid var(--inc-hairline);padding:40px 0 56px;margin-top:2
       <div class="hero-stats">
         <div><span class="stat-n">50 + DC</span><span class="stat-l">States supported</span></div>
         <div><span class="stat-n">8</span><span class="stat-l">Pay frequencies</span></div>
-        <div><span class="stat-n">0</span><span class="stat-l">Trackers or ad SDKs</span></div>
+        <div><span class="stat-n">0</span><span class="stat-l">Third-party SDKs</span></div>
       </div>
     </div>
     <div id="heroDevice" style="justify-self:center"></div>
@@ -157,9 +157,11 @@ footer{border-top:1px solid var(--inc-hairline);padding:40px 0 56px;margin-top:2
     <div class="sec-head">
       <div class="eyebrow">Inside the app</div>
       <h2>Four steps in, a full picture out.</h2>
-      <p>Live screens from the current build: the guided calculator, the Insights breakdown, saved history, and the AI budget plan.</p>
+      <p>Live screens from the current build: the guided calculator, the Insights breakdown, the payday countdown and its widgets, saved history, and the AI budget plan.</p>
     </div>
     <div class="gal">
+      <div class="gal-item"><div id="galPayday"></div><div class="gal-cap"><b>Payday</b><span>How long until you are paid, what lands, and what a weekend does to it.</span></div></div>
+      <div class="gal-item"><div id="galWidgets"></div><div class="gal-cap"><b>Widgets</b><span>Home and Lock Screen. The Lock Screen one shows days only, never an amount.</span></div></div>
       <div class="gal-item"><div id="galCalculator"></div><div class="gal-cap"><b>Calculator</b><span>Earnings · Federal · State · Benefits, with net pay updating as you type.</span></div></div>
       <div class="gal-item"><div id="galInsights"></div><div class="gal-cap"><b>Insights</b><span>Where gross pay goes, plus a yearly outlook for bonus and RSU vests.</span></div></div>
       <div class="gal-item"><div id="galBudget"></div><div class="gal-cap"><b>Budget · Overview</b><span>Needs / Wants / Savings per paycheck, with the plan's reasoning.</span></div></div>
@@ -176,6 +178,11 @@ footer{border-top:1px solid var(--inc-hairline);padding:40px 0 56px;margin-top:2
       <h2>Built for the parts of payroll nobody explains.</h2>
     </div>
     <div class="feat">
+      <div class="card">
+        <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--inc-sage)" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/><circle cx="16" cy="15.5" r="1.6" fill="var(--inc-sage)" stroke="none"/></svg></div>
+        <h3>Know your next payday</h3>
+        <p>A countdown on the Home and Lock Screens, and a notification the morning it lands. Weekends and bank holidays shift it the way your employer actually pays.</p>
+      </div>
       <div class="card">
         <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--inc-sage)" stroke-width="2" stroke-linecap="round"><rect x="4" y="2" width="16" height="20" rx="3"/><path d="M8 7h8M8 12h3M8 16h3M15 12v4"/></svg></div>
         <h3>Real withholding math</h3>
@@ -194,7 +201,7 @@ footer{border-top:1px solid var(--inc-hairline);padding:40px 0 56px;margin-top:2
       <div class="card">
         <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--inc-sage)" stroke-width="2" stroke-linecap="round"><path d="M12 2l8 4v6c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6l8-4z"/><path d="M9 12l2 2 4-4"/></svg></div>
         <h3>Private by default</h3>
-        <p>No analytics SDKs, no ad networks, no trackers. Dollar amounts never hit our logs, and the calculator works fully without an account.</p>
+        <p>No third-party analytics SDKs, no ad networks, no advertising identifiers. Usage is measured with anonymous first-party events that carry ranges, never amounts, and the calculator works fully without an account.</p>
       </div>
       <div class="card">
         <div class="ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--inc-sage)" stroke-width="2" stroke-linecap="round"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1116 0z"/><circle cx="12" cy="10" r="2.5"/></svg></div>
@@ -241,7 +248,7 @@ footer{border-top:1px solid var(--inc-hairline);padding:40px 0 56px;margin-top:2
     <div class="policy">
       <div class="eyebrow">Legal</div>
       <h2 style="font-size:clamp(27px,3.4vw,38px);line-height:1.12;margin-top:12px">Privacy Policy</h2>
-      <p class="updated">Last updated: July 29, 2026</p>
+      <p class="updated">Last updated: August 21, 2026</p>
       <div class="policy-toc">
         <a href="#p-collect">What we collect</a>
         <a href="#p-ai">Budgeting &amp; AI</a>
@@ -269,6 +276,16 @@ footer{border-top:1px solid var(--inc-hairline);padding:40px 0 56px;margin-top:2
       <h4>Budget goals and expenses</h4>
       <p>If you choose to build a budget, the app collects the savings goals and expenses you enter (name, amount, cadence, category, and any target date) along with the take-home figures from your calculation, so it can produce a paycheck-by-paycheck plan. This information is stored against your account like your calculation history, and you can edit or delete it in the app at any time. Generating a plan requires an <strong>AI service operated by Google</strong>; see "Budgeting and AI" below.</p>
 
+      <h4>App usage and diagnostics</h4>
+      <p>To understand which parts of the app are actually used, Incomatic records a small set of usage events, such as starting a session, completing a step of onboarding, finishing a calculation, and setting or dismissing the payday reminder. These are our own records; no third-party analytics SDK is involved.</p>
+      <ul>
+        <li><strong>What each event contains.</strong> The event name, when it happened, the app version, and a short set of labels, for example your state, filing status, pay frequency, and whether you were signed in.</li>
+        <li><strong>Amounts are recorded as ranges, never as figures.</strong> Take-home pay is reduced to a $1,000-wide band such as "2000-3000" before it leaves your device, and our backend rejects any event that tries to send a decimal amount. Your salary is never part of an event.</li>
+        <li><strong>A random per-install identifier.</strong> Events carry an identifier the app generates for itself on first launch. It is <strong>not</strong> your device's advertising identifier and is not shared with anyone; deleting and reinstalling the app produces a new one. If you are signed in, events also carry your account identifier so activity can be joined across your devices.</li>
+        <li><strong>This happens whether or not you sign in.</strong> Signing in is optional, so measuring only signed-in users would tell us about a self-selected minority rather than how the app is really used.</li>
+      </ul>
+      <p>These events are kept until we no longer need them for product measurement; we have not set a fixed deletion schedule. Deleting your account removes your account record, saved calculations, grants and budget, but does not retroactively remove usage events already recorded. If you would like those removed as well, contact us and we will delete them.</p>
+
       <h3 id="p-ai">Budgeting and AI</h3>
       <p>Incomatic's budgeting feature uses <strong>Google's generative AI (Gemini)</strong> to draft your plan. To do that, the values you have entered (your take-home pay, your expenses, and your savings goals, <strong>including the amounts you typed in</strong>) are sent to Google's AI service through our backend. Your name, email, and Apple user identifier are <strong>not</strong> included.</p>
       <ul>
@@ -279,7 +296,7 @@ footer{border-top:1px solid var(--inc-hairline);padding:40px 0 56px;margin-top:2
       </ul>
 
       <h3 id="p-not">Information We Do Not Collect</h3>
-      <p>Incomatic does not use third-party analytics SDKs, advertising networks, or tracking technologies. We do not collect your contact list or device advertising identifiers, and we do not sell or share your information with third parties for marketing purposes.</p>
+      <p>Incomatic does not use third-party analytics SDKs, advertising networks, or tracking technologies. We do not collect your contact list or device advertising identifiers, and we do not sell or share your information with third parties for marketing purposes. The usage events described under "App usage and diagnostics" are our own and stay with us; they are not sent to an analytics vendor and are not used to build an advertising profile.</p>
 
       <h3 id="p-use">How Information Is Used</h3>
       <p>Financial figures you enter are used exclusively to generate the paycheck breakdown displayed in the app and, if you are signed in, to save that breakdown to your personal history. Budget goals and expenses are used exclusively to build and display your budget plan, including the AI generation step you consent to. Location is used exclusively to pre-fill your work state. Account information is used exclusively to authenticate you and associate your saved calculations with your account.</p>
@@ -299,7 +316,7 @@ footer{border-top:1px solid var(--inc-hairline);padding:40px 0 56px;margin-top:2
         <li>You can use the calculator without signing in, in which case no calculations or account data are stored.</li>
         <li>You can decline the budgeting consent step, or simply not use budgeting. The rest of the app is unaffected and nothing is sent to Google's AI. Deleting a goal or expense removes it from our backend.</li>
         <li>If you have signed in, you can delete individual saved calculations at any time from the History screen, which removes them from our backend.</li>
-        <li>You can permanently delete your account at any time from the account screen (tap your profile, then <strong>Delete Account</strong>). This erases your account record and all of your saved calculations from our backend and cannot be undone.</li>
+        <li>You can permanently delete your account at any time from the account screen (tap your profile, then <strong>Delete Account</strong>). This erases your account record and all of your saved calculations, RSU grants and budget from our backend and cannot be undone. Usage events recorded before deletion are not removed automatically; email us and we will delete those too.</li>
       </ul>
 
       <h3 id="p-changes">Changes to This Policy</h3>
@@ -349,6 +366,7 @@ footer{border-top:1px solid var(--inc-hairline);padding:40px 0 56px;margin-top:2
 <script type="text/babel" src="budget-goals.jsx"></script>
 <script type="text/babel" src="budget-expenses.jsx"></script>
 <script type="text/babel" src="budget-plan.jsx"></script>
+<script type="text/babel" src="payday.jsx"></script>
 <script type="text/babel" src="site-app-views.jsx"></script>
 <script type="text/babel">
 // Real App Store listing — the QR codes and both store buttons read from this.
@@ -378,6 +396,8 @@ drawQR(document.getElementById('qrBar'), 46);
 // mounted instead of all six.
 const MOUNTS = [
   { id: 'heroDevice', kind: null, scale: 0.92, eager: true },
+  { id: 'galPayday', kind: 'payday', scale: 0.62 },
+  { id: 'galWidgets', kind: 'widgets', scale: 0.62 },
   { id: 'galCalculator', kind: 'calculator', scale: 0.62 },
   { id: 'galInsights', kind: 'insights', scale: 0.62 },
   { id: 'galBudget', kind: 'budget', scale: 0.62 },
