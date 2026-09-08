@@ -15,7 +15,6 @@ import java.util.concurrent.ExecutionException;
 
 public class FirestoreUserDirectory implements UserDirectory {
     private static final Logger log = LoggerFactory.getLogger(FirestoreUserDirectory.class);
-    private static final String COLLECTION = "users";
 
     private final Firestore firestore;
 
@@ -25,17 +24,17 @@ public class FirestoreUserDirectory implements UserDirectory {
 
     @Override
     public void upsertOnSignIn(String userId, String displayName) {
-        DocumentReference ref = firestore.collection(COLLECTION).document(userId);
+        DocumentReference ref = firestore.collection(StoreConstants.USERS).document(userId);
         Map<String, Object> patch = new HashMap<>();
-        patch.put("id", userId);
-        patch.put("lastSeenAt", Timestamp.now());
+        patch.put(StoreConstants.FIELD_ID, userId);
+        patch.put(StoreConstants.FIELD_LAST_SEEN_AT, Timestamp.now());
         if (displayName != null && !displayName.isBlank()) {
-            patch.put("displayName", displayName);
+            patch.put(StoreConstants.FIELD_DISPLAY_NAME, displayName);
         }
         try {
             DocumentSnapshot existing = ref.get().get();
             if (!existing.exists()) {
-                patch.put("createdAt", Timestamp.now());
+                patch.put(StoreConstants.FIELD_CREATED_AT, Timestamp.now());
             }
             ref.set(patch, SetOptions.merge()).get();
         } catch (InterruptedException ie) {
@@ -49,7 +48,7 @@ public class FirestoreUserDirectory implements UserDirectory {
     @Override
     public void delete(String userId) {
         try {
-            firestore.collection(COLLECTION).document(userId).delete().get();
+            firestore.collection(StoreConstants.USERS).document(userId).delete().get();
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
             throw new RuntimeException("Firestore user delete interrupted", ie);
@@ -61,9 +60,9 @@ public class FirestoreUserDirectory implements UserDirectory {
     @Override
     public Optional<String> displayName(String userId) {
         try {
-            DocumentSnapshot snap = firestore.collection(COLLECTION).document(userId).get().get();
+            DocumentSnapshot snap = firestore.collection(StoreConstants.USERS).document(userId).get().get();
             if (!snap.exists()) return Optional.empty();
-            String name = snap.getString("displayName");
+            String name = snap.getString(StoreConstants.FIELD_DISPLAY_NAME);
             return (name == null || name.isBlank()) ? Optional.empty() : Optional.of(name);
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();

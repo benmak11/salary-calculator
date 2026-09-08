@@ -24,8 +24,6 @@ import java.util.concurrent.ExecutionException;
  */
 public class FirestoreEntitlementStore implements EntitlementStore {
     private static final Logger log = LoggerFactory.getLogger(FirestoreEntitlementStore.class);
-    private static final String ENTITLEMENTS = "entitlements";
-    private static final String STORES = "stores";
 
     private final Firestore firestore;
 
@@ -35,26 +33,26 @@ public class FirestoreEntitlementStore implements EntitlementStore {
 
     @Override
     public void upsert(String accountId, Entitlement entitlement) {
-        DocumentReference ref = firestore.collection(ENTITLEMENTS).document(accountId);
+        DocumentReference ref = firestore.collection(StoreConstants.ENTITLEMENTS).document(accountId);
         // update() on a dotted field path touches only that store's subtree. A set() with a
         // stores map — even merging — is the shape that loses the other store's record.
         Map<String, Object> storeRecord = new HashMap<>();
         storeRecord.put("store", entitlement.store());
-        storeRecord.put("productId", entitlement.productId());
-        storeRecord.put("expiresAt", entitlement.expiresAt() == null
+        storeRecord.put(StoreConstants.FIELD_PRODUCT_ID, entitlement.productId());
+        storeRecord.put(StoreConstants.FIELD_EXPIRES_AT, entitlement.expiresAt() == null
                 ? null : Timestamp.ofTimeSecondsAndNanos(
                         entitlement.expiresAt().getEpochSecond(), entitlement.expiresAt().getNano()));
-        storeRecord.put("revoked", entitlement.revoked());
-        storeRecord.put("updatedAt", Timestamp.now());
+        storeRecord.put(StoreConstants.FIELD_REVOKED, entitlement.revoked());
+        storeRecord.put(StoreConstants.FIELD_UPDATED_AT, Timestamp.now());
 
         try {
             firestore.runTransaction(tx -> {
                 DocumentSnapshot snap = tx.get(ref).get();
                 if (snap.exists()) {
-                    tx.update(ref, STORES + "." + entitlement.store(), storeRecord);
+                    tx.update(ref, StoreConstants.STORES + "." + entitlement.store(), storeRecord);
                 } else {
-                    tx.set(ref, Map.of("accountId", accountId,
-                            STORES, Map.of(entitlement.store(), storeRecord)));
+                    tx.set(ref, Map.of(StoreConstants.FIELD_ACCOUNT_ID, accountId,
+                            StoreConstants.STORES, Map.of(entitlement.store(), storeRecord)));
                 }
                 return null;
             }).get();
@@ -70,11 +68,11 @@ public class FirestoreEntitlementStore implements EntitlementStore {
     @SuppressWarnings("unchecked")
     public List<Entitlement> findAll(String accountId) {
         try {
-            DocumentSnapshot snap = firestore.collection(ENTITLEMENTS).document(accountId).get().get();
+            DocumentSnapshot snap = firestore.collection(StoreConstants.ENTITLEMENTS).document(accountId).get().get();
             if (!snap.exists()) {
                 return List.of();
             }
-            Object raw = snap.get(STORES);
+            Object raw = snap.get(StoreConstants.STORES);
             if (!(raw instanceof Map<?, ?> stores)) {
                 return List.of();
             }
@@ -98,7 +96,7 @@ public class FirestoreEntitlementStore implements EntitlementStore {
     @Override
     public void deleteAll(String accountId) {
         try {
-            firestore.collection(ENTITLEMENTS).document(accountId).delete().get();
+            firestore.collection(StoreConstants.ENTITLEMENTS).document(accountId).delete().get();
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Firestore entitlement delete interrupted", ie);
@@ -110,10 +108,10 @@ public class FirestoreEntitlementStore implements EntitlementStore {
     private static Entitlement toEntitlement(String store, Map<String, Object> value) {
         return new Entitlement(
                 store,
-                asString(value.get("productId")),
-                asInstant(value.get("expiresAt")),
-                Boolean.TRUE.equals(value.get("revoked")),
-                asInstant(value.get("updatedAt")));
+                asString(value.get(StoreConstants.FIELD_PRODUCT_ID)),
+                asInstant(value.get(StoreConstants.FIELD_EXPIRES_AT)),
+                Boolean.TRUE.equals(value.get(StoreConstants.FIELD_REVOKED)),
+                asInstant(value.get(StoreConstants.FIELD_UPDATED_AT)));
     }
 
     private static String asString(Object o) {

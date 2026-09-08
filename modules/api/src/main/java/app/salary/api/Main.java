@@ -95,9 +95,6 @@ public class Main {
     private static final Logger log = LoggerFactory.getLogger(Main.class);
     private static final Logger access = LoggerFactory.getLogger("app.salary.api.access");
 
-    private static final String REQUEST_ID_HEADER = "X-Request-Id";
-    private static final String MDC_REQUEST_ID    = ApiConstants.MDC_REQUEST_ID;
-    private static final String ATTR_START_NANOS  = "_start_nanos";
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     public static void main(String[] args) {
@@ -188,7 +185,7 @@ public class Main {
         AccountController accountController =
                 new AccountController(accountDirectory,
                         new SubKeyedStores(calculationStore, grantStore, budgetStore, userDirectory),
-                        new AccountKeyedStores(entitlementStore, linkCodeStore, checkInStore));
+                        new AccountKeyedStores(entitlementStore, linkCodeStore, checkInStore, eventStore));
         GrantsController grantsController = new GrantsController(grantStore, requestValidator);
         BudgetController budgetController = new BudgetController(budgetStore, requestValidator);
         EntitlementService entitlementService = buildEntitlementService(entitlementStore, accountDirectory);
@@ -297,7 +294,7 @@ public class Main {
                 log.warn("Unsupported tax year requested");
                 ctx.status(HttpStatus.UNPROCESSABLE_CONTENT).json(Map.of(
                         ApiConstants.ERROR, "unsupported_tax_year",
-                        "supportedTaxYears", rulesRegistry.getSupportedTaxYears("US")));
+                        ApiConstants.SUPPORTED_TAX_YEARS, rulesRegistry.getSupportedTaxYears("US")));
             });
             config.routes.exception(IllegalArgumentException.class, (e, ctx) -> {
                 log.warn("Illegal argument: {}", e.getMessage());
@@ -320,7 +317,7 @@ public class Main {
             config.routes.exception(Exception.class, (e, ctx) -> {
                 log.error("Unexpected error", e);
                 ctx.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                        .json(Map.of(ApiConstants.ERROR, "Internal server error"));
+                        .json(Map.of(ApiConstants.ERROR, ApiConstants.ERROR_INTERNAL));
             });
 
             new CalculateController(orchestrator, calculatorRegistry, requestValidator, calculationStore, rulesRegistry)
@@ -338,9 +335,9 @@ public class Main {
             stocksController.register(config.routes);
             eventsController.register(config.routes);
 
-            config.routes.get("/actuator/health", ctx -> ctx.json(Map.of("status", "UP")));
-            config.routes.get("/actuator/prometheus", ctx ->
-                    ctx.contentType("text/plain; version=0.0.4").result(meterRegistry.scrape()));
+            config.routes.get(ApiConstants.PATH_HEALTH, ctx -> ctx.json(Map.of("status", "UP")));
+            config.routes.get(ApiConstants.PATH_PROMETHEUS, ctx ->
+                    ctx.contentType(ApiConstants.CONTENT_TYPE_PROMETHEUS).result(meterRegistry.scrape()));
         });
     }
 
@@ -363,16 +360,16 @@ public class Main {
 
     /** Correlation id, MDC, and the timer the access log reads. */
     private static void beginRequest(io.javalin.http.Context ctx) {
-        String requestId = ctx.header(REQUEST_ID_HEADER);
+        String requestId = ctx.header(ApiConstants.HEADER_REQUEST_ID);
         if (requestId == null || requestId.isBlank()) {
             requestId = UUID.randomUUID().toString();
         }
-        MDC.put(MDC_REQUEST_ID, requestId);
+        MDC.put(ApiConstants.MDC_REQUEST_ID, requestId);
         MDC.put("method", ctx.method().name());
         MDC.put("path", ctx.path());
-        ctx.attribute(ATTR_START_NANOS, System.nanoTime());
-        ctx.attribute(MDC_REQUEST_ID, requestId);
-        ctx.header(REQUEST_ID_HEADER, requestId);
+        ctx.attribute(ApiConstants.ATTR_START_NANOS, System.nanoTime());
+        ctx.attribute(ApiConstants.MDC_REQUEST_ID, requestId);
+        ctx.header(ApiConstants.HEADER_REQUEST_ID, requestId);
     }
 
     /** One access line per request. Clears the MDC even if logging it throws. */
@@ -383,13 +380,13 @@ public class Main {
             if (!access.isInfoEnabled()) {
                 return;
             }
-            Long startNanos = ctx.attribute(ATTR_START_NANOS);
+            Long startNanos = ctx.attribute(ApiConstants.ATTR_START_NANOS);
             long durationMs = startNanos != null
                     ? (System.nanoTime() - startNanos) / 1_000_000L
                     : -1L;
             int status = ctx.status().getCode();
             MDC.put("status",      String.valueOf(status));
-            MDC.put("duration_ms", String.valueOf(durationMs));
+            MDC.put(ApiConstants.MDC_DURATION_MS, String.valueOf(durationMs));
             access.info("{} {} -> {} ({}ms){}",
                     ctx.method(), ctx.path(), status, durationMs, accessLogClientSuffix());
         } finally {

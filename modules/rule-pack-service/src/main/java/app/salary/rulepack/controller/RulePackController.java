@@ -74,7 +74,7 @@ public class RulePackController {
     private void download(Context ctx) {
         rulePackService.downloadRulePack(ctx.pathParam("id"))
                 .ifPresentOrElse(
-                        json -> ctx.contentType("application/json").json(json),
+                        json -> ctx.contentType(ApiConstants.CONTENT_TYPE_JSON).json(json),
                         () -> ctx.status(HttpStatus.NOT_FOUND)
                 );
     }
@@ -97,7 +97,7 @@ public class RulePackController {
             ctx.status(HttpStatus.BAD_REQUEST).json(Map.of(ApiConstants.ERROR, String.valueOf(e.getMessage())));
         } catch (Exception e) {
             logger.error("Error creating rule pack", e);
-            ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).json(Map.of(ApiConstants.ERROR, "Internal server error"));
+            ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).json(Map.of(ApiConstants.ERROR, ApiConstants.ERROR_INTERNAL));
         }
     }
 

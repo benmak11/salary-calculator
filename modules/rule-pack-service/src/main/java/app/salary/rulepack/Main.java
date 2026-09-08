@@ -44,9 +44,7 @@ public class Main {
     private static final Logger log = LoggerFactory.getLogger(Main.class);
     private static final Logger access = LoggerFactory.getLogger("app.salary.rulepack.access");
 
-    private static final String REQUEST_ID_HEADER = "X-Request-Id";
     private static final String MDC_REQUEST_ID    = "request_id";
-    private static final String ATTR_START_NANOS  = "_start_nanos";
 
     public static void main(String[] args) {
         int port           = Env.intValue(   "SERVER_PORT",          8081);
@@ -113,27 +111,27 @@ public class Main {
             config.registerPlugin(new MicrometerPlugin(micrometerCfg -> micrometerCfg.registry = meterRegistry));
 
             config.routes.before(ctx -> {
-                String requestId = ctx.header(REQUEST_ID_HEADER);
+                String requestId = ctx.header(ApiConstants.HEADER_REQUEST_ID);
                 if (requestId == null || requestId.isBlank()) {
                     requestId = UUID.randomUUID().toString();
                 }
                 MDC.put(MDC_REQUEST_ID, requestId);
                 MDC.put("method", ctx.method().name());
                 MDC.put("path", ctx.path());
-                ctx.attribute(ATTR_START_NANOS, System.nanoTime());
+                ctx.attribute(ApiConstants.ATTR_START_NANOS, System.nanoTime());
                 ctx.attribute(MDC_REQUEST_ID, requestId);
-                ctx.header(REQUEST_ID_HEADER, requestId);
+                ctx.header(ApiConstants.HEADER_REQUEST_ID, requestId);
             });
 
             config.routes.after(ctx -> {
                 try {
-                    Long startNanos = ctx.attribute(ATTR_START_NANOS);
+                    Long startNanos = ctx.attribute(ApiConstants.ATTR_START_NANOS);
                     long durationMs = startNanos != null
                             ? (System.nanoTime() - startNanos) / 1_000_000L
                             : -1L;
                     int status = ctx.status().getCode();
                     MDC.put("status",      String.valueOf(status));
-                    MDC.put("duration_ms", String.valueOf(durationMs));
+                    MDC.put(ApiConstants.MDC_DURATION_MS, String.valueOf(durationMs));
                     access.info("{} {} -> {} ({}ms)",
                             ctx.method(), ctx.path(), status, durationMs);
                 } finally {
@@ -147,7 +145,7 @@ public class Main {
             });
             config.routes.exception(Exception.class, (e, ctx) -> {
                 log.error("Unexpected error", e);
-                ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).json(Map.of(ApiConstants.ERROR, "Internal server error"));
+                ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).json(Map.of(ApiConstants.ERROR, ApiConstants.ERROR_INTERNAL));
             });
 
             if (rulePackService != null) {
@@ -164,12 +162,12 @@ public class Main {
                 config.routes.post( "/v1/rule-packs/{id}/deprecate", unavailable);
             }
 
-            config.routes.get("/actuator/health", ctx -> ctx.json(Map.of(
+            config.routes.get(ApiConstants.PATH_HEALTH, ctx -> ctx.json(Map.of(
                     "status", "UP",
                     "gcp", enableGcp
             )));
-            config.routes.get("/actuator/prometheus", ctx ->
-                    ctx.contentType("text/plain; version=0.0.4").result(meterRegistry.scrape()));
+            config.routes.get(ApiConstants.PATH_PROMETHEUS, ctx ->
+                    ctx.contentType(ApiConstants.CONTENT_TYPE_PROMETHEUS).result(meterRegistry.scrape()));
         });
     }
 

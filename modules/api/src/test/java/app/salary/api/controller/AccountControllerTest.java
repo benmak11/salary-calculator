@@ -9,7 +9,9 @@ import app.salary.api.store.GrantStore;
 import app.salary.api.store.InMemoryAccountDirectory;
 import app.salary.api.store.InMemoryEntitlementStore;
 import app.salary.api.store.AccountKeyedStores;
+import app.salary.api.store.EventRecord;
 import app.salary.api.store.InMemoryCheckInStore;
+import app.salary.api.store.InMemoryEventStore;
 import app.salary.api.store.SubKeyedStores;
 import app.salary.api.store.InMemoryLinkCodeStore;
 import app.salary.api.store.InMemoryBudgetStore;
@@ -49,6 +51,7 @@ class AccountControllerTest {
     private InMemoryEntitlementStore entitlements;
     private InMemoryLinkCodeStore linkCodes;
     private InMemoryCheckInStore checkIns;
+    private InMemoryEventStore events;
 
     @BeforeEach
     void setUp() {
@@ -60,6 +63,7 @@ class AccountControllerTest {
         entitlements = new InMemoryEntitlementStore();
         linkCodes = new InMemoryLinkCodeStore();
         checkIns = new InMemoryCheckInStore();
+        events = new InMemoryEventStore();
         byte[] secret = new byte[32];
         for (int i = 0; i < secret.length; i++) secret[i] = (byte) i;
         sessionTokens = new SessionTokenService(secret);
@@ -73,9 +77,15 @@ class AccountControllerTest {
             config.routes.before(middleware::handle);
             new AccountController(accounts,
                     new SubKeyedStores(store, grants, budgets, users),
-                    new AccountKeyedStores(entitlements, linkCodes, checkIns))
+                    new AccountKeyedStores(entitlements, linkCodes, checkIns, events))
                     .register(config.routes);
         });
+    }
+
+    private static EventRecord event(String id, String accountId, String deviceId) {
+        java.time.Instant now = java.time.Instant.parse("2026-09-08T10:00:00Z");
+        return new EventRecord(id, "session_start", deviceId, accountId,
+                "ios/1.14.0", now, now, java.util.Map.of());
     }
 
     private static Budget sampleBudget() {
@@ -178,6 +188,32 @@ class AccountControllerTest {
 
             assertTrue(accounts.findAccountId(AccountDirectory.PROVIDER_APPLE, "user-1").isEmpty());
             assertTrue(accounts.findAccountId(AccountDirectory.PROVIDER_APPLE, "user-2").isPresent());
+        });
+    }
+
+    @Test
+    void deleteAccountPurgesAnalyticsEventsAttributedToTheAccount() {
+        String accountId = accounts.resolveOrCreate(
+                AccountDirectory.PROVIDER_APPLE, "user-1", "Alex Carter");
+        users.upsertOnSignIn("user-1", "Alex Carter");
+        String otherAccount = accounts.resolveOrCreate(
+                AccountDirectory.PROVIDER_APPLE, "user-2", "Sam Rivera");
+
+        events.append(java.util.List.of(
+                event("e1", accountId, "device-1"),
+                event("e2", accountId, "device-1"),
+                event("e3", otherAccount, "device-2"),
+                // Sent while signed out. Nothing links this device back to the account, so
+                // it survives deletion — a documented limit, not an oversight.
+                event("e4", null, "device-1")));
+
+        JavalinTest.test(app(), (server, client) -> {
+            var resp = client.delete("/v1/account", null,
+                    r -> r.header("Authorization", bearerFor()));
+            assertEquals(204, resp.code());
+
+            var remaining = events.all().stream().map(EventRecord::id).toList();
+            assertEquals(java.util.List.of("e3", "e4"), remaining);
         });
     }
 

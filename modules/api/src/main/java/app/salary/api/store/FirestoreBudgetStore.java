@@ -18,9 +18,6 @@ import java.util.concurrent.ExecutionException;
  * (one budget per user, unlike grants' auto-id-per-item collection).
  */
 public class FirestoreBudgetStore implements BudgetStore {
-    private static final String USERS = "users";
-    private static final String BUDGET = "budget";
-    private static final String DOC_ID = "current";
     private static final TypeReference<Map<String, Object>> MAP_REF = new TypeReference<>() {};
 
     private final Firestore firestore;
@@ -77,6 +74,6 @@ public class FirestoreBudgetStore implements BudgetStore {
     }
 
     private DocumentReference doc(String userId) {
-        return firestore.collection(USERS).document(userId).collection(BUDGET).document(DOC_ID);
+        return firestore.collection(StoreConstants.USERS).document(userId).collection(StoreConstants.BUDGET).document(StoreConstants.BUDGET_DOC_ID);
     }
 }

@@ -70,6 +70,6 @@ public class BudgetController {
     }
 
     private void notFound(Context ctx) {
-        ctx.status(HttpStatus.NOT_FOUND).json(Map.of(ApiConstants.ERROR, "Not found"));
+        ctx.status(HttpStatus.NOT_FOUND).json(Map.of(ApiConstants.ERROR, ApiConstants.ERROR_NOT_FOUND));
     }
 }

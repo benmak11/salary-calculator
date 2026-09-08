@@ -28,12 +28,6 @@ import java.util.concurrent.ExecutionException;
  */
 public class FirestoreLinkCodeStore implements LinkCodeStore {
     private static final Logger log = LoggerFactory.getLogger(FirestoreLinkCodeStore.class);
-    private static final String LINK_CODES = "linkCodes";
-    private static final String FIELD_ACCOUNT_ID = "accountId";
-    private static final String FIELD_ATTEMPTS = "attempts";
-    private static final String FIELD_REDEEMED = "redeemed";
-    private static final String FIELD_EXPIRES_AT = "expiresAt";
-    private static final String FIELD_CREATED_AT = "createdAt";
 
     /** Bounded so a collision storm cannot spin forever; 10^6 space makes this ample. */
     private static final int MAX_ISSUE_ATTEMPTS = 5;
@@ -51,7 +45,7 @@ public class FirestoreLinkCodeStore implements LinkCodeStore {
             String code = InMemoryLinkCodeStore.generateCode();
             Instant now = Instant.now();
             Instant expiresAt = now.plus(InMemoryLinkCodeStore.TTL);
-            DocumentReference ref = firestore.collection(LINK_CODES).document(code);
+            DocumentReference ref = firestore.collection(StoreConstants.LINK_CODES).document(code);
             try {
                 Boolean created = firestore.runTransaction(tx -> {
                     DocumentSnapshot existing = tx.get(ref).get();
@@ -61,12 +55,12 @@ public class FirestoreLinkCodeStore implements LinkCodeStore {
                     }
                     Map<String, Object> doc = new HashMap<>();
                     doc.put("code", code);
-                    doc.put(FIELD_ACCOUNT_ID, accountId);
-                    doc.put(FIELD_CREATED_AT, Timestamp.ofTimeSecondsAndNanos(now.getEpochSecond(), now.getNano()));
-                    doc.put(FIELD_EXPIRES_AT,
+                    doc.put(StoreConstants.FIELD_ACCOUNT_ID, accountId);
+                    doc.put(StoreConstants.FIELD_CREATED_AT, Timestamp.ofTimeSecondsAndNanos(now.getEpochSecond(), now.getNano()));
+                    doc.put(StoreConstants.FIELD_EXPIRES_AT,
                             Timestamp.ofTimeSecondsAndNanos(expiresAt.getEpochSecond(), expiresAt.getNano()));
-                    doc.put(FIELD_ATTEMPTS, 0L);
-                    doc.put(FIELD_REDEEMED, false);
+                    doc.put(StoreConstants.FIELD_ATTEMPTS, 0L);
+                    doc.put(StoreConstants.FIELD_REDEEMED, false);
                     tx.set(ref, doc);
                     return true;
                 }).get();
@@ -86,7 +80,7 @@ public class FirestoreLinkCodeStore implements LinkCodeStore {
     @Override
     public Optional<LinkCode> find(String code) {
         try {
-            DocumentSnapshot snap = firestore.collection(LINK_CODES).document(code).get().get();
+            DocumentSnapshot snap = firestore.collection(StoreConstants.LINK_CODES).document(code).get().get();
             return snap.exists() ? Optional.of(toLinkCode(snap)) : Optional.empty();
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
@@ -99,7 +93,7 @@ public class FirestoreLinkCodeStore implements LinkCodeStore {
 
     @Override
     public Optional<LinkCode> recordFailedAttempt(String code) {
-        DocumentReference ref = firestore.collection(LINK_CODES).document(code);
+        DocumentReference ref = firestore.collection(StoreConstants.LINK_CODES).document(code);
         try {
             // Transactional so concurrent guesses cannot both read the same count and
             // write back the same increment, which would double the attempts allowed.
@@ -108,11 +102,11 @@ public class FirestoreLinkCodeStore implements LinkCodeStore {
                 if (!snap.exists()) {
                     return null;
                 }
-                long attempts = value(snap.get(FIELD_ATTEMPTS)) + 1;
-                tx.update(ref, FIELD_ATTEMPTS, attempts);
-                return new LinkCode(code, snap.getString(FIELD_ACCOUNT_ID),
-                        instant(snap.get(FIELD_CREATED_AT)), instant(snap.get(FIELD_EXPIRES_AT)),
-                        (int) attempts, Boolean.TRUE.equals(snap.getBoolean(FIELD_REDEEMED)));
+                long attempts = value(snap.get(StoreConstants.FIELD_ATTEMPTS)) + 1;
+                tx.update(ref, StoreConstants.FIELD_ATTEMPTS, attempts);
+                return new LinkCode(code, snap.getString(StoreConstants.FIELD_ACCOUNT_ID),
+                        instant(snap.get(StoreConstants.FIELD_CREATED_AT)), instant(snap.get(StoreConstants.FIELD_EXPIRES_AT)),
+                        (int) attempts, Boolean.TRUE.equals(snap.getBoolean(StoreConstants.FIELD_REDEEMED)));
             }).get());
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
@@ -125,16 +119,16 @@ public class FirestoreLinkCodeStore implements LinkCodeStore {
 
     @Override
     public boolean markRedeemed(String code) {
-        DocumentReference ref = firestore.collection(LINK_CODES).document(code);
+        DocumentReference ref = firestore.collection(StoreConstants.LINK_CODES).document(code);
         try {
             // The single-use guarantee: two devices racing the same code both read
             // redeemed=false outside a transaction and both proceed.
             return Boolean.TRUE.equals(firestore.runTransaction(tx -> {
                 DocumentSnapshot snap = tx.get(ref).get();
-                if (!snap.exists() || Boolean.TRUE.equals(snap.getBoolean(FIELD_REDEEMED))) {
+                if (!snap.exists() || Boolean.TRUE.equals(snap.getBoolean(StoreConstants.FIELD_REDEEMED))) {
                     return false;
                 }
-                tx.update(ref, FIELD_REDEEMED, true);
+                tx.update(ref, StoreConstants.FIELD_REDEEMED, true);
                 return true;
             }).get());
         } catch (InterruptedException ie) {
@@ -148,8 +142,8 @@ public class FirestoreLinkCodeStore implements LinkCodeStore {
     @Override
     public void deleteByAccountId(String accountId) {
         try {
-            List<QueryDocumentSnapshot> mine = firestore.collection(LINK_CODES)
-                    .whereEqualTo(FIELD_ACCOUNT_ID, accountId).get().get().getDocuments();
+            List<QueryDocumentSnapshot> mine = firestore.collection(StoreConstants.LINK_CODES)
+                    .whereEqualTo(StoreConstants.FIELD_ACCOUNT_ID, accountId).get().get().getDocuments();
             for (QueryDocumentSnapshot snap : mine) {
                 snap.getReference().delete().get();
             }
@@ -162,18 +156,18 @@ public class FirestoreLinkCodeStore implements LinkCodeStore {
     }
 
     private static boolean isExpired(DocumentSnapshot snap, Instant now) {
-        Instant expiresAt = instant(snap.get(FIELD_EXPIRES_AT));
+        Instant expiresAt = instant(snap.get(StoreConstants.FIELD_EXPIRES_AT));
         return expiresAt == null || !expiresAt.isAfter(now);
     }
 
     private static LinkCode toLinkCode(DocumentSnapshot snap) {
         return new LinkCode(
                 snap.getId(),
-                snap.getString(FIELD_ACCOUNT_ID),
-                instant(snap.get(FIELD_CREATED_AT)),
-                instant(snap.get(FIELD_EXPIRES_AT)),
-                (int) value(snap.get(FIELD_ATTEMPTS)),
-                Boolean.TRUE.equals(snap.getBoolean(FIELD_REDEEMED)));
+                snap.getString(StoreConstants.FIELD_ACCOUNT_ID),
+                instant(snap.get(StoreConstants.FIELD_CREATED_AT)),
+                instant(snap.get(StoreConstants.FIELD_EXPIRES_AT)),
+                (int) value(snap.get(StoreConstants.FIELD_ATTEMPTS)),
+                Boolean.TRUE.equals(snap.getBoolean(StoreConstants.FIELD_REDEEMED)));
     }
 
     private static long value(Object raw) {

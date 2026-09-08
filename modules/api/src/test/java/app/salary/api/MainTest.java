@@ -82,7 +82,8 @@ class MainTest {
                 new AccountController(new InMemoryAccountDirectory(),
                         new SubKeyedStores(calculationStore, grantStore, budgetStore, userDirectory),
                         new AccountKeyedStores(new InMemoryEntitlementStore(),
-                                new InMemoryLinkCodeStore(), new InMemoryCheckInStore()));
+                                new InMemoryLinkCodeStore(), new InMemoryCheckInStore(),
+                                new InMemoryEventStore()));
         GrantsController grantsController = new GrantsController(grantStore, validator);
         BudgetController budgetController = new BudgetController(budgetStore, validator);
         BudgetPlanController budgetPlanController = new BudgetPlanController(null, validator, null, null);

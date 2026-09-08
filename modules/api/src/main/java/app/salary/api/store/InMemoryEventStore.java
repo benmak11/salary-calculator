@@ -13,6 +13,18 @@ public class InMemoryEventStore implements EventStore {
         return batch.size();
     }
 
+    @Override
+    public int deleteAll(String accountId) {
+        if (accountId == null) {
+            return 0;
+        }
+        List<EventRecord> mine = events.stream()
+                .filter(e -> accountId.equals(e.accountId()))
+                .toList();
+        events.removeAll(mine);
+        return mine.size();
+    }
+
     /** Everything appended so far, in arrival order. */
     public List<EventRecord> all() {
         return List.copyOf(events);

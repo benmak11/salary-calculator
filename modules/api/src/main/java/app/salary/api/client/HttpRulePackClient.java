@@ -134,10 +134,10 @@ public class HttpRulePackClient implements RulePackClient {
     private Map<String, Object> getJson(String url) throws IOException, InterruptedException {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
                 .timeout(REQUEST_TIMEOUT)
-                .header("Accept", "application/json");
+                .header("Accept", ApiConstants.CONTENT_TYPE_JSON);
         String requestId = MDC.get(ApiConstants.MDC_REQUEST_ID);
         if (requestId != null && !requestId.isBlank()) {
-            builder.header("X-Request-Id", requestId);
+            builder.header(ApiConstants.HEADER_REQUEST_ID, requestId);
         }
         if (idTokenSupplier != null) {
             builder.header("Authorization", "Bearer " + idTokenSupplier.get());

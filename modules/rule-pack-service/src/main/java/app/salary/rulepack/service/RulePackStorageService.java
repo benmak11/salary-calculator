@@ -64,7 +64,7 @@ public class RulePackStorageService {
 
             BlobId blobId = BlobId.of(bucketName, blobName);
             BlobInfo blobInfo = BlobInfo.newBuilder(blobId)
-                    .setContentType("application/json")
+                    .setContentType(ApiConstants.CONTENT_TYPE_JSON)
                     .setMetadata(Map.of(
                             ApiConstants.COUNTRY, country,
                             ApiConstants.TAX_YEAR, String.valueOf(taxYear),
