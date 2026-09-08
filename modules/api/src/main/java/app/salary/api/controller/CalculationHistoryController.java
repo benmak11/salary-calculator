@@ -56,7 +56,7 @@ public class CalculationHistoryController {
         String calcId = ctx.pathParam("id");
         Optional<SavedCalculationDetail> detail = store.get(userId.get(), calcId);
         if (detail.isEmpty()) {
-            ctx.status(HttpStatus.NOT_FOUND).json(Map.of(ApiConstants.ERROR, "Not found"));
+            ctx.status(HttpStatus.NOT_FOUND).json(Map.of(ApiConstants.ERROR, ApiConstants.ERROR_NOT_FOUND));
             return;
         }
         ctx.json(detail.get());
@@ -72,7 +72,7 @@ public class CalculationHistoryController {
         String calcId = ctx.pathParam("id");
         boolean removed = store.delete(userId.get(), calcId);
         if (!removed) {
-            ctx.status(HttpStatus.NOT_FOUND).json(Map.of(ApiConstants.ERROR, "Not found"));
+            ctx.status(HttpStatus.NOT_FOUND).json(Map.of(ApiConstants.ERROR, ApiConstants.ERROR_NOT_FOUND));
             return;
         }
         log.info("history delete: id={}", calcId);
@@ -80,6 +80,6 @@ public class CalculationHistoryController {
     }
 
     private void unauthorized(Context ctx) {
-        ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of(ApiConstants.ERROR, "Authentication required"));
+        ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of(ApiConstants.ERROR, ApiConstants.ERROR_AUTH_REQUIRED));
     }
 }

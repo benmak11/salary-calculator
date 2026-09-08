@@ -26,10 +26,6 @@ import java.util.concurrent.ExecutionException;
  * {@code grant} plus a {@code createdAt} timestamp for oldest-first list ordering.
  */
 public class FirestoreGrantStore implements GrantStore {
-    private static final String USERS = "users";
-    private static final String GRANTS = "grants";
-    private static final String FIELD_GRANT = "grant";
-    private static final String FIELD_CREATED_AT = "createdAt";
     private static final TypeReference<Map<String, Object>> MAP_REF = new TypeReference<>() {};
 
     private final Firestore firestore;
@@ -42,7 +38,7 @@ public class FirestoreGrantStore implements GrantStore {
 
     @Override
     public List<RsuGrant> list(String userId) {
-        Query q = userGrants(userId).orderBy(FIELD_CREATED_AT, Query.Direction.ASCENDING);
+        Query q = userGrants(userId).orderBy(StoreConstants.FIELD_CREATED_AT, Query.Direction.ASCENDING);
         try {
             List<QueryDocumentSnapshot> snaps = q.get().get().getDocuments();
             List<RsuGrant> items = new ArrayList<>(snaps.size());
@@ -83,7 +79,7 @@ public class FirestoreGrantStore implements GrantStore {
             grant.setId(grantId);
             // Preserve createdAt so list order stays stable across edits
             Map<String, Object> data = toDoc(grant, null);
-            data.put(FIELD_CREATED_AT, snap.get(FIELD_CREATED_AT));
+            data.put(StoreConstants.FIELD_CREATED_AT, snap.get(StoreConstants.FIELD_CREATED_AT));
             doc.set(data).get();
             return Optional.of(grant);
         } catch (InterruptedException ie) {
@@ -127,21 +123,21 @@ public class FirestoreGrantStore implements GrantStore {
     }
 
     private CollectionReference userGrants(String userId) {
-        return firestore.collection(USERS).document(userId).collection(GRANTS);
+        return firestore.collection(StoreConstants.USERS).document(userId).collection(StoreConstants.GRANTS);
     }
 
     private Map<String, Object> toDoc(RsuGrant grant, Instant createdAt) {
         Map<String, Object> data = new HashMap<>();
-        data.put(FIELD_GRANT, mapper.convertValue(grant, MAP_REF));
+        data.put(StoreConstants.FIELD_GRANT, mapper.convertValue(grant, MAP_REF));
         if (createdAt != null) {
-            data.put(FIELD_CREATED_AT,
+            data.put(StoreConstants.FIELD_CREATED_AT,
                     Timestamp.ofTimeSecondsAndNanos(createdAt.getEpochSecond(), createdAt.getNano()));
         }
         return data;
     }
 
     private RsuGrant readGrant(DocumentSnapshot snap) {
-        Object raw = snap.get(FIELD_GRANT);
+        Object raw = snap.get(StoreConstants.FIELD_GRANT);
         return raw == null ? null : mapper.convertValue(raw, RsuGrant.class);
     }
 }

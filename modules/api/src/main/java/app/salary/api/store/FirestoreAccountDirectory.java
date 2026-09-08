@@ -25,11 +25,6 @@ import java.util.concurrent.ExecutionException;
  */
 public class FirestoreAccountDirectory implements AccountDirectory {
     private static final Logger log = LoggerFactory.getLogger(FirestoreAccountDirectory.class);
-    private static final String ACCOUNTS = "accounts";
-    private static final String IDENTITIES = "identities";
-    private static final String FIELD_ACCOUNT_ID = "accountId";
-    private static final String FIELD_SUB = "sub";
-    private static final String FIELD_LEGACY_PRO_BUDGET = "legacy_pro_budget";
 
     private final Firestore firestore;
 
@@ -40,13 +35,13 @@ public class FirestoreAccountDirectory implements AccountDirectory {
     @Override
     public String resolveOrCreate(String provider, String providerSub, String displayName) {
         DocumentReference identityRef =
-                firestore.collection(IDENTITIES).document(identityKey(provider, providerSub));
+                firestore.collection(StoreConstants.IDENTITIES).document(identityKey(provider, providerSub));
         try {
             // A transaction, not a read-then-write: two devices signing in at once would
             // otherwise both see "no identity" and mint two accounts for the same person.
             return firestore.runTransaction(tx -> {
                 DocumentSnapshot existing = tx.get(identityRef).get();
-                String id = existing.exists() ? existing.getString(FIELD_ACCOUNT_ID) : null;
+                String id = existing.exists() ? existing.getString(StoreConstants.FIELD_ACCOUNT_ID) : null;
                 boolean fresh = (id == null || id.isBlank());
                 if (fresh) {
                     id = Ulid.generate();
@@ -54,24 +49,24 @@ public class FirestoreAccountDirectory implements AccountDirectory {
 
                 Map<String, Object> identityPatch = new HashMap<>();
                 identityPatch.put("provider", provider);
-                identityPatch.put(FIELD_SUB, providerSub);
-                identityPatch.put(FIELD_ACCOUNT_ID, id);
-                identityPatch.put("lastSeenAt", Timestamp.now());
+                identityPatch.put(StoreConstants.FIELD_SUB, providerSub);
+                identityPatch.put(StoreConstants.FIELD_ACCOUNT_ID, id);
+                identityPatch.put(StoreConstants.FIELD_LAST_SEEN_AT, Timestamp.now());
                 if (fresh) {
-                    identityPatch.put("createdAt", Timestamp.now());
+                    identityPatch.put(StoreConstants.FIELD_CREATED_AT, Timestamp.now());
                 }
                 tx.set(identityRef, identityPatch, SetOptions.merge());
 
                 Map<String, Object> accountPatch = new HashMap<>();
-                accountPatch.put("id", id);
-                accountPatch.put("lastSeenAt", Timestamp.now());
+                accountPatch.put(StoreConstants.FIELD_ID, id);
+                accountPatch.put(StoreConstants.FIELD_LAST_SEEN_AT, Timestamp.now());
                 if (displayName != null && !displayName.isBlank()) {
-                    accountPatch.put("displayName", displayName);
+                    accountPatch.put(StoreConstants.FIELD_DISPLAY_NAME, displayName);
                 }
                 if (fresh) {
-                    accountPatch.put("createdAt", Timestamp.now());
+                    accountPatch.put(StoreConstants.FIELD_CREATED_AT, Timestamp.now());
                 }
-                tx.set(firestore.collection(ACCOUNTS).document(id), accountPatch, SetOptions.merge());
+                tx.set(firestore.collection(StoreConstants.ACCOUNTS).document(id), accountPatch, SetOptions.merge());
 
                 return id;
             }).get();
@@ -86,12 +81,12 @@ public class FirestoreAccountDirectory implements AccountDirectory {
     @Override
     public Optional<String> findAccountId(String provider, String providerSub) {
         try {
-            DocumentSnapshot snap = firestore.collection(IDENTITIES)
+            DocumentSnapshot snap = firestore.collection(StoreConstants.IDENTITIES)
                     .document(identityKey(provider, providerSub)).get().get();
             if (!snap.exists()) {
                 return Optional.empty();
             }
-            String accountId = snap.getString(FIELD_ACCOUNT_ID);
+            String accountId = snap.getString(StoreConstants.FIELD_ACCOUNT_ID);
             return (accountId == null || accountId.isBlank()) ? Optional.empty() : Optional.of(accountId);
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
@@ -109,7 +104,7 @@ public class FirestoreAccountDirectory implements AccountDirectory {
             if (bySub.isEmpty()) {
                 return Optional.empty();
             }
-            String accountId = bySub.getFirst().getString(FIELD_ACCOUNT_ID);
+            String accountId = bySub.getFirst().getString(StoreConstants.FIELD_ACCOUNT_ID);
             return (accountId == null || accountId.isBlank()) ? Optional.empty() : Optional.of(accountId);
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
@@ -126,8 +121,8 @@ public class FirestoreAccountDirectory implements AccountDirectory {
             return false;
         }
         try {
-            DocumentSnapshot snap = firestore.collection(ACCOUNTS).document(accountId).get().get();
-            return snap.exists() && Boolean.TRUE.equals(snap.getBoolean(FIELD_LEGACY_PRO_BUDGET));
+            DocumentSnapshot snap = firestore.collection(StoreConstants.ACCOUNTS).document(accountId).get().get();
+            return snap.exists() && Boolean.TRUE.equals(snap.getBoolean(StoreConstants.FIELD_LEGACY_PRO_BUDGET));
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Firestore account read interrupted", ie);
@@ -143,11 +138,11 @@ public class FirestoreAccountDirectory implements AccountDirectory {
         try {
             List<QueryDocumentSnapshot> bySub = identitiesForSub(providerSub);
             for (QueryDocumentSnapshot snap : bySub) {
-                String previous = snap.getString(FIELD_ACCOUNT_ID);
+                String previous = snap.getString(StoreConstants.FIELD_ACCOUNT_ID);
                 if (previous == null || previous.equals(targetAccountId)) {
                     continue;
                 }
-                snap.getReference().update(FIELD_ACCOUNT_ID, targetAccountId).get();
+                snap.getReference().update(StoreConstants.FIELD_ACCOUNT_ID, targetAccountId).get();
                 return Optional.of(previous);
             }
             return Optional.empty();
@@ -167,7 +162,7 @@ public class FirestoreAccountDirectory implements AccountDirectory {
                 return 0;
             }
 
-            String accountId = bySub.getFirst().getString(FIELD_ACCOUNT_ID);
+            String accountId = bySub.getFirst().getString(StoreConstants.FIELD_ACCOUNT_ID);
             if (accountId == null || accountId.isBlank()) {
                 for (QueryDocumentSnapshot snap : bySub) {
                     snap.getReference().delete().get();
@@ -177,12 +172,12 @@ public class FirestoreAccountDirectory implements AccountDirectory {
 
             // Sweep by accountId, not by sub: a second linked identity would otherwise
             // survive and point at an account document that no longer exists.
-            List<QueryDocumentSnapshot> linked = firestore.collection(IDENTITIES)
-                    .whereEqualTo(FIELD_ACCOUNT_ID, accountId).get().get().getDocuments();
+            List<QueryDocumentSnapshot> linked = firestore.collection(StoreConstants.IDENTITIES)
+                    .whereEqualTo(StoreConstants.FIELD_ACCOUNT_ID, accountId).get().get().getDocuments();
             for (QueryDocumentSnapshot snap : linked) {
                 snap.getReference().delete().get();
             }
-            firestore.collection(ACCOUNTS).document(accountId).delete().get();
+            firestore.collection(StoreConstants.ACCOUNTS).document(accountId).delete().get();
             return linked.size();
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
@@ -194,8 +189,8 @@ public class FirestoreAccountDirectory implements AccountDirectory {
 
     private List<QueryDocumentSnapshot> identitiesForSub(String providerSub)
             throws InterruptedException, ExecutionException {
-        return firestore.collection(IDENTITIES)
-                .whereEqualTo(FIELD_SUB, providerSub).get().get().getDocuments();
+        return firestore.collection(StoreConstants.IDENTITIES)
+                .whereEqualTo(StoreConstants.FIELD_SUB, providerSub).get().get().getDocuments();
     }
 
     private static String identityKey(String provider, String providerSub) {

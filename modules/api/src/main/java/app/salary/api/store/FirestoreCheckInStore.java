@@ -29,10 +29,6 @@ import java.util.concurrent.ExecutionException;
  * this collection.
  */
 public class FirestoreCheckInStore implements CheckInStore {
-    private static final String CHECK_INS = "checkIns";
-    private static final String ENTRIES = "entries";
-    private static final String FIELD_CHECK_IN = "checkIn";
-    private static final String FIELD_PAY_DATE = "payDate";
     private static final TypeReference<Map<String, Object>> MAP_REF = new TypeReference<>() {};
 
     private final Firestore firestore;
@@ -53,8 +49,8 @@ public class FirestoreCheckInStore implements CheckInStore {
             checkIn.setId(existingId != null ? existingId : Ulid.generate());
 
             Map<String, Object> payload = new HashMap<>();
-            payload.put(FIELD_CHECK_IN, mapper.convertValue(checkIn, MAP_REF));
-            payload.put(FIELD_PAY_DATE, checkIn.getPayDate());
+            payload.put(StoreConstants.FIELD_CHECK_IN, mapper.convertValue(checkIn, MAP_REF));
+            payload.put(StoreConstants.FIELD_PAY_DATE, checkIn.getPayDate());
             doc.set(payload).get();
             return checkIn;
         } catch (InterruptedException ie) {
@@ -68,7 +64,7 @@ public class FirestoreCheckInStore implements CheckInStore {
     @Override
     public List<PaycheckCheckIn> list(String accountId, int limit) {
         Query q = entries(accountId)
-                .orderBy(FIELD_PAY_DATE, Query.Direction.DESCENDING)
+                .orderBy(StoreConstants.FIELD_PAY_DATE, Query.Direction.DESCENDING)
                 .limit(limit);
         try {
             List<QueryDocumentSnapshot> snaps = q.get().get().getDocuments();
@@ -129,7 +125,7 @@ public class FirestoreCheckInStore implements CheckInStore {
     }
 
     private CollectionReference entries(String accountId) {
-        return firestore.collection(CHECK_INS).document(accountId).collection(ENTRIES);
+        return firestore.collection(StoreConstants.CHECK_INS).document(accountId).collection(StoreConstants.ENTRIES);
     }
 
     private String readId(DocumentSnapshot snap) {
@@ -139,7 +135,7 @@ public class FirestoreCheckInStore implements CheckInStore {
 
     @SuppressWarnings("unchecked")
     private PaycheckCheckIn read(DocumentSnapshot snap) {
-        Object raw = snap.get(FIELD_CHECK_IN);
+        Object raw = snap.get(StoreConstants.FIELD_CHECK_IN);
         if (!(raw instanceof Map<?, ?> map)) {
             return null;
         }

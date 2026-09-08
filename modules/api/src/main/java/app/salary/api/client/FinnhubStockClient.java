@@ -115,13 +115,13 @@ public class FinnhubStockClient implements StockClient {
     private JsonNode getJson(String url, String operation) {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
                 .timeout(REQUEST_TIMEOUT)
-                .header("Accept", "application/json")
+                .header("Accept", ApiConstants.CONTENT_TYPE_JSON)
                 .header("X-Finnhub-Token", apiKey);
         // Propagate the request correlation id on outbound calls (same convention as
         // HttpRulePackClient) so provider-side request logs can be tied back to ours.
         String requestId = MDC.get(ApiConstants.MDC_REQUEST_ID);
         if (requestId != null && !requestId.isBlank()) {
-            builder.header("X-Request-Id", requestId);
+            builder.header(ApiConstants.HEADER_REQUEST_ID, requestId);
         }
         HttpRequest request = builder.GET().build();
         try {

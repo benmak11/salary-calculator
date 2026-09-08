@@ -2,6 +2,7 @@ package app.salary.api.store;
 
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.Firestore;
+import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.WriteBatch;
 
 import java.util.HashMap;
@@ -18,7 +19,8 @@ import java.util.concurrent.ExecutionException;
  * limit.
  */
 public class FirestoreEventStore implements EventStore {
-    private static final String COLLECTION = "events";
+    /** Firestore caps a batch at 500 operations; a purge can far exceed one batch. */
+    private static final int DELETE_BATCH_SIZE = 400;
 
     private final Firestore firestore;
 
@@ -33,7 +35,7 @@ public class FirestoreEventStore implements EventStore {
         }
         WriteBatch batch = firestore.batch();
         for (EventRecord event : events) {
-            batch.set(firestore.collection(COLLECTION).document(event.id()), toDoc(event));
+            batch.set(firestore.collection(StoreConstants.EVENTS).document(event.id()), toDoc(event));
         }
         try {
             batch.commit().get();
@@ -46,6 +48,41 @@ public class FirestoreEventStore implements EventStore {
         }
     }
 
+    /**
+     * Deletes by query on {@code accountId}. No composite index is needed: Firestore
+     * indexes every single field automatically, and this is a lone equality filter.
+     *
+     * <p>Batched rather than deleted one document at a time, unlike the other purges. Those
+     * cover at most a handful of rows per account; an active account's event history has no
+     * such bound, and a per-document round trip would turn deletion into a long-running
+     * request.
+     */
+    @Override
+    public int deleteAll(String accountId) {
+        if (accountId == null || accountId.isBlank()) {
+            return 0;
+        }
+        try {
+            List<QueryDocumentSnapshot> mine = firestore.collection(StoreConstants.EVENTS)
+                    .whereEqualTo(StoreConstants.FIELD_ACCOUNT_ID, accountId)
+                    .get().get().getDocuments();
+            for (int from = 0; from < mine.size(); from += DELETE_BATCH_SIZE) {
+                WriteBatch batch = firestore.batch();
+                for (QueryDocumentSnapshot snap : mine.subList(
+                        from, Math.min(from + DELETE_BATCH_SIZE, mine.size()))) {
+                    batch.delete(snap.getReference());
+                }
+                batch.commit().get();
+            }
+            return mine.size();
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Firestore event purge interrupted", ie);
+        } catch (ExecutionException e) {
+            throw new IllegalStateException("Firestore event purge failed", e);
+        }
+    }
+
     private static Map<String, Object> toDoc(EventRecord event) {
         Map<String, Object> doc = new HashMap<>();
         doc.put("name", event.name());
@@ -53,7 +90,7 @@ public class FirestoreEventStore implements EventStore {
         doc.put("occurredAt", toTimestamp(event.occurredAt()));
         doc.put("receivedAt", toTimestamp(event.receivedAt()));
         if (event.accountId() != null) {
-            doc.put("accountId", event.accountId());
+            doc.put(StoreConstants.FIELD_ACCOUNT_ID, event.accountId());
         }
         if (event.client() != null) {
             doc.put("client", event.client());

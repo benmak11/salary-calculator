@@ -49,12 +49,16 @@ public class AccountController {
      * <p>Entitlements and any outstanding link codes go with it, for the same reason and one
      * more: a live link code outliving its account would let a stranger redeem their way onto
      * a deleted account's id. Resolution happens <em>before</em> the identity records are
-     * removed, because afterwards there is no way back from the sub to the accountId.
+     * removed, because afterward there is no way back from the sub to the accountId.
+     *
+     * <p>Analytics events attributed to the account go too. That purge is deliberately
+     * incomplete: events sent while signed out carry only a deviceId and cannot be traced
+     * back, so they survive. See {@link app.salary.api.store.EventStore#deleteAll}.
      */
     private void deleteAccount(Context ctx) {
         Optional<String> userId = AuthMiddleware.currentUserId(ctx);
         if (userId.isEmpty()) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of(ApiConstants.ERROR, "Authentication required"));
+            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of(ApiConstants.ERROR, ApiConstants.ERROR_AUTH_REQUIRED));
             return;
         }
         MDC.put(ApiConstants.MDC_USER_ID, userId.get());
@@ -86,6 +90,12 @@ public class AccountController {
         }
         if (accountKeyed.checkIns() != null) {
             accountKeyed.checkIns().deleteAll(accountId);
+        }
+        if (accountKeyed.events() != null) {
+            int eventsRemoved = accountKeyed.events().deleteAll(accountId);
+            // Counted rather than silent: this is the one purge whose coverage is partial,
+            // so a zero here is worth being able to see.
+            log.info("analytics events purged: count={}", eventsRemoved);
         }
     }
 }

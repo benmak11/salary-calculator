@@ -32,8 +32,6 @@ import java.util.concurrent.ExecutionException;
  * the detail view.
  */
 public class FirestoreCalculationStore implements CalculationStore {
-    private static final String USERS = "users";
-    private static final String CALCULATIONS = "calculations";
     private static final TypeReference<Map<String, Object>> MAP_REF = new TypeReference<>() {};
 
     private final Firestore firestore;
@@ -52,11 +50,11 @@ public class FirestoreCalculationStore implements CalculationStore {
         SavedCalculationSummary summary = CalculationSummarizer.summarize(calcId, savedAt, request, response);
 
         Map<String, Object> data = new HashMap<>();
-        data.put("id", calcId);
-        data.put("createdAt", Timestamp.ofTimeSecondsAndNanos(savedAt.getEpochSecond(), savedAt.getNano()));
-        data.put("summary", mapper.convertValue(summary, MAP_REF));
-        data.put("request", mapper.convertValue(request, MAP_REF));
-        data.put("response", mapper.convertValue(response, MAP_REF));
+        data.put(StoreConstants.FIELD_ID, calcId);
+        data.put(StoreConstants.FIELD_CREATED_AT, Timestamp.ofTimeSecondsAndNanos(savedAt.getEpochSecond(), savedAt.getNano()));
+        data.put(StoreConstants.FIELD_SUMMARY, mapper.convertValue(summary, MAP_REF));
+        data.put(StoreConstants.FIELD_REQUEST, mapper.convertValue(request, MAP_REF));
+        data.put(StoreConstants.FIELD_RESPONSE, mapper.convertValue(response, MAP_REF));
 
         try {
             doc.set(data).get();
@@ -73,7 +71,7 @@ public class FirestoreCalculationStore implements CalculationStore {
     public CalculationListResponse list(String userId, int limit, String cursor) {
         int safeLimit = Math.clamp(limit, 1, 100);
         Query q = userCalculations(userId)
-                .orderBy("createdAt", Query.Direction.DESCENDING)
+                .orderBy(StoreConstants.FIELD_CREATED_AT, Query.Direction.DESCENDING)
                 .limit(safeLimit);
         try {
             List<QueryDocumentSnapshot> snaps = q.get().get().getDocuments();
@@ -97,8 +95,8 @@ public class FirestoreCalculationStore implements CalculationStore {
             if (!snap.exists())
                 return Optional.empty();
             SavedCalculationSummary summary = readSummary(snap);
-            CalculateRequest request = readSubduct(snap, "request", CalculateRequest.class);
-            CalculateResponse response = readSubduct(snap, "response", CalculateResponse.class);
+            CalculateRequest request = readSubduct(snap, StoreConstants.FIELD_REQUEST, CalculateRequest.class);
+            CalculateResponse response = readSubduct(snap, StoreConstants.FIELD_RESPONSE, CalculateResponse.class);
             return Optional.of(new SavedCalculationDetail(summary, request, response));
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
@@ -142,11 +140,11 @@ public class FirestoreCalculationStore implements CalculationStore {
     }
 
     private CollectionReference userCalculations(String userId) {
-        return firestore.collection(USERS).document(userId).collection(CALCULATIONS);
+        return firestore.collection(StoreConstants.USERS).document(userId).collection(StoreConstants.CALCULATIONS);
     }
 
     private SavedCalculationSummary readSummary(DocumentSnapshot snap) {
-        Object raw = snap.get("summary");
+        Object raw = snap.get(StoreConstants.FIELD_SUMMARY);
         if (raw == null) {
             SavedCalculationSummary empty = new SavedCalculationSummary();
             empty.setId(snap.getId());

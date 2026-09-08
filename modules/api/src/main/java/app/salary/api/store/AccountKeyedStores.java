@@ -11,5 +11,6 @@ package app.salary.api.store;
 public record AccountKeyedStores(
         EntitlementStore entitlements,
         LinkCodeStore linkCodes,
-        CheckInStore checkIns) {
+        CheckInStore checkIns,
+        EventStore events) {
 }

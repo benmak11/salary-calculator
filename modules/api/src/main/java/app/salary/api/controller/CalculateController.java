@@ -126,7 +126,7 @@ public class CalculateController {
         List<Integer> taxYears = rulesRegistry.getSupportedTaxYears(country.toUpperCase());
         Map<String, Object> response = new LinkedHashMap<>();
         response.put(ApiConstants.COUNTRY, country.toUpperCase());
-        response.put("supportedTaxYears", taxYears);
+        response.put(ApiConstants.SUPPORTED_TAX_YEARS, taxYears);
         response.put("defaultTaxYear", taxYears.isEmpty() ? null : taxYears.getFirst());
         ctx.json(response);
     }

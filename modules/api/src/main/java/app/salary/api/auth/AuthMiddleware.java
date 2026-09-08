@@ -50,7 +50,7 @@ public class AuthMiddleware {
     public static Optional<String> requireUser(Context ctx) {
         Optional<String> userId = currentUserId(ctx);
         if (userId.isEmpty()) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of(ApiConstants.ERROR, "Authentication required"));
+            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of(ApiConstants.ERROR, ApiConstants.ERROR_AUTH_REQUIRED));
             return Optional.empty();
         }
         MDC.put(ApiConstants.MDC_USER_ID, userId.get());

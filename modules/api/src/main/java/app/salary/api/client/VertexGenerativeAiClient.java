@@ -1,5 +1,6 @@
 package app.salary.api.client;
 
+import app.salary.common.constants.ApiConstants;
 import com.google.genai.Client;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
@@ -51,7 +52,7 @@ public class VertexGenerativeAiClient implements GenerativeAiClient {
     @Override
     public String generateJson(String model, String prompt, Schema responseSchema) {
         GenerateContentConfig config = GenerateContentConfig.builder()
-                .responseMimeType("application/json")
+                .responseMimeType(ApiConstants.CONTENT_TYPE_JSON)
                 .responseSchema(responseSchema)
                 .build();
         try {
