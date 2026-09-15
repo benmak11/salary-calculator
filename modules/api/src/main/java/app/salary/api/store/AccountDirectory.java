@@ -69,6 +69,24 @@ public interface AccountDirectory {
     Optional<String> relinkIdentity(String providerSub, String targetAccountId);
 
     /**
+     * Creates an account for a sub whose provider is unknown, without an identity record.
+     * Used only by the B-1b backfill.
+     *
+     * <p><b>Why this exists.</b> {@code users/{sub}} records the sub but not which provider
+     * issued it, while an identity is keyed {@code {provider}:{sub}} — so the backfill cannot
+     * create identities for anyone who has not signed in since the identity schema landed.
+     * Guessing the provider from the shape of the sub was the alternative, and a wrong guess
+     * silently orphans that person's migrated data behind a second account.
+     *
+     * <p>Instead the account is created with the sub recorded on it and no identity at all.
+     * The provider is resolved for certain at the next sign-in, when
+     * {@link #resolveOrCreate} adopts this account rather than minting a new one.
+     *
+     * <p>Idempotent: calling it twice for the same sub returns the same account.
+     */
+    String createLegacyAccount(String providerSub, String displayName);
+
+    /**
      * Deletes the account reachable from this provider sub along with <em>every</em> identity
      * pointing at it, and returns how many identity records were removed.
      *

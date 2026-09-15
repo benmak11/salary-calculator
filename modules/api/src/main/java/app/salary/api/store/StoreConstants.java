@@ -40,6 +40,10 @@ public final class StoreConstants {
     // Document fields
     public static final String FIELD_ACCOUNT_ID = "accountId";
     public static final String FIELD_SUB = "sub";
+    /** On an account: the sub whose provider was unknown when the B-1b backfill created it. */
+    public static final String FIELD_LEGACY_SUB = "legacySub";
+    /** On a legacy account: which provider claimed it at sign-in. Set once, never rewritten. */
+    public static final String FIELD_ADOPTED_PROVIDER = "adoptedProvider";
     public static final String FIELD_CREATED_AT = "createdAt";
     public static final String FIELD_EXPIRES_AT = "expiresAt";
     public static final String FIELD_ATTEMPTS = "attempts";

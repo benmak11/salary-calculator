@@ -4,6 +4,7 @@ import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Firestore;
+import com.google.cloud.firestore.Transaction;
 import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.SetOptions;
 import org.slf4j.Logger;
@@ -44,7 +45,7 @@ public class FirestoreAccountDirectory implements AccountDirectory {
                 String id = existing.exists() ? existing.getString(StoreConstants.FIELD_ACCOUNT_ID) : null;
                 boolean fresh = (id == null || id.isBlank());
                 if (fresh) {
-                    id = Ulid.generate();
+                    id = adoptLegacyAccount(tx, provider, providerSub).orElseGet(Ulid::generate);
                 }
 
                 Map<String, Object> identityPatch = new HashMap<>();
@@ -191,6 +192,68 @@ public class FirestoreAccountDirectory implements AccountDirectory {
             throws InterruptedException, ExecutionException {
         return firestore.collection(StoreConstants.IDENTITIES)
                 .whereEqualTo(StoreConstants.FIELD_SUB, providerSub).get().get().getDocuments();
+    }
+
+    /**
+     * Reuses the account the B-1b backfill created for this sub, if there is one and no other
+     * provider has already claimed it.
+     *
+     * <p>The refusal matters more than the reuse. Two people could only collide here if one's
+     * Apple sub were byte-identical to another's Google sub; declining the second claim turns
+     * that from a silent account merge — the migration's worst outcome — into one person's
+     * legacy data simply not being adopted, which is visible and still sitting in the layout
+     * it came from.
+     *
+     * <p>Read inside the caller's transaction, so the claim and the identity write commit
+     * together or not at all.
+     */
+    private Optional<String> adoptLegacyAccount(Transaction tx, String provider, String providerSub)
+            throws ExecutionException, InterruptedException {
+        List<QueryDocumentSnapshot> candidates = tx.get(firestore.collection(StoreConstants.ACCOUNTS)
+                .whereEqualTo(StoreConstants.FIELD_LEGACY_SUB, providerSub).limit(1)).get().getDocuments();
+        if (candidates.isEmpty()) {
+            return Optional.empty();
+        }
+        QueryDocumentSnapshot legacy = candidates.get(0);
+        String claimant = legacy.getString(StoreConstants.FIELD_ADOPTED_PROVIDER);
+        if (claimant != null && !claimant.equals(provider)) {
+            log.warn("legacy account already claimed by another provider; minting a new one instead");
+            return Optional.empty();
+        }
+        Map<String, Object> claim = new HashMap<>();
+        claim.put(StoreConstants.FIELD_ADOPTED_PROVIDER, provider);
+        tx.set(legacy.getReference(), claim, SetOptions.merge());
+        return Optional.of(legacy.getId());
+    }
+
+    @Override
+    public String createLegacyAccount(String providerSub, String displayName) {
+        try {
+            return firestore.runTransaction(tx -> {
+                List<QueryDocumentSnapshot> existing = tx.get(firestore.collection(StoreConstants.ACCOUNTS)
+                        .whereEqualTo(StoreConstants.FIELD_LEGACY_SUB, providerSub).limit(1))
+                        .get().getDocuments();
+                if (!existing.isEmpty()) {
+                    return existing.get(0).getId();
+                }
+                String id = Ulid.generate();
+                Map<String, Object> doc = new HashMap<>();
+                doc.put(StoreConstants.FIELD_ID, id);
+                doc.put(StoreConstants.FIELD_LEGACY_SUB, providerSub);
+                doc.put(StoreConstants.FIELD_CREATED_AT, Timestamp.now());
+                doc.put(StoreConstants.FIELD_LAST_SEEN_AT, Timestamp.now());
+                if (displayName != null && !displayName.isBlank()) {
+                    doc.put(StoreConstants.FIELD_DISPLAY_NAME, displayName);
+                }
+                tx.set(firestore.collection(StoreConstants.ACCOUNTS).document(id), doc);
+                return id;
+            }).get();
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Firestore legacy account create interrupted", ie);
+        } catch (ExecutionException e) {
+            throw new IllegalStateException("Firestore legacy account create failed", e);
+        }
     }
 
     private static String identityKey(String provider, String providerSub) {

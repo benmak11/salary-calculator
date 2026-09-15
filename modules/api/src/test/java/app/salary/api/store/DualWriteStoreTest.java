@@ -16,6 +16,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -382,6 +383,72 @@ class DualWriteStoreTest {
             // would show an empty history, so the decorator falls back instead.
             subCalcs.save(SUB, request(), new CalculateResponse());
             assertEquals(1, calcs(true).list(SUB, 10, null).getItems().size());
+        }
+    }
+
+    /**
+     * The B-1b backfill has to create accounts for users who have never signed in since the
+     * identity schema landed, and {@code users/{sub}} does not record which provider issued
+     * their sub. Rather than guess it from the shape of the sub — a format nothing in this
+     * repo or in production logs could confirm — the account is created without an identity
+     * and claimed at the next sign-in, when the provider is known for certain.
+     */
+    @Nested
+    class LegacyAccountAdoption {
+
+        @Test
+        void aLegacyAccountIsAdoptedAtSignInRatherThanMintingASecondOne() {
+            String legacy = accounts.createLegacyAccount(SUB, "Alex Carter");
+
+            String atSignIn = accounts.resolveOrCreate(AccountDirectory.PROVIDER_APPLE, SUB, "Alex Carter");
+
+            assertEquals(legacy, atSignIn, "the migrated data must not be orphaned behind a new id");
+            assertEquals(Optional.of(legacy), accounts.findAccountIdBySub(SUB));
+        }
+
+        @Test
+        void eitherProviderCanAdoptSoNoGuessIsNeeded() {
+            String legacy = accounts.createLegacyAccount(SUB, null);
+            assertEquals(legacy,
+                    accounts.resolveOrCreate(AccountDirectory.PROVIDER_GOOGLE, SUB, "Sam Rivera"));
+        }
+
+        @Test
+        void aSecondProviderCannotClaimAnAlreadyAdoptedAccount() {
+            // Only reachable if one person's Apple sub were byte-identical to another's
+            // Google sub. Refusing the second claim makes the outcome "one user's legacy
+            // data is not adopted" instead of "two users share an account".
+            String legacy = accounts.createLegacyAccount(SUB, null);
+            assertEquals(legacy, accounts.resolveOrCreate(AccountDirectory.PROVIDER_APPLE, SUB, null));
+
+            String other = accounts.resolveOrCreate(AccountDirectory.PROVIDER_GOOGLE, SUB, null);
+
+            assertNotEquals(legacy, other, "a silent merge is the one outcome worth failing to avoid");
+        }
+
+        @Test
+        void theSameProviderSigningInTwiceKeepsTheOneAccount() {
+            String legacy = accounts.createLegacyAccount(SUB, null);
+            String first = accounts.resolveOrCreate(AccountDirectory.PROVIDER_APPLE, SUB, null);
+            String second = accounts.resolveOrCreate(AccountDirectory.PROVIDER_APPLE, SUB, null);
+            assertEquals(legacy, first);
+            assertEquals(first, second);
+        }
+
+        @Test
+        void creatingALegacyAccountTwiceReturnsTheSameOne() {
+            assertEquals(accounts.createLegacyAccount(SUB, null), accounts.createLegacyAccount(SUB, null));
+        }
+
+        @Test
+        void deletingTheAccountAlsoClearsTheLegacyClaim() {
+            accounts.createLegacyAccount(SUB, null);
+            accounts.deleteByProviderSub(SUB);
+
+            // A fresh sign-in must not resurrect the deleted account.
+            String after = accounts.resolveOrCreate(AccountDirectory.PROVIDER_APPLE, SUB, null);
+            assertTrue(accounts.findAccountIdBySub(SUB).isPresent());
+            assertNotNull(after);
         }
     }
 

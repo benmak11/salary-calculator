@@ -14,6 +14,10 @@ public class InMemoryAccountDirectory implements AccountDirectory {
     private final Map<String, Account> accounts = new ConcurrentHashMap<>();
     private final Map<String, Identity> identities = new ConcurrentHashMap<>();
     private final java.util.Set<String> legacyProBudget = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    /** sub -> accountId for accounts the backfill created before a provider was known. */
+    private final Map<String, String> legacyAccounts = new ConcurrentHashMap<>();
+    /** accountId -> the provider that adopted it, so a second provider cannot also claim it. */
+    private final Map<String, String> adoptedBy = new ConcurrentHashMap<>();
 
     public InMemoryAccountDirectory() { this(Clock.systemUTC()); }
     public InMemoryAccountDirectory(Clock clock) { this.clock = clock; }
@@ -25,7 +29,7 @@ public class InMemoryAccountDirectory implements AccountDirectory {
 
         Identity identity = identities.compute(key, (k, existing) -> existing != null
                 ? new Identity(existing.provider, existing.sub, existing.accountId, existing.createdAt, now)
-                : new Identity(provider, providerSub, Ulid.generate(clock.millis()), now, now));
+                : new Identity(provider, providerSub, adoptOrMint(provider, providerSub), now, now));
 
         accounts.compute(identity.accountId, (id, existing) -> {
             if (existing == null) {
@@ -36,6 +40,34 @@ public class InMemoryAccountDirectory implements AccountDirectory {
         });
 
         return identity.accountId;
+    }
+
+    /**
+     * Reuses the account the B-1b backfill created for this sub, if there is one and no other
+     * provider has already claimed it. Otherwise mints a fresh id, exactly as before.
+     *
+     * <p>The guard matters more than the reuse. Two different people could only collide here
+     * if one person's Apple sub were byte-identical to another's Google sub; refusing the
+     * second claim turns that from a silent account merge into one person simply not having
+     * their legacy data migrated — visible, and recoverable from the layout it is still in.
+     */
+    private String adoptOrMint(String provider, String providerSub) {
+        String legacy = legacyAccounts.get(providerSub);
+        if (legacy != null) {
+            String claimant = adoptedBy.putIfAbsent(legacy, provider);
+            if (claimant == null || claimant.equals(provider)) {
+                return legacy;
+            }
+        }
+        return Ulid.generate(clock.millis());
+    }
+
+    @Override
+    public String createLegacyAccount(String providerSub, String displayName) {
+        Instant now = clock.instant();
+        String accountId = legacyAccounts.computeIfAbsent(providerSub, s -> Ulid.generate(clock.millis()));
+        accounts.computeIfAbsent(accountId, id -> new Account(id, displayName, now, now));
+        return accountId;
     }
 
     @Override
@@ -82,6 +114,11 @@ public class InMemoryAccountDirectory implements AccountDirectory {
 
     @Override
     public int deleteByProviderSub(String providerSub) {
+        String legacy = legacyAccounts.remove(providerSub);
+        if (legacy != null) {
+            adoptedBy.remove(legacy);
+            accounts.remove(legacy);
+        }
         Optional<String> accountId = findAccountIdBySub(providerSub);
         if (accountId.isEmpty()) {
             return 0;
