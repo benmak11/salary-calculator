@@ -30,8 +30,12 @@ public class InMemoryCalculationStore implements CalculationStore {
 
     @Override
     public SavedCalculationSummary save(String userId, CalculateRequest request, CalculateResponse response) {
-        String calcId = UUID.randomUUID().toString();
-        Instant savedAt = clock.instant();
+        return saveAt(userId, UUID.randomUUID().toString(), clock.instant(), request, response);
+    }
+
+    @Override
+    public SavedCalculationSummary saveAt(String userId, String calcId, Instant savedAt,
+                                          CalculateRequest request, CalculateResponse response) {
         SavedCalculationSummary summary = CalculationSummarizer.summarize(calcId, savedAt, request, response);
         Entry entry = new Entry(summary, request, response, savedAt);
         byUser.computeIfAbsent(userId, k -> new HashMap<>()).put(calcId, entry);

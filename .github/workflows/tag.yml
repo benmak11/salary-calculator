@@ -7,6 +7,13 @@ on:
 permissions:
   contents: write
 
+# Two merges close together otherwise both read the same "latest tag" and both
+# compute the same next version — so one run fails on a duplicate tag, or the
+# versions land out of order. Never cancel a half-created tag.
+concurrency:
+  group: tag-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   tag:
     name: Create version tag

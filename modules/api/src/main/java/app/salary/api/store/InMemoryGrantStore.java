@@ -29,6 +29,11 @@ public class InMemoryGrantStore implements GrantStore {
     @Override
     public RsuGrant create(String userId, RsuGrant grant) {
         grant.setId("g_" + UUID.randomUUID().toString().substring(0, 8));
+        return put(userId, grant);
+    }
+
+    @Override
+    public RsuGrant put(String userId, RsuGrant grant) {
         Map<String, RsuGrant> grants = byUser.computeIfAbsent(userId, k -> new LinkedHashMap<>());
         synchronized (grants) {
             grants.put(grant.getId(), grant);

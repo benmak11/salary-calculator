@@ -9,6 +9,7 @@ import app.salary.api.store.GrantStore;
 import app.salary.api.store.InMemoryAccountDirectory;
 import app.salary.api.store.InMemoryEntitlementStore;
 import app.salary.api.store.AccountKeyedStores;
+import app.salary.api.store.AccountIdResolver;
 import app.salary.api.store.EventRecord;
 import app.salary.api.store.InMemoryCheckInStore;
 import app.salary.api.store.InMemoryEventStore;
@@ -52,6 +53,7 @@ class AccountControllerTest {
     private InMemoryLinkCodeStore linkCodes;
     private InMemoryCheckInStore checkIns;
     private InMemoryEventStore events;
+    private AccountIdResolver accountIdResolver;
 
     @BeforeEach
     void setUp() {
@@ -64,6 +66,7 @@ class AccountControllerTest {
         linkCodes = new InMemoryLinkCodeStore();
         checkIns = new InMemoryCheckInStore();
         events = new InMemoryEventStore();
+        accountIdResolver = new AccountIdResolver(accounts);
         byte[] secret = new byte[32];
         for (int i = 0; i < secret.length; i++) secret[i] = (byte) i;
         sessionTokens = new SessionTokenService(secret);
@@ -77,7 +80,8 @@ class AccountControllerTest {
             config.routes.before(middleware::handle);
             new AccountController(accounts,
                     new SubKeyedStores(store, grants, budgets, users),
-                    new AccountKeyedStores(entitlements, linkCodes, checkIns, events))
+                    new AccountKeyedStores(entitlements, linkCodes, checkIns, events),
+                    accountIdResolver)
                     .register(config.routes);
         });
     }
@@ -214,6 +218,24 @@ class AccountControllerTest {
 
             var remaining = events.all().stream().map(EventRecord::id).toList();
             assertEquals(java.util.List.of("e3", "e4"), remaining);
+        });
+    }
+
+    @Test
+    void deleteAccountDropsTheCachedAccountIdMapping() {
+        // A stale entry here is worse than stale: signing in again mints a NEW accountId,
+        // and a cache still holding the deleted one would route the new writes to the
+        // deleted account's paths.
+        accounts.resolveOrCreate(AccountDirectory.PROVIDER_APPLE, "user-1", "Alex Carter");
+        users.upsertOnSignIn("user-1", "Alex Carter");
+        assertTrue(accountIdResolver.resolve("user-1").isPresent(), "precondition: mapping is cached");
+
+        JavalinTest.test(app(), (server, client) -> {
+            var resp = client.delete("/v1/account", null,
+                    r -> r.header("Authorization", bearerFor()));
+            assertEquals(204, resp.code());
+
+            assertTrue(accountIdResolver.resolve("user-1").isEmpty());
         });
     }
 

@@ -12,6 +12,12 @@ permissions:
   contents: read
   id-token: write   # required for WIF
 
+# Same race as deploy.yml: concurrent runs both push to the same Cloud Run
+# service and the last to finish wins, regardless of commit order.
+concurrency:
+  group: deploy-web-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   deploy:
     name: Build & deploy incomatic-web to Cloud Run

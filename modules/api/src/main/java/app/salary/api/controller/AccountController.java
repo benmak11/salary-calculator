@@ -2,6 +2,7 @@ package app.salary.api.controller;
 
 import app.salary.api.auth.AuthMiddleware;
 import app.salary.api.store.AccountDirectory;
+import app.salary.api.store.AccountIdResolver;
 import app.salary.api.store.AccountKeyedStores;
 import app.salary.api.store.SubKeyedStores;
 import app.salary.common.constants.ApiConstants;
@@ -26,12 +27,19 @@ public class AccountController {
     private final AccountDirectory accounts;
     private final SubKeyedStores subKeyed;
     private final AccountKeyedStores accountKeyed;
+    private final AccountIdResolver accountIdResolver;
 
     public AccountController(AccountDirectory accounts, SubKeyedStores subKeyed,
                               AccountKeyedStores accountKeyed) {
+        this(accounts, subKeyed, accountKeyed, null);
+    }
+
+    public AccountController(AccountDirectory accounts, SubKeyedStores subKeyed,
+                              AccountKeyedStores accountKeyed, AccountIdResolver accountIdResolver) {
         this.accounts = accounts;
         this.subKeyed = subKeyed;
         this.accountKeyed = accountKeyed;
+        this.accountIdResolver = accountIdResolver;
     }
 
     public void register(RoutesConfig routes) {
@@ -74,6 +82,12 @@ public class AccountController {
         accountId.ifPresent(this::purgeAccountKeyed);
 
         int identitiesRemoved = accounts != null ? accounts.deleteByProviderSub(userId.get()) : 0;
+        // Drop the cached sub -> accountId mapping. Leaving it would be worse than stale:
+        // if this person signs in again a fresh accountId is minted, and a cache still
+        // holding the deleted one would send their new writes to the old account's paths.
+        if (accountIdResolver != null) {
+            accountIdResolver.forget(userId.get());
+        }
         log.info("account deleted: calculationsRemoved={} grantsRemoved={} budgetRemoved={} "
                         + "identitiesRemoved={} entitlementsPurged={}",
                 removed, grantsRemoved, budgetRemoved, identitiesRemoved, accountId.isPresent());
