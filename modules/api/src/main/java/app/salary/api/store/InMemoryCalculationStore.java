@@ -48,12 +48,27 @@ public class InMemoryCalculationStore implements CalculationStore {
         if (entries == null || entries.isEmpty()) {
             return new CalculationListResponse(List.of(), null);
         }
-        List<SavedCalculationSummary> items = new ArrayList<>();
-        entries.values().stream()
-                .sorted(Comparator.comparing((Entry e) -> e.savedAt).reversed())
-                .limit(Math.max(1, limit))
-                .forEach(e -> items.add(e.summary));
-        return new CalculationListResponse(items, null);
+        int safeLimit = Math.clamp(limit, 1, 100);
+        // Newest first, id as the tiebreak — the same total order the Firestore store pages
+        // on, so a cursor round-trips identically against either implementation.
+        List<Entry> ordered = entries.values().stream()
+                .sorted(Comparator.comparing((Entry e) -> e.savedAt).reversed()
+                        .thenComparing(e -> e.summary.getId(), Comparator.reverseOrder()))
+                .toList();
+        int start = 0;
+        if (cursor != null && !cursor.isBlank()) {
+            for (int i = 0; i < ordered.size(); i++) {
+                if (ordered.get(i).summary.getId().equals(cursor)) {
+                    start = i + 1;
+                    break;
+                }
+            }
+        }
+        List<Entry> page = ordered.subList(start, Math.min(ordered.size(), start + safeLimit));
+        List<SavedCalculationSummary> items = new ArrayList<>(page.size());
+        page.forEach(e -> items.add(e.summary));
+        String next = page.size() == safeLimit ? page.get(page.size() - 1).summary.getId() : null;
+        return new CalculationListResponse(items, next);
     }
 
     @Override

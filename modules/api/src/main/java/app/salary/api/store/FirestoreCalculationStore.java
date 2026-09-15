@@ -85,12 +85,25 @@ public class FirestoreCalculationStore implements CalculationStore {
                 .orderBy(StoreConstants.FIELD_CREATED_AT, Query.Direction.DESCENDING)
                 .limit(safeLimit);
         try {
+            // The cursor is the last document id of the previous page. Paging on the
+            // snapshot rather than on createdAt alone is what makes two calculations saved
+            // in the same instant impossible to skip: Firestore breaks the tie on __name__
+            // implicitly, and startAfter(snapshot) honours that ordering without an index.
+            if (cursor != null && !cursor.isBlank()) {
+                DocumentSnapshot after = userCalculations(userId).document(cursor).get().get();
+                if (after.exists()) {
+                    q = q.startAfter(after);
+                }
+            }
             List<QueryDocumentSnapshot> snaps = q.get().get().getDocuments();
             List<SavedCalculationSummary> items = new ArrayList<>(snaps.size());
             for (QueryDocumentSnapshot snap : snaps) {
                 items.add(readSummary(snap));
             }
-            return new CalculationListResponse(items, null);
+            // A full page may be the last one; the next call then returns empty with no
+            // cursor, which is one cheap extra read rather than a lost row.
+            String next = snaps.size() == safeLimit ? snaps.get(snaps.size() - 1).getId() : null;
+            return new CalculationListResponse(items, next);
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
             throw new RuntimeException("Firestore list interrupted", ie);

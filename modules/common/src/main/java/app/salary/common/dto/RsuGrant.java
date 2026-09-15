@@ -23,6 +23,16 @@ public class RsuGrant {
     @Schema(description = "Server-assigned grant id; ignored on create", example = "g_a1b2c3d4")
     private String id;
 
+    /**
+     * Set by the server on first save and preserved across edits; ignored on input. Carried
+     * on the DTO for the same reason {@code SavedCalculationSummary.savedAt} is: the list
+     * endpoint orders on it, so anything that copies a grant between stores has to copy the
+     * timestamp too or the copy lists in a different order.
+     */
+    @Schema(description = "When the grant was first saved, ISO-8601 UTC. Server-assigned.",
+            example = "2026-06-09T18:42:00Z", accessMode = Schema.AccessMode.READ_ONLY)
+    private String createdAt;
+
     @Schema(description = "Ticker symbol (absent for private companies entered manually)", example = "AAPL")
     private String ticker;
 

@@ -3,6 +3,7 @@ package app.salary.api.store;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -38,4 +39,13 @@ public class InMemoryUserDirectory implements UserDirectory {
     }
 
     private record Entry(String displayName, Instant createdAt, Instant lastSeenAt) {}
+
+    @Override
+    public List<String> listUserIds(String afterUserId, int limit) {
+        return users.keySet().stream()
+                .sorted()
+                .filter(id -> afterUserId == null || id.compareTo(afterUserId) > 0)
+                .limit(Math.max(0, limit))
+                .toList();
+    }
 }
