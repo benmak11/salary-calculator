@@ -103,7 +103,9 @@ public class FirestoreAccountDirectory implements AccountDirectory {
         try {
             List<QueryDocumentSnapshot> bySub = identitiesForSub(providerSub);
             if (bySub.isEmpty()) {
-                return Optional.empty();
+                // No identity yet. A legacy account the B-1b backfill created for this sub
+                // is still this sub's account — it just has not been claimed at sign-in.
+                return legacyAccountForSub(providerSub);
             }
             String accountId = bySub.getFirst().getString(StoreConstants.FIELD_ACCOUNT_ID);
             return (accountId == null || accountId.isBlank()) ? Optional.empty() : Optional.of(accountId);
@@ -160,6 +162,12 @@ public class FirestoreAccountDirectory implements AccountDirectory {
         try {
             List<QueryDocumentSnapshot> bySub = identitiesForSub(providerSub);
             if (bySub.isEmpty()) {
+                // An unclaimed legacy account has no identity to sweep, but it is still this
+                // person's account and must not outlive their deletion request.
+                Optional<String> legacy = legacyAccountForSub(providerSub);
+                if (legacy.isPresent()) {
+                    firestore.collection(StoreConstants.ACCOUNTS).document(legacy.get()).delete().get();
+                }
                 return 0;
             }
 
@@ -254,6 +262,14 @@ public class FirestoreAccountDirectory implements AccountDirectory {
         } catch (ExecutionException e) {
             throw new IllegalStateException("Firestore legacy account create failed", e);
         }
+    }
+
+    private Optional<String> legacyAccountForSub(String providerSub)
+            throws ExecutionException, InterruptedException {
+        List<QueryDocumentSnapshot> legacy = firestore.collection(StoreConstants.ACCOUNTS)
+                .whereEqualTo(StoreConstants.FIELD_LEGACY_SUB, providerSub).limit(1)
+                .get().get().getDocuments();
+        return legacy.isEmpty() ? Optional.empty() : Optional.of(legacy.get(0).getId());
     }
 
     private static String identityKey(String provider, String providerSub) {

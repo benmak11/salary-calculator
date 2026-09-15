@@ -243,6 +243,32 @@ class DualWriteStoreTest {
         }
 
         @Test
+        void aMirroredEditKeepsItsOriginalCreatedAtSoBothLayoutsListInTheSameOrder() {
+            // The list endpoint orders on createdAt. If the mirror of an edit stamped a fresh
+            // timestamp, the edited grant would move to the END of the account-keyed list
+            // while staying put in the sub-keyed one - and a count-based parity check
+            // would call the two layouts identical.
+            String accountId = linkAccount();
+            GrantStore store = grants(false);
+            RsuGrant first = store.create(SUB, grant("FIRST"));
+            RsuGrant second = store.create(SUB, grant("SECOND"));
+            // Make sure the two timestamps are distinguishable before we edit.
+            first.setCreatedAt("2026-01-01T00:00:00Z");
+            second.setCreatedAt("2026-06-01T00:00:00Z");
+            store.put(SUB, first);
+            store.put(SUB, second);
+
+            RsuGrant edited = grant("FIRST-EDITED");
+            assertTrue(store.update(SUB, first.getId(), edited).isPresent());
+
+            assertEquals(List.of(first.getId(), second.getId()), ids(subGrants.list(SUB)));
+            assertEquals(List.of(first.getId(), second.getId()), ids(acctGrants.list(accountId)),
+                    "the edited grant must not have moved on the account-keyed side");
+            assertEquals("2026-01-01T00:00:00Z",
+                    acctGrants.list(accountId).get(0).getCreatedAt());
+        }
+
+        @Test
         void updateOfAMissingGrantMirrorsNothing() {
             String accountId = linkAccount();
             assertTrue(grants(false).update(SUB, "nope", grant("X")).isEmpty());

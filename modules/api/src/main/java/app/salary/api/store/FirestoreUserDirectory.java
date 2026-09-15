@@ -4,12 +4,16 @@ import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Firestore;
+import com.google.cloud.firestore.QueryDocumentSnapshot;
+import com.google.cloud.firestore.Query;
+import com.google.cloud.firestore.FieldPath;
 import com.google.cloud.firestore.SetOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 
@@ -70,6 +74,26 @@ public class FirestoreUserDirectory implements UserDirectory {
         } catch (ExecutionException e) {
             log.warn("Firestore user fetch failed for {}", userId, e);
             return Optional.empty();
+        }
+    }
+
+    @Override
+    public List<String> listUserIds(String afterUserId, int limit) {
+        Query q = firestore.collection(StoreConstants.USERS)
+                .orderBy(FieldPath.documentId())
+                .limit(Math.max(1, limit));
+        if (afterUserId != null && !afterUserId.isBlank()) {
+            q = q.startAfter(afterUserId);
+        }
+        try {
+            return q.get().get().getDocuments().stream()
+                    .map(QueryDocumentSnapshot::getId)
+                    .toList();
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Firestore user listing interrupted", ie);
+        } catch (ExecutionException e) {
+            throw new RuntimeException("Firestore user listing failed", e);
         }
     }
 }

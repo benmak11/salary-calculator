@@ -74,3 +74,11 @@ shadowJar {
 test {
     useJUnitPlatform()
 }
+
+// B-1b Phase 2. Dry-run by default; see LegacyBackfillMain for the flags.
+tasks.register('backfill', JavaExec) {
+    group = 'migration'
+    description = 'B-1b backfill: copies sub-keyed user data into the account-keyed layout (dry-run unless --args=\'--apply\')'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'app.salary.api.migration.LegacyBackfillMain'
+}

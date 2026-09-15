@@ -22,18 +22,27 @@ public class InMemoryGrantStore implements GrantStore {
         Map<String, RsuGrant> grants = byUser.get(userId);
         if (grants == null) return List.of();
         synchronized (grants) {
-            return new ArrayList<>(grants.values());
+            // Ordered on createdAt like the Firestore store, so an ordering divergence between
+            // the two B-1b layouts is something a test against this store can actually see.
+            List<RsuGrant> items = new ArrayList<>(grants.values());
+            items.sort(java.util.Comparator.comparing(
+                    g -> g.getCreatedAt() == null ? "" : g.getCreatedAt()));
+            return items;
         }
     }
 
     @Override
     public RsuGrant create(String userId, RsuGrant grant) {
         grant.setId("g_" + UUID.randomUUID().toString().substring(0, 8));
+        grant.setCreatedAt(java.time.format.DateTimeFormatter.ISO_INSTANT.format(java.time.Instant.now()));
         return put(userId, grant);
     }
 
     @Override
     public RsuGrant put(String userId, RsuGrant grant) {
+        if (grant.getCreatedAt() == null || grant.getCreatedAt().isBlank()) {
+            grant.setCreatedAt(java.time.format.DateTimeFormatter.ISO_INSTANT.format(java.time.Instant.now()));
+        }
         Map<String, RsuGrant> grants = byUser.computeIfAbsent(userId, k -> new LinkedHashMap<>());
         synchronized (grants) {
             grants.put(grant.getId(), grant);
@@ -46,8 +55,11 @@ public class InMemoryGrantStore implements GrantStore {
         Map<String, RsuGrant> grants = byUser.get(userId);
         if (grants == null) return Optional.empty();
         synchronized (grants) {
-            if (!grants.containsKey(grantId)) return Optional.empty();
+            RsuGrant existing = grants.get(grantId);
+            if (existing == null) return Optional.empty();
             grant.setId(grantId);
+            // Preserve createdAt across edits, as the Firestore store does.
+            grant.setCreatedAt(existing.getCreatedAt());
             grants.put(grantId, grant);
             return Optional.of(grant);
         }

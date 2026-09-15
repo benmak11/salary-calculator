@@ -1,5 +1,6 @@
 package app.salary.api.store;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -17,4 +18,15 @@ public interface UserDirectory {
 
     /** Removes the user's directory record. No-op when the user doesn't exist. */
     void delete(String userId);
+
+    /**
+     * A page of user ids (provider subs) in id order, starting strictly after
+     * {@code afterUserId} (null for the first page). Returns fewer than {@code limit} only on
+     * the last page.
+     *
+     * <p>Exists for the B-1b backfill, which has to walk every {@code users/{sub}} document
+     * exactly once and survive being restarted part-way: the cursor is the last id processed,
+     * which the job records as it goes.
+     */
+    List<String> listUserIds(String afterUserId, int limit);
 }

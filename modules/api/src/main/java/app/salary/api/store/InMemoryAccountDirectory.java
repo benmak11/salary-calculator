@@ -78,10 +78,12 @@ public class InMemoryAccountDirectory implements AccountDirectory {
 
     @Override
     public Optional<String> findAccountIdBySub(String providerSub) {
-        return identities.values().stream()
+        Optional<String> byIdentity = identities.values().stream()
                 .filter(i -> i.sub.equals(providerSub))
                 .map(Identity::accountId)
                 .findFirst();
+        // Falls through to an unclaimed legacy account: still this sub's account.
+        return byIdentity.isPresent() ? byIdentity : Optional.ofNullable(legacyAccounts.get(providerSub));
     }
 
     @Override

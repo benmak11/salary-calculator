@@ -12,6 +12,8 @@ import com.google.cloud.firestore.Query;
 import com.google.cloud.firestore.QueryDocumentSnapshot;
 
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -65,14 +67,22 @@ public class FirestoreGrantStore implements GrantStore {
     @Override
     public RsuGrant create(String userId, RsuGrant grant) {
         grant.setId(userGrants(userId).document().getId());
+        grant.setCreatedAt(DateTimeFormatter.ISO_INSTANT.format(Instant.now()));
         return put(userId, grant);
     }
 
     @Override
     public RsuGrant put(String userId, RsuGrant grant) {
         DocumentReference doc = userGrants(userId).document(grant.getId());
+        // The timestamp travels with the grant: a mirror of an edited grant, or a backfilled
+        // one, must land with its ORIGINAL createdAt or it lists in the wrong position.
+        Instant createdAt = parseCreatedAt(grant.getCreatedAt());
+        if (createdAt == null) {
+            createdAt = Instant.now();
+            grant.setCreatedAt(DateTimeFormatter.ISO_INSTANT.format(createdAt));
+        }
         try {
-            doc.set(toDoc(grant, Instant.now())).get();
+            doc.set(toDoc(grant, createdAt)).get();
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Firestore grant create interrupted", ie);
@@ -91,8 +101,13 @@ public class FirestoreGrantStore implements GrantStore {
             grant.setId(grantId);
             // Preserve createdAt so list order stays stable across edits
             Map<String, Object> data = toDoc(grant, null);
-            data.put(StoreConstants.FIELD_CREATED_AT, snap.get(StoreConstants.FIELD_CREATED_AT));
+            Object stored = snap.get(StoreConstants.FIELD_CREATED_AT);
+            data.put(StoreConstants.FIELD_CREATED_AT, stored);
             doc.set(data).get();
+            // Put it on the returned DTO too: the dual-write mirror writes what is returned,
+            // and without this the account-keyed copy would get a fresh timestamp and jump
+            // to the end of the list.
+            grant.setCreatedAt(formatCreatedAt(stored));
             return Optional.of(grant);
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
@@ -145,7 +160,10 @@ public class FirestoreGrantStore implements GrantStore {
 
     private Map<String, Object> toDoc(RsuGrant grant, Instant createdAt) {
         Map<String, Object> data = new HashMap<>();
-        data.put(StoreConstants.FIELD_GRANT, mapper.convertValue(grant, MAP_REF));
+        Map<String, Object> body = mapper.convertValue(grant, MAP_REF);
+        // Stored once, as the ordering field on the document, not again inside the payload.
+        body.remove("createdAt");
+        data.put(StoreConstants.FIELD_GRANT, body);
         if (createdAt != null) {
             data.put(StoreConstants.FIELD_CREATED_AT,
                     Timestamp.ofTimeSecondsAndNanos(createdAt.getEpochSecond(), createdAt.getNano()));
@@ -155,6 +173,27 @@ public class FirestoreGrantStore implements GrantStore {
 
     private RsuGrant readGrant(DocumentSnapshot snap) {
         Object raw = snap.get(StoreConstants.FIELD_GRANT);
-        return raw == null ? null : mapper.convertValue(raw, RsuGrant.class);
+        if (raw == null) return null;
+        RsuGrant grant = mapper.convertValue(raw, RsuGrant.class);
+        grant.setCreatedAt(formatCreatedAt(snap.get(StoreConstants.FIELD_CREATED_AT)));
+        return grant;
+    }
+
+    private static String formatCreatedAt(Object stored) {
+        if (stored instanceof Timestamp ts) {
+            return DateTimeFormatter.ISO_INSTANT.format(
+                    Instant.ofEpochSecond(ts.getSeconds(), ts.getNanos()));
+        }
+        return null;
+    }
+
+    /** Lenient: a malformed value falls back to "now" in the caller rather than failing a save. */
+    private static Instant parseCreatedAt(String iso) {
+        if (iso == null || iso.isBlank()) return null;
+        try {
+            return Instant.parse(iso);
+        } catch (DateTimeParseException e) {
+            return null;
+        }
     }
 }

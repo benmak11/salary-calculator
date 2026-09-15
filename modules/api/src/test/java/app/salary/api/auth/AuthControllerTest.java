@@ -67,6 +67,11 @@ class AuthControllerTest {
             return Optional.ofNullable(displayName);
         }
 
+        @Override
+        public java.util.List<String> listUserIds(String afterUserId, int limit) {
+            return userId == null ? java.util.List.of() : java.util.List.of(userId);
+        }
+
         /**
          * Placeholder override method from @UserDirectory interface. Not used in this test.
          * @param userId - userId
