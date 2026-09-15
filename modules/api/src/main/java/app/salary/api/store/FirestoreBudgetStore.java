@@ -23,9 +23,16 @@ public class FirestoreBudgetStore implements BudgetStore {
     private final Firestore firestore;
     private final ObjectMapper mapper;
 
+    private final StoreLayout layout;
+
     public FirestoreBudgetStore(Firestore firestore, ObjectMapper mapper) {
+        this(firestore, mapper, StoreLayout.SUB_KEYED);
+    }
+
+    public FirestoreBudgetStore(Firestore firestore, ObjectMapper mapper, StoreLayout layout) {
         this.firestore = firestore;
         this.mapper = mapper;
+        this.layout = layout;
     }
 
     @Override
@@ -73,7 +80,13 @@ public class FirestoreBudgetStore implements BudgetStore {
         }
     }
 
-    private DocumentReference doc(String userId) {
-        return firestore.collection(StoreConstants.USERS).document(userId).collection(StoreConstants.BUDGET).document(StoreConstants.BUDGET_DOC_ID);
+    private DocumentReference doc(String key) {
+        return switch (layout) {
+            case SUB_KEYED -> firestore.collection(StoreConstants.USERS).document(key)
+                    .collection(StoreConstants.BUDGET).document(StoreConstants.BUDGET_DOC_ID);
+            // A budget is one object per user, not a list, so it is a document rather than
+            // a document with an entries subcollection like the other two.
+            case ACCOUNT_KEYED -> firestore.collection(StoreConstants.BUDGETS).document(key);
+        };
     }
 }

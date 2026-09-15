@@ -24,6 +24,8 @@ public final class StoreConstants {
     public static final String ENTITLEMENTS = "entitlements";
     public static final String LINK_CODES = "linkCodes";
     public static final String EVENTS = "events";
+    /** Account-keyed target for the B-1b migration; one document per account. */
+    public static final String BUDGETS = "budgets";
 
     // Subcollections under a user or account document
     public static final String CALCULATIONS = "calculations";

@@ -31,9 +31,16 @@ public class FirestoreGrantStore implements GrantStore {
     private final Firestore firestore;
     private final ObjectMapper mapper;
 
+    private final StoreLayout layout;
+
     public FirestoreGrantStore(Firestore firestore, ObjectMapper mapper) {
+        this(firestore, mapper, StoreLayout.SUB_KEYED);
+    }
+
+    public FirestoreGrantStore(Firestore firestore, ObjectMapper mapper, StoreLayout layout) {
         this.firestore = firestore;
         this.mapper = mapper;
+        this.layout = layout;
     }
 
     @Override
@@ -57,8 +64,13 @@ public class FirestoreGrantStore implements GrantStore {
 
     @Override
     public RsuGrant create(String userId, RsuGrant grant) {
-        DocumentReference doc = userGrants(userId).document();
-        grant.setId(doc.getId());
+        grant.setId(userGrants(userId).document().getId());
+        return put(userId, grant);
+    }
+
+    @Override
+    public RsuGrant put(String userId, RsuGrant grant) {
+        DocumentReference doc = userGrants(userId).document(grant.getId());
         try {
             doc.set(toDoc(grant, Instant.now())).get();
         } catch (InterruptedException ie) {
@@ -122,8 +134,13 @@ public class FirestoreGrantStore implements GrantStore {
         }
     }
 
-    private CollectionReference userGrants(String userId) {
-        return firestore.collection(StoreConstants.USERS).document(userId).collection(StoreConstants.GRANTS);
+    private CollectionReference userGrants(String key) {
+        return switch (layout) {
+            case SUB_KEYED -> firestore.collection(StoreConstants.USERS)
+                    .document(key).collection(StoreConstants.GRANTS);
+            case ACCOUNT_KEYED -> firestore.collection(StoreConstants.GRANTS)
+                    .document(key).collection(StoreConstants.ENTRIES);
+        };
     }
 
     private Map<String, Object> toDoc(RsuGrant grant, Instant createdAt) {

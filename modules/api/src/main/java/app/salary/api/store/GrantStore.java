@@ -15,8 +15,17 @@ public interface GrantStore {
     /** Oldest-first list of the user's grants. */
     List<RsuGrant> list(String userId);
 
-    /** Persists a new grant, assigning its id. Returns the stored grant. */
+    /** Persists a new grant under a freshly generated id, which it sets on the grant. */
     RsuGrant create(String userId, RsuGrant grant);
+
+    /**
+     * Writes a grant at the id it already carries, creating or replacing.
+     *
+     * <p>The B-1b dual-write mirror needs this: {@link #create} would mint a second id, and
+     * {@link #update} refuses to create a document that does not exist yet, so neither can
+     * mirror a grant at its existing id.
+     */
+    RsuGrant put(String userId, RsuGrant grant);
 
     /** Replaces an existing grant. Empty when no grant with that id exists. */
     Optional<RsuGrant> update(String userId, String grantId, RsuGrant grant);

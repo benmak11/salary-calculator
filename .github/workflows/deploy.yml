@@ -8,6 +8,17 @@ permissions:
   contents: read
   id-token: write   # required for WIF
 
+# Two merges close together otherwise start two deploy runs with nothing ordering
+# them, and the one that finishes LAST wins regardless of which commit is newer —
+# so a rapid pair can leave production serving the older build.
+#
+# cancel-in-progress stays false on purpose: cancelling mid-run can abort between
+# the rule-pack-service deploy and the api deploy, leaving the two services on
+# mismatched revisions. Queueing is slower and always consistent.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   deploy:
     name: Build & deploy to Cloud Run

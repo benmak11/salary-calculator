@@ -37,16 +37,27 @@ public class FirestoreCalculationStore implements CalculationStore {
     private final Firestore firestore;
     private final ObjectMapper mapper;
 
+    private final StoreLayout layout;
+
     public FirestoreCalculationStore(Firestore firestore, ObjectMapper mapper) {
+        this(firestore, mapper, StoreLayout.SUB_KEYED);
+    }
+
+    public FirestoreCalculationStore(Firestore firestore, ObjectMapper mapper, StoreLayout layout) {
         this.firestore = firestore;
         this.mapper = mapper;
+        this.layout = layout;
     }
 
     @Override
     public SavedCalculationSummary save(String userId, CalculateRequest request, CalculateResponse response) {
-        DocumentReference doc = userCalculations(userId).document();
-        String calcId = doc.getId();
-        Instant savedAt = Instant.now();
+        return saveAt(userId, userCalculations(userId).document().getId(), Instant.now(), request, response);
+    }
+
+    @Override
+    public SavedCalculationSummary saveAt(String userId, String calcId, Instant savedAt,
+                                          CalculateRequest request, CalculateResponse response) {
+        DocumentReference doc = userCalculations(userId).document(calcId);
         SavedCalculationSummary summary = CalculationSummarizer.summarize(calcId, savedAt, request, response);
 
         Map<String, Object> data = new HashMap<>();
@@ -139,8 +150,13 @@ public class FirestoreCalculationStore implements CalculationStore {
         }
     }
 
-    private CollectionReference userCalculations(String userId) {
-        return firestore.collection(StoreConstants.USERS).document(userId).collection(StoreConstants.CALCULATIONS);
+    private CollectionReference userCalculations(String key) {
+        return switch (layout) {
+            case SUB_KEYED -> firestore.collection(StoreConstants.USERS)
+                    .document(key).collection(StoreConstants.CALCULATIONS);
+            case ACCOUNT_KEYED -> firestore.collection(StoreConstants.CALCULATIONS)
+                    .document(key).collection(StoreConstants.ENTRIES);
+        };
     }
 
     private SavedCalculationSummary readSummary(DocumentSnapshot snap) {

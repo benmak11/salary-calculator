@@ -29,7 +29,15 @@ import app.salary.api.service.SubscriptionRequiredException;
 import app.salary.api.store.AccountDirectory;
 import app.salary.api.store.BudgetStore;
 import app.salary.api.store.CalculationStore;
+import app.salary.api.store.AccountIdResolver;
 import app.salary.api.store.AccountKeyedStores;
+import app.salary.api.store.DualWriteBudgetStore;
+import app.salary.api.store.DualWriteCalculationStore;
+import app.salary.api.store.DualWriteGrantStore;
+import app.salary.api.store.FirestoreBudgetStore;
+import app.salary.api.store.FirestoreCalculationStore;
+import app.salary.api.store.FirestoreGrantStore;
+import app.salary.api.store.StoreLayout;
 import app.salary.api.store.CheckInStore;
 import app.salary.api.store.SubKeyedStores;
 import app.salary.api.store.EntitlementStore;
@@ -171,6 +179,35 @@ public class Main {
         LinkCodeStore linkCodeStore = StoreFactory.linkCodeStore(firestore);
         CheckInStore checkInStore = StoreFactory.checkInStore(firestore, objectMapper);
 
+
+        // ── B-1b migration: dual-write, off by default ───────────────────────
+        // Additive and inert until MIGRATION_DUAL_WRITE is set. Reads stay on the
+        // sub-keyed layout until MIGRATION_READ_ACCOUNT_KEYED flips separately — two
+        // flags rather than one precisely so reads can be flipped back while both
+        // layouts are still being written. See ops/B-1b-migration-rollback-plan.md.
+        AccountIdResolver accountIdResolver = new AccountIdResolver(accountDirectory);
+        boolean dualWrite = Env.flag("MIGRATION_DUAL_WRITE", false);
+        boolean readAccountKeyed = Env.flag("MIGRATION_READ_ACCOUNT_KEYED", false);
+        if (dualWrite && firestore != null) {
+            calculationStore = new DualWriteCalculationStore(calculationStore,
+                    new FirestoreCalculationStore(firestore, objectMapper, StoreLayout.ACCOUNT_KEYED),
+                    accountIdResolver, readAccountKeyed);
+            grantStore = new DualWriteGrantStore(grantStore,
+                    new FirestoreGrantStore(firestore, objectMapper, StoreLayout.ACCOUNT_KEYED),
+                    accountIdResolver, readAccountKeyed);
+            budgetStore = new DualWriteBudgetStore(budgetStore,
+                    new FirestoreBudgetStore(firestore, objectMapper, StoreLayout.ACCOUNT_KEYED),
+                    accountIdResolver, readAccountKeyed);
+            log.warn("B-1b dual-write ENABLED (readAccountKeyed={})", readAccountKeyed);
+        } else if (readAccountKeyed) {
+            // Reading the new layout without writing it serves stale data that silently
+            // stops updating. Refusing to boot is the correct response to that pairing.
+            throw new IllegalStateException(
+                    "MIGRATION_READ_ACCOUNT_KEYED requires MIGRATION_DUAL_WRITE; "
+                    + "reading the account-keyed layout while writing only the sub-keyed one "
+                    + "would serve data that never changes again.");
+        }
+
         if (firestore == null) {
             log.warn("Firestore unavailable (ENABLE_GCP={}); user directory + accounts + calculation history + grants + budget + events are in-memory only.", enableGcp);
         }
@@ -185,7 +222,8 @@ public class Main {
         AccountController accountController =
                 new AccountController(accountDirectory,
                         new SubKeyedStores(calculationStore, grantStore, budgetStore, userDirectory),
-                        new AccountKeyedStores(entitlementStore, linkCodeStore, checkInStore, eventStore));
+                        new AccountKeyedStores(entitlementStore, linkCodeStore, checkInStore, eventStore),
+                        accountIdResolver);
         GrantsController grantsController = new GrantsController(grantStore, requestValidator);
         BudgetController budgetController = new BudgetController(budgetStore, requestValidator);
         EntitlementService entitlementService = buildEntitlementService(entitlementStore, accountDirectory);
