@@ -31,7 +31,14 @@ import java.util.List;
  *   ./gradlew :modules:api:backfill                      # DRY RUN — the default
  *   ./gradlew :modules:api:backfill --args='--apply'     # write
  *   ./gradlew :modules:api:backfill --args='--apply --after SUB'   # resume
+ *   ./gradlew :modules:api:backfill --args='--apply --reverse'     # ROLLBACK direction
  * </pre>
+ *
+ * <p><b>{@code --reverse} copies account-keyed back to sub-keyed.</b> It exists for the
+ * Phase 5 rollback in the migration plan, which is the one rollback that needs more than an
+ * env-var flip. Without it that rollback would require editing this file during an incident,
+ * which is the worst possible moment to be writing code. Re-enable both flags, run this,
+ * and only then flip reads back — flipping first loses every write made since Phase 5.
  *
  * <p>Progress goes to {@code backfill-progress.tsv} in the working directory, one line per
  * user: {@code sub, accountId, created, calculations, grants, budget}. That file is the
@@ -52,6 +59,7 @@ public final class LegacyBackfillMain {
     public static void main(String[] args) throws IOException {
         List<String> argv = List.of(args);
         boolean apply = argv.contains("--apply");
+        boolean reverse = argv.contains("--reverse");
         String after = null;
         int at = argv.indexOf("--after");
         if (at >= 0 && at + 1 < argv.size()) {
@@ -63,9 +71,10 @@ public final class LegacyBackfillMain {
                 .setProjectId(projectId).build().getService();
         ObjectMapper mapper = objectMapper();
 
-        log.info("backfill {} against project {}{}",
-                apply ? "APPLYING" : "DRY RUN", projectId,
-                after == null ? "" : " (resuming after " + after + ")");
+        log.info("backfill {} {} against project {}{}",
+                apply ? "APPLYING" : "DRY RUN",
+                reverse ? "REVERSE (account-keyed -> sub-keyed)" : "forward (sub-keyed -> account-keyed)",
+                projectId, after == null ? "" : " (resuming after " + after + ")");
 
         try (PrintWriter out = new PrintWriter(Files.newBufferedWriter(PROGRESS, StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE, StandardOpenOption.APPEND))) {
@@ -74,12 +83,14 @@ public final class LegacyBackfillMain {
                 out.flush();
             };
 
+            LegacyBackfill.Stores subKeyed = stores(firestore, mapper, StoreLayout.SUB_KEYED);
+            LegacyBackfill.Stores accountKeyed = stores(firestore, mapper, StoreLayout.ACCOUNT_KEYED);
             LegacyBackfill backfill = new LegacyBackfill(
                     new FirestoreUserDirectory(firestore),
                     new FirestoreAccountDirectory(firestore),
-                    stores(firestore, mapper, StoreLayout.SUB_KEYED),
-                    stores(firestore, mapper, StoreLayout.ACCOUNT_KEYED),
-                    !apply, progress);
+                    reverse ? accountKeyed : subKeyed,
+                    reverse ? subKeyed : accountKeyed,
+                    !apply, !reverse, progress);
 
             LegacyBackfill.Report report = backfill.run(after);
             log.info("backfill {}: users={} accountsCreated={} calculations={} grants={} budgets={} lastSub={}",
