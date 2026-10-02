@@ -262,6 +262,46 @@ class LegacyBackfillTest {
     }
 
     @Test
+    void reverseCopiesTheAccountKeyedLayoutBackToTheSubKeyedOne() {
+        // The Phase 5 rollback. Set up as if the forward run had happened and a write
+        // then landed only in the account-keyed layout.
+        String accountId = accounts.resolveOrCreate(AccountDirectory.PROVIDER_APPLE, "sub-r", "Alex");
+        users.upsertOnSignIn("sub-r", "Alex");
+        targetCalcs.saveAt(accountId, "written-after-phase-5",
+                Instant.parse("2026-10-01T10:00:00Z"), request(), new CalculateResponse());
+        targetBudgets.save(accountId, new Budget());
+
+        LegacyBackfill reverse = new LegacyBackfill(users, accounts,
+                new LegacyBackfill.Stores(targetCalcs, targetGrants, targetBudgets),
+                new LegacyBackfill.Stores(sourceCalcs, sourceGrants, sourceBudgets),
+                false, false, (a, b, c, d, e, f) -> { });
+
+        LegacyBackfill.Report report = reverse.run();
+
+        assertEquals(1, report.calculations());
+        assertTrue(sourceCalcs.get("sub-r", "written-after-phase-5").isPresent(),
+                "the write made after dual-write was switched off must come back");
+        assertTrue(sourceBudgets.get("sub-r").isPresent());
+    }
+
+    @Test
+    void reverseNeverMintsAnAccountForAUserThatHasNone() {
+        // Minting accounts during a rollback would manufacture exactly the records the
+        // rollback exists to undo.
+        users.upsertOnSignIn("sub-none", null);
+
+        LegacyBackfill reverse = new LegacyBackfill(users, accounts,
+                new LegacyBackfill.Stores(targetCalcs, targetGrants, targetBudgets),
+                new LegacyBackfill.Stores(sourceCalcs, sourceGrants, sourceBudgets),
+                false, false, (a, b, c, d, e, f) -> { });
+
+        LegacyBackfill.Report report = reverse.run();
+
+        assertEquals(0, report.accountsCreated());
+        assertTrue(accounts.findAccountIdBySub("sub-none").isEmpty());
+    }
+
+    @Test
     void anEmptyDirectoryIsANoOp() {
         LegacyBackfill.Report report = backfill(false).run();
         assertEquals(0, report.users());

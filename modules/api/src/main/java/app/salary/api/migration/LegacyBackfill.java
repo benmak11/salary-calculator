@@ -76,16 +76,33 @@ public final class LegacyBackfill {
     private final Stores source;
     private final Stores target;
     private final boolean dryRun;
+    private final boolean createMissingAccounts;
     private final Progress progress;
 
+    /** Forward: creates an account for any user that lacks one. */
     public LegacyBackfill(UserDirectory users, AccountDirectory accounts,
                           Stores source, Stores target,
                           boolean dryRun, Progress progress) {
+        this(users, accounts, source, target, dryRun, true, progress);
+    }
+
+    /**
+     * @param createMissingAccounts true for the forward run, where an account is the
+     *                              target key and has to exist. <b>False when running in
+     *                              reverse</b>: there the account is only the <em>source</em>
+     *                              key, so a user without one has nothing to copy back, and
+     *                              minting an account for them during a rollback would
+     *                              manufacture exactly the records the rollback is undoing.
+     */
+    public LegacyBackfill(UserDirectory users, AccountDirectory accounts,
+                          Stores source, Stores target,
+                          boolean dryRun, boolean createMissingAccounts, Progress progress) {
         this.users = users;
         this.accounts = accounts;
         this.source = source;
         this.target = target;
         this.dryRun = dryRun;
+        this.createMissingAccounts = createMissingAccounts;
         this.progress = progress;
     }
 
@@ -138,6 +155,10 @@ public final class LegacyBackfill {
     private UserResult migrateUser(String sub) {
         Optional<String> existing = accounts.findAccountIdBySub(sub);
         boolean create = existing.isEmpty();
+        if (create && !createMissingAccounts) {
+            // Reverse run: no account means no source data for this user. Nothing to do.
+            return new UserResult("(no account)", false, 0, 0, false);
+        }
         String accountId;
         if (create) {
             // Dry-run must not mint anything; the id is only a label for the report.
@@ -147,25 +168,32 @@ public final class LegacyBackfill {
             accountId = existing.get();
         }
 
-        int calcs = copyCalculations(sub, accountId);
-        int grants = copyGrants(sub, accountId);
-        boolean budget = copyBudget(sub, accountId);
+        // The KEYS are directional, not just the stores: the sub-keyed layout is addressed
+        // by sub and the account-keyed one by accountId, so a reverse run has to swap these
+        // as well. Swapping only the stores reads the account layout under a sub and finds
+        // nothing — silently copying zero rows, which is the worst possible rollback bug.
+        String sourceKey = createMissingAccounts ? sub : accountId;
+        String targetKey = createMissingAccounts ? accountId : sub;
+
+        int calcs = copyCalculations(sourceKey, targetKey);
+        int grants = copyGrants(sourceKey, targetKey);
+        boolean budget = copyBudget(sourceKey, targetKey);
         return new UserResult(accountId, create, calcs, grants, budget);
     }
 
-    private int copyCalculations(String sub, String accountId) {
+    private int copyCalculations(String sourceKey, String targetKey) {
         int copied = 0;
         String cursor = null;
         do {
-            CalculationListResponse page = source.calculations().list(sub, CALC_PAGE, cursor);
+            CalculationListResponse page = source.calculations().list(sourceKey, CALC_PAGE, cursor);
             for (SavedCalculationSummary summary : page.getItems()) {
-                Optional<SavedCalculationDetail> detail = source.calculations().get(sub, summary.getId());
+                Optional<SavedCalculationDetail> detail = source.calculations().get(sourceKey, summary.getId());
                 if (detail.isEmpty()) {
                     // Listed but gone by the time it was read: nothing to copy, not an error.
                     continue;
                 }
                 if (!dryRun) {
-                    target.calculations().saveAt(accountId, summary.getId(),
+                    target.calculations().saveAt(targetKey, summary.getId(),
                             Instant.parse(summary.getSavedAt()),
                             detail.get().getRequest(), detail.get().getResponse());
                 }
@@ -176,21 +204,21 @@ public final class LegacyBackfill {
         return copied;
     }
 
-    private int copyGrants(String sub, String accountId) {
-        List<RsuGrant> grants = source.grants().list(sub);
+    private int copyGrants(String sourceKey, String targetKey) {
+        List<RsuGrant> grants = source.grants().list(sourceKey);
         if (!dryRun) {
             for (RsuGrant grant : grants) {
                 // put() honours the createdAt the grant carries, so ordering survives.
-                target.grants().put(accountId, grant);
+                target.grants().put(targetKey, grant);
             }
         }
         return grants.size();
     }
 
-    private boolean copyBudget(String sub, String accountId) {
-        Optional<Budget> budget = source.budgets().get(sub);
+    private boolean copyBudget(String sourceKey, String targetKey) {
+        Optional<Budget> budget = source.budgets().get(sourceKey);
         if (budget.isPresent() && !dryRun) {
-            target.budgets().save(accountId, budget.get());
+            target.budgets().save(targetKey, budget.get());
         }
         return budget.isPresent();
     }

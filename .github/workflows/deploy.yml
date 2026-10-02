@@ -71,12 +71,15 @@ jobs:
         # B-1b migration flags (ops/B-1b-migration-rollback-plan.md). Both are listed
         # explicitly because --set-env-vars REPLACES the whole set: an omitted flag is
         # not "unchanged", it is "unset", and the defaults are off.
-        #   MIGRATION_DUAL_WRITE=true          Phase 1: every write lands in both layouts.
         #   MIGRATION_READ_ACCOUNT_KEYED=true  Phase 3 (2026-09-17): reads come from the
-        #                                      account-keyed layout. Dual-write stays ON
-        #                                      through the Phase 4 soak so the old layout is
-        #                                      kept current; rollback is flipping this back.
-        # Neither flag comes off before the soak is clean — see the plan.
+        #                                      account-keyed layout.
+        #   MIGRATION_DUAL_WRITE=false         Phase 5 (2026-10-01): the sub-keyed layout is
+        #                                      no longer written. The 13-day soak was clean.
+        #
+        # ROLLING BACK IS NO LONGER AN ENV FLIP. From here, going back means: set BOTH flags
+        # to true, redeploy, run `./gradlew :modules:api:backfill --args='--apply --reverse'`
+        # to carry writes made since today back to the sub-keyed layout, and ONLY THEN flip
+        # reads. Flipping reads first loses every write since this deploy.
         run: |
           RP_URL=$(gcloud run services describe rule-pack-service --region=${{ vars.GCP_REGION }} --format='value(status.url)')
           gcloud run deploy salary-calculator-api \
@@ -85,7 +88,7 @@ jobs:
             --service-account=${{ vars.API_SA }} \
             --allow-unauthenticated \
             --port=8080 --memory=512Mi --cpu=1 \
-            --set-env-vars=RULE_PACK_SERVICE_URL=$RP_URL,RULE_PACK_AUDIENCE=$RP_URL,SERVER_PORT=8080,ENABLE_GCP=true,GCP_PROJECT_ID=${{ vars.GCP_PROJECT_ID }},APPLE_AUDIENCE=com.makusha.incomatic,GOOGLE_AUDIENCE=350666135517-uesmh21ki5dpb6skdm0ag5m7i3jp764h.apps.googleusercontent.com,VERTEX_AI_LOCATION=global,VERTEX_AI_MODEL=gemini-3.1-flash-lite,MIGRATION_DUAL_WRITE=true,MIGRATION_READ_ACCOUNT_KEYED=true \
+            --set-env-vars=RULE_PACK_SERVICE_URL=$RP_URL,RULE_PACK_AUDIENCE=$RP_URL,SERVER_PORT=8080,ENABLE_GCP=true,GCP_PROJECT_ID=${{ vars.GCP_PROJECT_ID }},APPLE_AUDIENCE=com.makusha.incomatic,GOOGLE_AUDIENCE=350666135517-uesmh21ki5dpb6skdm0ag5m7i3jp764h.apps.googleusercontent.com,VERTEX_AI_LOCATION=global,VERTEX_AI_MODEL=gemini-3.1-flash-lite,MIGRATION_DUAL_WRITE=false,MIGRATION_READ_ACCOUNT_KEYED=true \
             --update-secrets=SESSION_JWT_SECRET=salary-calculator-api-session-jwt-secret:latest,FINNHUB_API_KEY=salary-calculator-api-finnhub-key:latest
 
       - name: Smoke test
