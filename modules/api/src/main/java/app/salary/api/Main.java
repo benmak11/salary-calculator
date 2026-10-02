@@ -30,6 +30,7 @@ import app.salary.api.store.AccountDirectory;
 import app.salary.api.store.BudgetStore;
 import app.salary.api.store.CalculationStore;
 import app.salary.api.store.AccountIdResolver;
+import app.salary.api.migration.MigrationMode;
 import app.salary.api.store.AccountKeyedStores;
 import app.salary.api.store.DualWriteBudgetStore;
 import app.salary.api.store.DualWriteCalculationStore;
@@ -180,15 +181,28 @@ public class Main {
         CheckInStore checkInStore = StoreFactory.checkInStore(firestore, objectMapper);
 
 
-        // ── B-1b migration: dual-write, off by default ───────────────────────
-        // Additive and inert until MIGRATION_DUAL_WRITE is set. Reads stay on the
-        // sub-keyed layout until MIGRATION_READ_ACCOUNT_KEYED flips separately — two
-        // flags rather than one precisely so reads can be flipped back while both
-        // layouts are still being written. See ops/B-1b-migration-rollback-plan.md.
+        // ── B-1b migration ───────────────────────────────────────────────────
+        // Three states, in the order the migration plan walks them. The flags are
+        // separate so reads can be flipped back while BOTH layouts are still written —
+        // that is what makes rollback free up to phase 5.
+        //
+        //   dualWrite=false, read=false   before phase 1, and after phase 6: sub-keyed only
+        //   dualWrite=true                phases 1-4: both written; `read` picks the source
+        //   dualWrite=false, read=true    phase 5 onward: account-keyed only, no decorator
+        //
+        // The last state is NOT "no migration wiring". Leaving the stores as built above
+        // would quietly serve the sub-keyed layout, which stopped being written the moment
+        // dual-write came off — so every user's recent data would appear to vanish. It has
+        // to swap them for the account-keyed stores explicitly.
+        //
+        // It assumes the backfill has run. Nothing here can verify that, and a boot-time
+        // Firestore probe would be a fragile way to enforce an ordering the plan already
+        // states; setting read=true before phase 2 shows users an empty history.
         AccountIdResolver accountIdResolver = new AccountIdResolver(accountDirectory);
         boolean dualWrite = Env.flag("MIGRATION_DUAL_WRITE", false);
         boolean readAccountKeyed = Env.flag("MIGRATION_READ_ACCOUNT_KEYED", false);
-        if (dualWrite && firestore != null) {
+        switch (MigrationMode.from(dualWrite, readAccountKeyed, firestore != null)) {
+        case DUAL_WRITE -> {
             calculationStore = new DualWriteCalculationStore(calculationStore,
                     new FirestoreCalculationStore(firestore, objectMapper, StoreLayout.ACCOUNT_KEYED),
                     accountIdResolver, readAccountKeyed);
@@ -199,13 +213,19 @@ public class Main {
                     new FirestoreBudgetStore(firestore, objectMapper, StoreLayout.ACCOUNT_KEYED),
                     accountIdResolver, readAccountKeyed);
             log.warn("B-1b dual-write ENABLED (readAccountKeyed={})", readAccountKeyed);
-        } else if (readAccountKeyed) {
-            // Reading the new layout without writing it serves stale data that silently
-            // stops updating. Refusing to boot is the correct response to that pairing.
-            throw new IllegalStateException(
-                    "MIGRATION_READ_ACCOUNT_KEYED requires MIGRATION_DUAL_WRITE; "
-                    + "reading the account-keyed layout while writing only the sub-keyed one "
-                    + "would serve data that never changes again.");
+        }
+        case ACCOUNT_KEYED_ONLY -> {
+            calculationStore = new FirestoreCalculationStore(firestore, objectMapper, StoreLayout.ACCOUNT_KEYED);
+            grantStore = new FirestoreGrantStore(firestore, objectMapper, StoreLayout.ACCOUNT_KEYED);
+            budgetStore = new FirestoreBudgetStore(firestore, objectMapper, StoreLayout.ACCOUNT_KEYED);
+            log.warn("B-1b migration COMPLETE: account-keyed only, the sub-keyed layout is no "
+                    + "longer read or written");
+        }
+        default -> {
+            // SUB_KEYED_ONLY. Deliberately empty: the stores were built sub-keyed above, so
+            // this state is reached by changing nothing. Spelled as a default rather than a
+            // case label because Checkstyle requires one even where the enum is exhaustive.
+        }
         }
 
         if (firestore == null) {
